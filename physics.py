@@ -1,8 +1,10 @@
 from __future__ import annotations
 import torch
+import torch.nn.functional as F
+from torch import Tensor
 from math import cos, pi, sin
 
-from collide import collideCircleCircle
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Entity:
     def __init__(self, simulation: Simulation):
@@ -43,7 +45,7 @@ class Blade(Circle):
         self.drag = 0.3
 
 class Simulation:
-    def __init__(self, count: int, device: torch.device, timeStep=0.04, dtype = torch.float32):
+    def __init__(self, count: int, timeStep=0.04, device = device, dtype = torch.float32):
         self.count = count
         self.device = device
         self.timeStep = timeStep
@@ -86,5 +88,21 @@ class Simulation:
             circle.velocity = circle.velocity + dt / circle.mass * circle.force
             circle.velocity = circle.velocity + 1 / circle.mass * circle.impulse
             circle.position = circle.position + dt * circle.velocity + circle.shift
+
+def collideCircleCircle(circle1: Circle, circle2: Circle):
+    if circle1.index >= circle2.index: return
+    vector = circle2.position - circle1.position
+    distance = torch.linalg.norm(vector, dim=1)
+    overlap = (circle1.radius + circle2.radius - distance).unsqueeze(1)
+    normal = F.normalize(vector, dim=1)
+    relativeVelocity = circle1.velocity - circle2.velocity
+    impactSpeed = torch.linalg.vecdot(relativeVelocity, normal).unsqueeze(1)
+    massFactor = 1 / circle1.mass + 1 / circle2.mass
+    impulse = torch.where(overlap > 0, impactSpeed / massFactor * normal, 0)
+    shift = torch.where(overlap > 0, 0.5 * overlap * normal, 0)
+    circle1.impulse = circle1.impulse - impulse
+    circle2.impulse = circle2.impulse + impulse
+    circle1.shift = circle1.shift - shift
+    circle2.shift = circle2.shift + shift
 
         
