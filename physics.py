@@ -5,6 +5,7 @@ from torch import Tensor
 from math import cos, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.set_default_device(device)
 
 class Entity:
     def __init__(self, simulation: Simulation):
@@ -13,17 +14,17 @@ class Entity:
         simulation.entities.append(self)
 
 class Circle(Entity):
-    def __init__(self, simulation: Simulation, radius: float):
+    def __init__(self, simulation: Simulation, radius: int):
         super().__init__(simulation)
         self.simulation.circles.append(self)
         self.radius = radius
         self.mass = 0.01 * pi * radius ** 2
         self.drag = 0
-        self.position = torch.zeros(simulation.count,2,dtype=simulation.dtype).to(simulation.device)
-        self.velocity = torch.zeros(simulation.count,2,dtype=simulation.dtype).to(simulation.device)
-        self.force = torch.zeros(simulation.count,2,dtype=simulation.dtype).to(simulation.device)
-        self.impulse = torch.zeros(simulation.count,2,dtype=simulation.dtype).to(simulation.device)
-        self.shift = torch.zeros(simulation.count,2,dtype=simulation.dtype).to(simulation.device)
+        self.position = torch.zeros(simulation.count,2,dtype=simulation.dtype)
+        self.velocity = torch.zeros(simulation.count,2,dtype=simulation.dtype)
+        self.force = torch.zeros(simulation.count,2,dtype=simulation.dtype)
+        self.impulse = torch.zeros(simulation.count,2,dtype=simulation.dtype)
+        self.shift = torch.zeros(simulation.count,2,dtype=simulation.dtype)
 
 class Agent(Circle):
     def __init__(self, simulation: Simulation, align: int):
@@ -33,12 +34,12 @@ class Agent(Circle):
         self.mass = 1
         self.drag = 0.7
         self.move_power = 20
-        self.dead = torch.zeros(simulation.count, dtype=torch.int).to(simulation.device)
-        self.action = torch.zeros(simulation.count, dtype=torch.int).to(simulation.device)
+        self.dead = torch.zeros(simulation.count, dtype=torch.int)
+        self.action = torch.zeros(simulation.count, dtype=torch.int)
 
 class Blade(Circle):
     def __init__(self, simulation: Simulation, agent: Agent):
-        super().__init__(simulation, 5)
+        super().__init__(simulation, 10)
         self.simulation.blades.append(self)
         self.agent = agent
         self.move_power = 2
@@ -105,4 +106,8 @@ def collideCircleCircle(circle1: Circle, circle2: Circle):
     circle1.shift = circle1.shift - shift
     circle2.shift = circle2.shift + shift
 
-        
+# def collideCirclePoint
+
+# def collideCircleSegment
+
+# def collideCircleBoundary
