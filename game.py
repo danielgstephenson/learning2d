@@ -1,4 +1,4 @@
-from math import sqrt
+from math import pi, sqrt
 import torch
 from torch import Tensor
 import arcade
@@ -41,7 +41,8 @@ class Game(arcade.Window):
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.5
         self.index = 0
-        self.set_update_rate(simulation.timeStep)
+        self.timeScale = 2
+        self.set_update_rate(simulation.timeStep / self.timeScale)
         self.simulation = simulation
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
@@ -82,6 +83,7 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[i,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,5)
         self.sprites.draw()
+        arcade.draw_arc_filled(0,0,2*SCALE,2*SCALE,csscolor.RED,0,360) # DRAW TEST POINT
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
@@ -106,9 +108,6 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
         
-        
-    
-
 simulation = Simulation(2)
 agent0 = Agent(simulation, 0)
 agent1 = Agent(simulation, 1)

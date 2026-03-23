@@ -83,6 +83,12 @@ class Simulation:
         for agent1 in self.agents:
             for agent2 in self.agents:
                 collideCircleCircle(agent1, agent2)
+        
+        # TEST POINT COLLISION
+        testPoint = torch.tensor([0.0,0.0])
+        for agent in self.agents:
+            collideCirclePoint(agent,testPoint)
+
         dt = self.timeStep
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity 
@@ -93,7 +99,7 @@ class Simulation:
 def collideCircleCircle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return
     vector = circle2.position - circle1.position
-    distance = torch.linalg.norm(vector, dim=1)
+    distance = torch.sqrt(torch.sum(vector ** 2, dim=1))
     overlap = (circle1.radius + circle2.radius - distance).unsqueeze(1)
     normal = F.normalize(vector, dim=1)
     relativeVelocity = circle1.velocity - circle2.velocity
@@ -106,8 +112,23 @@ def collideCircleCircle(circle1: Circle, circle2: Circle):
     circle1.shift = circle1.shift - shift
     circle2.shift = circle2.shift + shift
 
-# def collideCirclePoint
+def collideCirclePoint(circle: Circle, point: Tensor):
+    vector = torch.sub(circle.position, point)
+    distance = torch.sqrt(torch.sum(vector ** 2, dim=1)).unsqueeze(1)
+    overlap = (circle.radius - distance)
+    normal = F.normalize(vector)
+    impactSpeed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
+    circle.impulse += torch.where(overlap > 0, 1.2 * impactSpeed * circle.mass * normal, 0)
+    circle.shift += torch.where(overlap > 0, overlap * normal, 0)
 
 # def collideCircleSegment
 
-# def collideCircleBoundary
+# def collideCirclePolygon
+
+# test
+# simulation = Simulation(3)
+# circle = Circle(simulation, 5)
+# circle.position = torch.rand_like(circle.position) - 0.5
+# circle.velocity = torch.rand_like(circle.position) - 0.5
+# point = torch.tensor([4,3])
+# collideCirclePoint(circle, point)
