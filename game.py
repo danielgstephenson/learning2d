@@ -3,9 +3,10 @@ import torch
 from torch import Tensor
 import arcade
 from arcade import SpriteCircle, csscolor
+from arcade.types import Point2List
 from collections import defaultdict
 import physics
-from physics import Agent, Blade, Simulation
+from physics import Agent, Blade, Boundary, Simulation, action_tensor
 
 SCALE = 10
 
@@ -36,18 +37,19 @@ class BladeCircle(arcade.SpriteCircle):
 
 class Game(arcade.Window):
     def __init__(self, simulation: Simulation):
-        super().__init__(800, 600, 'learning2d')
-        arcade.set_background_color(csscolor.BLACK)
+        super().__init__(1000, 800, 'learning2d')
+        arcade.set_background_color((20,20,20,255))
         self.camera = arcade.Camera2D()
-        self.camera.zoom = 0.5
+        self.camera.zoom = 0.3
         self.index = 0
         self.timeScale = 2
-        self.set_update_rate(simulation.timeStep / self.timeScale)
+        self.set_update_rate(1 / 30)
+        self.accumulator = 0
         self.simulation = simulation
+        self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
         self.sprites = arcade.SpriteList()
-        self.pressed = defaultdict(lambda: False)
         for blade in simulation.blades:
             blade_circle = BladeCircle(self.index, blade)
             self.bladeCircles.append(blade_circle)
@@ -56,6 +58,10 @@ class Game(arcade.Window):
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
+        self.boundaryPolygons: list[Point2List] = []
+        for boundary in simulation.boundaries:
+            polygon = tuple((SCALE*p[0], SCALE*p[1]) for p in boundary.points)
+            self.boundaryPolygons.append(polygon)
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
@@ -70,6 +76,8 @@ class Game(arcade.Window):
         self.clear()
         self.camera.use()
         i = self.index
+        for boundaryPolygon in self.boundaryPolygons:
+            arcade.draw_polygon_filled(boundaryPolygon, color=csscolor.BLACK)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[i,0].item()
             circle.center_y = SCALE * circle.blade.position[i,1].item()
@@ -83,12 +91,16 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[i,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,5)
         self.sprites.draw()
-        arcade.draw_arc_filled(0,0,2*SCALE,2*SCALE,csscolor.RED,0,360) # DRAW TEST POINT
+        # fps = arcade.get_fps()
+        # print(f'FPS: {fps:0.2f}')
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
-        self.camera.position = self.agentCircles[0].position
-        simulation.step()
+        self.accumulator += delta_time * self.timeScale
+        while self.accumulator > self.simulation.timeStep:
+            self.accumulator -= self.simulation.timeStep
+            self.simulation.step()
+            self.camera.position = self.agentCircles[0].position
     
     def get_user_action(self):
         dx = 0.0
@@ -104,11 +116,11 @@ class Game(arcade.Window):
         action = 0
         if dx != 0.0 or dy != 0.0:
             vector = torch.tensor([dx,dy])
-            dots = torch.einsum('ij,j->i',self.simulation.action_tensor, vector)
+            dots = torch.einsum('ij,j->i',action_tensor, vector)
             action = torch.argmax(dots).item()
         return action
-        
-simulation = Simulation(2)
+
+simulation = Simulation(2,0.1)
 agent0 = Agent(simulation, 0)
 agent1 = Agent(simulation, 1)
 agent2 = Agent(simulation, 1)
@@ -116,5 +128,12 @@ blade0 = Blade(simulation, agent0)
 agent0.velocity = 20*(2*torch.rand((simulation.count,2)) - 1)
 agent1.position = 4*torch.rand((simulation.count,2)) - 2
 agent2.position = 4*torch.rand((simulation.count,2)) - 2
+boundary = Boundary(simulation,[
+    [-100,-100],
+    [+100,-100],
+    [+100,+100],
+    [-100,+100]
+])
 game = Game(simulation)
+arcade.enable_timings()
 game.run()

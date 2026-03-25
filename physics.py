@@ -1,4 +1,5 @@
 from __future__ import annotations
+from numpy import number, where
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -45,6 +46,28 @@ class Blade(Circle):
         self.move_power = 2
         self.drag = 0.3
 
+class Boundary(Entity):
+    def __init__(self, simulation: Simulation, points: list[list[int | float]]):
+        super().__init__(simulation)
+        simulation.boundaries.append(self)
+        self.points = points
+        self.walls: list[Tensor] = []
+        self.corners: list[Tensor] = []
+        n = len(points)
+        for i in range(n):
+            j = i - 1 if i > 0 else n - 1
+            self.corners.append(torch.tensor(points[i],dtype=simulation.dtype))
+            self.walls.append(torch.tensor([points[i],points[j]],dtype=simulation.dtype))
+
+
+action_vector_list = [[0.0,0.0]]
+for i in range(8):
+    angle = 2 * pi * i / 8
+    dir = [cos(angle), sin(angle)]
+    action_vector_list.append(dir)
+action_tensor = torch.tensor(action_vector_list).to(device)
+actions = torch.tensor([i for i in range(9)]).to(device)
+
 class Simulation:
     def __init__(self, count: int, timeStep=0.04, device = device, dtype = torch.float32):
         self.count = count
@@ -55,13 +78,7 @@ class Simulation:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
-        action_vector_list = [[0.0,0.0]]
-        for i in range(8):
-            angle = 2 * pi * i / 8
-            dir = [cos(angle), sin(angle)]
-            action_vector_list.append(dir)
-        self.action_tensor = torch.tensor(action_vector_list).to(device)
-        self.actions = torch.tensor([i for i in range(9)]).to(device)
+        self.boundaries: list[Boundary] = []
 
     def step(self):
         for agent in self.agents:
@@ -73,7 +90,7 @@ class Simulation:
             blade.impulse[:,:] = 0
             blade.shift[:,:] = 0
         for agent in self.agents:
-            agent.force = agent.move_power * self.action_tensor[agent.action]
+            agent.force = agent.move_power * action_tensor[agent.action]
         for blade in self.blades:
             vector = blade.agent.position - blade.position
             blade.force = blade.move_power * vector
@@ -83,12 +100,12 @@ class Simulation:
         for agent1 in self.agents:
             for agent2 in self.agents:
                 collideCircleCircle(agent1, agent2)
-        
-        # TEST POINT COLLISION
-        testPoint = torch.tensor([0.0,0.0])
-        for agent in self.agents:
-            collideCirclePoint(agent,testPoint)
-
+        for circle in self.circles:
+            for boundary in self.boundaries:
+                for corner in boundary.corners:
+                    collideCirclePoint(circle, corner)
+                for wall in boundary.walls:
+                    collideCircleSegment(circle, wall)
         dt = self.timeStep
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity 
@@ -121,14 +138,40 @@ def collideCirclePoint(circle: Circle, point: Tensor):
     circle.impulse += torch.where(overlap > 0, 1.2 * impactSpeed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
 
-# def collideCircleSegment
 
-# def collideCirclePolygon
+def collideCircleSegment(circle: Circle, segment: Tensor):
+    a = segment[0,:]
+    b = segment[1,:]
+    c = circle.position
+    ab = b-a
+    ac = c-a
+    bc = c-b
+    sideDot0 = torch.einsum('ij,j->i',ac,+ab).unsqueeze(1)
+    sideDot1 = torch.einsum('ij,j->i',bc,-ab).unsqueeze(1)
+    segmentDir = F.normalize(ab,dim=0)
+    normal0 = torch.tensor([[-segmentDir[1], +segmentDir[0]]])
+    normal1 = torch.tensor([[+segmentDir[1], -segmentDir[0]]])
+    normalDot0 = torch.einsum('ij,ij->i',ac,normal0).unsqueeze(1)
+    normal = torch.where(normalDot0 > 0, normal0, normal1)
+    normalDot = torch.abs(normalDot0)
+    hit = (sideDot0 > 0) & (sideDot1 > 0) & (circle.radius > normalDot)
+    overlap = torch.where(hit, circle.radius - normalDot, 0)
+    impactSpeed = torch.einsum('ij,ij->i',circle.velocity,-normal).unsqueeze(1)
+    impulse = 1.2 * impactSpeed * circle.mass * normal
+    circle.impulse += torch.where(overlap > 0, impulse, 0)
+    shift = overlap * normal
+    circle.shift += shift
+
 
 # test
 # simulation = Simulation(3)
 # circle = Circle(simulation, 5)
-# circle.position = torch.rand_like(circle.position) - 0.5
-# circle.velocity = torch.rand_like(circle.position) - 0.5
-# point = torch.tensor([4,3])
-# collideCirclePoint(circle, point)
+# # circle.position = 1*(torch.rand_like(circle.position) - 0.5)
+# # circle.velocity = torch.rand_like(circle.position) - 0.5
+# segment = torch.tensor([[4,6],[-4,6]],dtype=simulation.dtype)
+# print(circle.position)
+# print(circle.radius)
+# print(segment)
+# collideCircleSegment(circle, segment)
+
+
