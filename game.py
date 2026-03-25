@@ -6,7 +6,7 @@ from arcade import SpriteCircle, csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 import physics
-from physics import Agent, Blade, Boundary, Simulation, action_tensor, rayCastSegments
+from physics import Agent, Blade, Boundary, Simulation, action_tensor, action_vector_list, rayCastSegments
 
 SCALE = 10
 
@@ -62,6 +62,7 @@ class Game(arcade.Window):
         polygon = tuple((SCALE*p[0], SCALE*p[1]) for p in self.simulation.boundary.points)
         self.boundaryPolygons.append(polygon)
 
+
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
 
@@ -72,6 +73,8 @@ class Game(arcade.Window):
        self.camera.zoom *= 1 + 0.1*scroll_y
 
     def on_draw(self):
+        fps = arcade.get_fps()
+        print(f"FPS: {fps:.2f}")
         self.clear()
         self.camera.use()
         i = self.index
@@ -95,14 +98,18 @@ class Game(arcade.Window):
         length = 100
         x0 = circle0.center_x
         y0 = circle0.center_y
-        x1 = x0
-        y1 = y0 + SCALE * length
-        rayStarts = circle0.agent.position
-        rayVector = torch.tensor([0,1])
-        segments = self.simulation.boundary.walls
-        rayFactors = rayCastSegments(rayStarts, rayVector, segments)
-        color = csscolor.WHITE if rayFactors[self.index] > length else csscolor.RED
-        arcade.draw_line(x0, y0, x1, y1, color, 10)
+        for i in range(9):
+            a = action_vector_list[i]
+            x1 = x0 + SCALE * length * a[0]
+            y1 = y0 + SCALE * length * a[1]
+            rayStarts = circle0.agent.position
+            rayVector = torch.tensor(a)
+            segments = self.simulation.boundary.walls
+            rayFactors = rayCastSegments(rayStarts, rayVector, segments)
+            white = (255, 255, 255, 50)
+            red = (255, 0, 0, 100)
+            color = white if rayFactors[self.index] > length else red
+            arcade.draw_line(x0, y0, x1, y1, color, 20)
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
@@ -127,7 +134,7 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
 
-simulation = Simulation(2,0.1)
+simulation = Simulation(20,0.1)
 agent0 = Agent(simulation, 0)
 agent1 = Agent(simulation, 1)
 blade0 = Blade(simulation, agent0)
