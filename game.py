@@ -6,7 +6,7 @@ from arcade import SpriteCircle, csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 import physics
-from physics import Agent, Blade, Boundary, Simulation, action_tensor
+from physics import Agent, Blade, Boundary, Simulation, action_tensor, rayCastSegments
 
 SCALE = 10
 
@@ -27,7 +27,7 @@ class BladeCircle(arcade.SpriteCircle):
     def __init__(self, index: int, blade: Blade):
         radius = SCALE * blade.radius
         color = csscolor.AQUA
-        if blade.agent.align == 1: color = csscolor.LIGHT_GREEN
+        if blade.agent.align == 1: color = (100,255,50,255)
         if blade.agent.align == 2: color = csscolor.MAGENTA
         x = blade.position[index,0].item()
         y = blade.position[index,0].item()
@@ -37,7 +37,7 @@ class BladeCircle(arcade.SpriteCircle):
 
 class Game(arcade.Window):
     def __init__(self, simulation: Simulation):
-        super().__init__(1000, 800, 'learning2d')
+        super().__init__(800, 600, 'learning2d')
         arcade.set_background_color((20,20,20,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.3
@@ -59,9 +59,8 @@ class Game(arcade.Window):
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
         self.boundaryPolygons: list[Point2List] = []
-        for boundary in simulation.boundaries:
-            polygon = tuple((SCALE*p[0], SCALE*p[1]) for p in boundary.points)
-            self.boundaryPolygons.append(polygon)
+        polygon = tuple((SCALE*p[0], SCALE*p[1]) for p in self.simulation.boundary.points)
+        self.boundaryPolygons.append(polygon)
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
@@ -89,18 +88,26 @@ class Game(arcade.Window):
             y0 = SCALE * circle.blade.position[i,1].item()
             x1 = SCALE * circle.blade.agent.position[i,0].item()
             y1 = SCALE * circle.blade.agent.position[i,1].item()
-            arcade.draw_line(x0,y0,x1,y1,circle._color,5)
+            arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
-        # fps = arcade.get_fps()
-        # print(f'FPS: {fps:0.2f}')
+        # test segment cast
+        circle0 = self.agentCircles[0]
+        length = 100
+        x0 = circle0.center_x
+        y0 = circle0.center_y
+        x1 = x0
+        y1 = y0 + SCALE * length
+        rayStarts = circle0.agent.position
+        rayVector = torch.tensor([0,1])
+        segments = self.simulation.boundary.walls
+        rayFactors = rayCastSegments(rayStarts, rayVector, segments)
+        color = csscolor.WHITE if rayFactors[self.index] > length else csscolor.RED
+        arcade.draw_line(x0, y0, x1, y1, color, 10)
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
-        self.accumulator += delta_time * self.timeScale
-        while self.accumulator > self.simulation.timeStep:
-            self.accumulator -= self.simulation.timeStep
-            self.simulation.step()
-            self.camera.position = self.agentCircles[0].position
+        self.simulation.step()
+        self.camera.position = self.agentCircles[0].position
     
     def get_user_action(self):
         dx = 0.0
@@ -123,16 +130,16 @@ class Game(arcade.Window):
 simulation = Simulation(2,0.1)
 agent0 = Agent(simulation, 0)
 agent1 = Agent(simulation, 1)
-agent2 = Agent(simulation, 1)
 blade0 = Blade(simulation, agent0)
-agent0.velocity = 20*(2*torch.rand((simulation.count,2)) - 1)
-agent1.position = 4*torch.rand((simulation.count,2)) - 2
-agent2.position = 4*torch.rand((simulation.count,2)) - 2
+blade1 = Blade(simulation, agent1)
+agent0.position = 50*(2*torch.rand((simulation.count,2)) - 1)
+agent1.position = 50*(2*torch.rand((simulation.count,2)) - 1)
+size = 200
 boundary = Boundary(simulation,[
-    [-100,-100],
-    [+100,-100],
-    [+100,+100],
-    [-100,+100]
+    [-size,-size],
+    [+size,-size],
+    [+size,+size],
+    [-size,+size]
 ])
 game = Game(simulation)
 arcade.enable_timings()
