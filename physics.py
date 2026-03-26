@@ -35,7 +35,6 @@ class Agent(Circle):
         self.mass = 1
         self.drag = 0.7
         self.move_power = 20
-        self.dead = torch.zeros(simulation.count, dtype=torch.int)
         self.action = torch.zeros(simulation.count, dtype=torch.int)
 
 class Blade(Circle):
@@ -60,16 +59,16 @@ class Boundary():
             self.corners.append(torch.tensor(points[i],dtype=simulation.dtype))
             self.walls.append(torch.tensor( [points[i],points[j]],dtype=simulation.dtype))
 
-action_vector_list = [[0.0,0.0]]
+actionVectorList = [[0.0,0.0]]
 for i in range(8):
     angle = 2 * pi * i / 8
     dir = [cos(angle), sin(angle)]
-    action_vector_list.append(dir)
-action_tensor = torch.tensor(action_vector_list).to(device)
+    actionVectorList.append(dir)
+actionVectors = torch.tensor(actionVectorList).to(device)
 actions = torch.tensor([i for i in range(9)]).to(device)
 
 class Simulation:
-    def __init__(self, count: int, timeStep=0.04, device = device, dtype = torch.float32):
+    def __init__(self, count: int, timeStep=0.1, device = device, dtype = torch.float32):
         self.count = count
         self.device = device
         self.timeStep = timeStep
@@ -90,7 +89,7 @@ class Simulation:
             blade.impulse[:,:] = 0
             blade.shift[:,:] = 0
         for agent in self.agents:
-            agent.force = agent.move_power * action_tensor[agent.action]
+            agent.force = agent.move_power * actionVectors[agent.action]
         for blade in self.blades:
             vector = blade.agent.position - blade.position
             blade.force = blade.move_power * vector
@@ -111,7 +110,6 @@ class Simulation:
             circle.velocity = circle.velocity + dt / circle.mass * circle.force
             circle.velocity = circle.velocity + 1 / circle.mass * circle.impulse
             circle.position = circle.position + dt * circle.velocity + circle.shift
-
 
 def collideCircleCircle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return
@@ -179,7 +177,7 @@ def rayCastSegment(rayStarts: Tensor, rayVector: Tensor, segment: Tensor)->Tenso
     segmentHit = (0 < segmentFactor) & (segmentFactor < 1)
     return torch.where(rayHit & segmentHit, rayFactor, inf)
 
-def rayCastSegments(rayStarts: Tensor, rayVector: Tensor, segments: list[Tensor]):
+def rayCastSegments(rayStarts: Tensor, rayVector: Tensor, segments: list[Tensor])->Tensor:
     rayCount = rayStarts.shape[0]
     segmentCount = len(segments)
     rayFactorMatrix = torch.zeros(rayCount, segmentCount) + inf
@@ -188,6 +186,7 @@ def rayCastSegments(rayStarts: Tensor, rayVector: Tensor, segments: list[Tensor]
         rayFactorMatrix[:,j] = rayCastSegment(rayStarts, rayVector, segment)
     rayFactors = torch.amin(rayFactorMatrix,dim=1)
     return rayFactors
+    
 
 # test
 # simulation = Simulation(2,0.1)
@@ -210,5 +209,3 @@ def rayCastSegments(rayStarts: Tensor, rayVector: Tensor, segments: list[Tensor]
 # print(segments)
 # rayFactor = rayCastSegments(rayStarts, rayVector, segments)
 # print(rayFactor)
-
-

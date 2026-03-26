@@ -1,12 +1,15 @@
+import numpy as np
 from math import pi, sqrt
+from typing import Callable
 import torch
 from torch import Tensor
 import arcade
 from arcade import SpriteCircle, csscolor
 from arcade.types import Point2List
 from collections import defaultdict
+from generator import Generator
 import physics
-from physics import Agent, Blade, Boundary, Simulation, action_tensor, action_vector_list, rayCastSegments
+from physics import Agent, Blade, Boundary, Simulation, actionVectors, actionVectorList, rayCastSegments
 
 SCALE = 10
 
@@ -34,11 +37,11 @@ class BladeCircle(arcade.SpriteCircle):
         super().__init__(radius, color, False, x, y)
         self.blade = blade
 
-
 class Game(arcade.Window):
-    def __init__(self, simulation: Simulation):
+    def __init__(self, simulation: Simulation, update_callback = (lambda: None) ):
         super().__init__(800, 600, 'learning2d')
         arcade.set_background_color((20,20,20,255))
+        self.update_callback = update_callback
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.3
         self.index = 0
@@ -73,8 +76,8 @@ class Game(arcade.Window):
        self.camera.zoom *= 1 + 0.1*scroll_y
 
     def on_draw(self):
-        fps = arcade.get_fps()
-        print(f"FPS: {fps:.2f}")
+        # fps = arcade.get_fps()
+        # print(f"FPS: {fps:.2f}")
         self.clear()
         self.camera.use()
         i = self.index
@@ -99,7 +102,7 @@ class Game(arcade.Window):
         x0 = circle0.center_x
         y0 = circle0.center_y
         for i in range(9):
-            a = action_vector_list[i]
+            a = actionVectorList[i]
             x1 = x0 + SCALE * length * a[0]
             y1 = y0 + SCALE * length * a[1]
             rayStarts = circle0.agent.position
@@ -114,7 +117,11 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
         self.simulation.step()
+        self.update_callback()
         self.camera.position = self.agentCircles[0].position
+        velocity = self.agentCircles[0].agent.velocity[0,:]
+        speed = sqrt(velocity[0]**2 + velocity[1]**2)
+        print(f'{speed}')
     
     def get_user_action(self):
         dx = 0.0
@@ -130,24 +137,29 @@ class Game(arcade.Window):
         action = 0
         if dx != 0.0 or dy != 0.0:
             vector = torch.tensor([dx,dy])
-            dots = torch.einsum('ij,j->i',action_tensor, vector)
+            dots = torch.einsum('ij,j->i',actionVectors, vector)
             action = torch.argmax(dots).item()
         return action
 
-simulation = Simulation(20,0.1)
-agent0 = Agent(simulation, 0)
-agent1 = Agent(simulation, 1)
-blade0 = Blade(simulation, agent0)
-blade1 = Blade(simulation, agent1)
-agent0.position = 50*(2*torch.rand((simulation.count,2)) - 1)
-agent1.position = 50*(2*torch.rand((simulation.count,2)) - 1)
-size = 200
-boundary = Boundary(simulation,[
-    [-size,-size],
-    [+size,-size],
-    [+size,+size],
-    [-size,+size]
-])
+# simulation = Simulation(20,0.1)
+# agent0 = Agent(simulation, 0)
+# agent1 = Agent(simulation, 1)
+# blade0 = Blade(simulation, agent0)
+# blade1 = Blade(simulation, agent1)
+# agent0.position = 50*(2*torch.rand((simulation.count,2)) - 1)
+# agent1.position = 50*(2*torch.rand((simulation.count,2)) - 1)
+# size = 200
+# boundary = Boundary(simulation,[
+#     [-size,-size],
+#     [+size,-size],
+#     [+size,+size],
+#     [-size,+size]
+# ])
+
+generator = Generator(count=3, timeStep=0.1)
+generator.setup()
+simulation = generator.simulation
+
 game = Game(simulation)
 arcade.enable_timings()
 game.run()
