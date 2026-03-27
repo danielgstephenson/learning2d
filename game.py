@@ -43,7 +43,7 @@ class Game(arcade.Window):
         arcade.set_background_color((20,20,20,255))
         self.update_callback = update_callback
         self.camera = arcade.Camera2D()
-        self.camera.zoom = 0.3
+        self.camera.zoom = 0.1
         self.index = 0
         self.timeScale = 2
         self.set_update_rate(1 / 30)
@@ -119,9 +119,6 @@ class Game(arcade.Window):
         self.simulation.step()
         self.update_callback()
         self.camera.position = self.agentCircles[0].position
-        velocity = self.agentCircles[0].agent.velocity[0,:]
-        speed = sqrt(velocity[0]**2 + velocity[1]**2)
-        print(f'{speed}')
     
     def get_user_action(self):
         dx = 0.0
