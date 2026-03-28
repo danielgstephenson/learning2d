@@ -6,6 +6,7 @@ from torch import Tensor
 from math import cos, inf, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+floatType = torch.float32
 torch.set_default_device(device)
 
 class Entity:
@@ -21,11 +22,11 @@ class Circle(Entity):
         self.radius = radius
         self.mass = 0.01 * pi * radius ** 2
         self.drag = 0
-        self.position = torch.zeros(simulation.count,2,dtype=simulation.dtype)
-        self.velocity = torch.zeros(simulation.count,2,dtype=simulation.dtype)
-        self.force = torch.zeros(simulation.count,2,dtype=simulation.dtype)
-        self.impulse = torch.zeros(simulation.count,2,dtype=simulation.dtype)
-        self.shift = torch.zeros(simulation.count,2,dtype=simulation.dtype)
+        self.position = torch.zeros(simulation.count,2,dtype=floatType)
+        self.velocity = torch.zeros(simulation.count,2,dtype=floatType)
+        self.force = torch.zeros(simulation.count,2,dtype=floatType)
+        self.impulse = torch.zeros(simulation.count,2,dtype=floatType)
+        self.shift = torch.zeros(simulation.count,2,dtype=floatType)
 
 class Agent(Circle):
     def __init__(self, simulation: Simulation, align: int):
@@ -56,19 +57,29 @@ class Boundary():
         n = len(points)
         for i in range(n):
             j = i - 1 if i > 0 else n - 1
-            self.corners.append(torch.tensor(points[i],dtype=simulation.dtype))
-            self.walls.append(torch.tensor( [points[i],points[j]],dtype=simulation.dtype))
+            self.corners.append(torch.tensor(points[i],dtype=floatType))
+            self.walls.append(torch.tensor( [points[i],points[j]],dtype=floatType))
 
 actionVectorList = [[0.0,0.0]]
 for i in range(8):
     angle = 2 * pi * i / 8
-    dir = [cos(angle), sin(angle)]
-    actionVectorList.append(dir)
-actionVectors = torch.tensor(actionVectorList).to(device)
+    visionDir = [cos(angle), sin(angle)]
+    actionVectorList.append(visionDir)
+actionVectors = torch.tensor(actionVectorList,dtype=floatType).to(device)
 actions = torch.tensor([i for i in range(9)]).to(device)
 
+visionDirList: list[list[float]] = []
+for i in range(8):
+    angle = 2 * pi * i / 8
+    visionDir = [cos(angle), sin(angle)]
+    visionDirList.append(visionDir)
+visionDirs: list[Tensor] = [
+    torch.tensor(visionDir,dtype=floatType).to(device)
+    for visionDir in visionDirList
+]
+
 class Simulation:
-    def __init__(self, count: int, timeStep=0.1, device = device, dtype = torch.float32):
+    def __init__(self, count: int, timeStep=0.1):
         self.count = count
         self.device = device
         self.timeStep = timeStep
@@ -165,11 +176,11 @@ def cross2d(v0: Tensor, v1: Tensor):
     x1, y1 = v1[..., 0], v1[..., 1]
     return x0 * y1 - y0 * x1
 
-def rayCastSegment(rayStarts: Tensor, rayVector: Tensor, segment: Tensor)->Tensor:
+def rayCastSegment(rayStart: Tensor, rayVector: Tensor, segment: Tensor)->Tensor:
     segmentStart = segment[0,:]
     segmentEnd = segment[1,:]
     segmentVector = segmentEnd - segmentStart
-    startDifference = segmentStart - rayStarts
+    startDifference = segmentStart - rayStart
     denominator = cross2d(rayVector, segmentVector)
     rayFactor = torch.where(denominator != 0, cross2d(startDifference, segmentVector) / denominator, 0)
     rayHit = rayFactor > 0
@@ -177,16 +188,24 @@ def rayCastSegment(rayStarts: Tensor, rayVector: Tensor, segment: Tensor)->Tenso
     segmentHit = (0 < segmentFactor) & (segmentFactor < 1)
     return torch.where(rayHit & segmentHit, rayFactor, inf)
 
-def rayCastSegments(rayStarts: Tensor, rayVector: Tensor, segments: list[Tensor])->Tensor:
-    rayCount = rayStarts.shape[0]
+def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[Tensor])->Tensor:
+    rayCount = rayStart.shape[0]
     segmentCount = len(segments)
     rayFactorMatrix = torch.zeros(rayCount, segmentCount) + inf
     for j in range(segmentCount):
         segment = segments[j]
-        rayFactorMatrix[:,j] = rayCastSegment(rayStarts, rayVector, segment)
+        rayFactorMatrix[:,j] = rayCastSegment(rayStart, rayVector, segment)
     rayFactors = torch.amin(rayFactorMatrix,dim=1)
     return rayFactors
     
+def visionCast(origin: Tensor, reach: int, simulation: Simulation)->Tensor:
+    rayFactorColumns: list[Tensor] = []
+    for lookDir in visionDirs:
+        lookVector = reach*lookDir
+        rayFactors = rayCastSegments(origin, lookVector, simulation.boundary.walls)
+        rayFactorColumns.append(reach * rayFactors)
+    rayFectorMatrix = torch.stack(rayFactorColumns,1)
+    return rayFectorMatrix
 
 # test
 # simulation = Simulation(2,0.1)

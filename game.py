@@ -9,7 +9,7 @@ from arcade.types import Point2List
 from collections import defaultdict
 from generator import Generator
 import physics
-from physics import Agent, Blade, Boundary, Simulation, actionVectors, actionVectorList, rayCastSegments
+from physics import Agent, Blade, Boundary, Simulation, actionVectors, visionDirList, rayCastSegments, visionCast
 
 SCALE = 10
 
@@ -98,20 +98,17 @@ class Game(arcade.Window):
         self.sprites.draw()
         # test segment cast
         circle0 = self.agentCircles[0]
-        length = 100
+        reach = 100
         x0 = circle0.center_x
         y0 = circle0.center_y
-        for i in range(9):
-            a = actionVectorList[i]
-            x1 = x0 + SCALE * length * a[0]
-            y1 = y0 + SCALE * length * a[1]
-            rayStarts = circle0.agent.position
-            rayVector = torch.tensor(a)
-            segments = self.simulation.boundary.walls
-            rayFactors = rayCastSegments(rayStarts, rayVector, segments)
+        rayFactorMatrix = visionCast(circle0.agent.position,reach,self.simulation)
+        for i in range(8):
+            a = visionDirList[i]
+            x1 = x0 + SCALE * reach * a[0]
+            y1 = y0 + SCALE * reach * a[1]
             white = (255, 255, 255, 50)
             red = (255, 0, 0, 100)
-            color = white if rayFactors[self.index] > length else red
+            color = white if rayFactorMatrix[self.index,i] > reach else red
             arcade.draw_line(x0, y0, x1, y1, color, 20)
 
     def on_update(self, delta_time: float) -> bool | None:
