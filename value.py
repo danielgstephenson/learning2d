@@ -13,7 +13,7 @@ from save import save_checkpoint
 
 checkpoint_path = './checkpoints/value_checkpoint.pt'
 model = ValueModel()
-old_model = ValueModel().to(device).eval()
+old_model = ValueModel().eval()
 optimizer = torch.optim.AdamW(model.parameters(),lr=0.001)
 discount = 0.9
 horizon = 0
@@ -30,7 +30,7 @@ if os.path.exists(checkpoint_path):
 # discount = 0.9
 # horizon = 0
 
-lr = 0.001
+lr = 0.0001
 for param_group in optimizer.param_groups:
     param_group['lr'] = lr
 
@@ -45,6 +45,7 @@ loss_threshold = 0.02
 print('Training...')
 optimizer.zero_grad()
 for batch in range(100000000000):
+    optimizer.zero_grad()
     state, outcomes = generator.generate()
     output = model(state)
     target = torch.zeros_like(output)
@@ -56,17 +57,15 @@ for batch in range(100000000000):
         row_means = torch.mean(values,2)
         row_mins = torch.amin(values,2)
         action_values = (1-other_noise)*row_mins + other_noise*row_means
-        action_value_mean = torch.mean(values,1)
-        action_value_max = torch.amax(values,1)
+        action_value_mean = torch.mean(action_values,1)
+        action_value_max = torch.amax(action_values,1)
         target = (1-noise)*action_value_max + noise*action_value_mean
+        target = target.unsqueeze(1)
     loss = F.mse_loss(output, target, reduction='mean')
     loss_value = loss.detach().cpu().numpy()
+    if not np.isfinite(loss_value): continue
     smooth_loss = loss_smoothing*loss_value + (1-loss_smoothing)*smooth_loss
     if batch == 0: smooth_loss = 2 * loss_value
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-    optimizer.step()
-    optimizer.zero_grad()
     message = ''
     message += f'Batch: {batch+1}, '
     message += f'Discount: {discount}, '
@@ -74,5 +73,7 @@ for batch in range(100000000000):
     message += f'Loss: {loss_value:07.2f}, '
     message += f'Smooth: {smooth_loss:07.2f}, '
     print(message)
-    if not np.isfinite(loss_value): break
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    optimizer.step()
     save_checkpoint(model, old_model, optimizer, discount, horizon, checkpoint_path)
