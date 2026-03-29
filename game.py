@@ -96,20 +96,6 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[i,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
-        # test segment cast
-        # circle0 = self.agentCircles[0]
-        # reach = 100
-        # x0 = circle0.center_x
-        # y0 = circle0.center_y
-        # rayFactorMatrix = visionCast(circle0.agent.position,reach,self.simulation)
-        # for i in range(8):
-        #     a = visionDirList[i]
-        #     x1 = x0 + SCALE * reach * a[0]
-        #     y1 = y0 + SCALE * reach * a[1]
-        #     white = (255, 255, 255, 50)
-        #     red = (255, 0, 0, 100)
-        #     color = white if rayFactorMatrix[self.index,i] > reach else red
-        #     arcade.draw_line(x0, y0, x1, y1, color, 20)
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
