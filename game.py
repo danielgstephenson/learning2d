@@ -7,7 +7,7 @@ import arcade
 from arcade import SpriteCircle, csscolor
 from arcade.types import Point2List
 from collections import defaultdict
-from generator import Generator
+from generator import DataGenerator
 import physics
 from physics import Agent, Blade, Boundary, Simulation, actionVectors, visionDirList, rayCastSegments, visionCast
 
@@ -97,19 +97,19 @@ class Game(arcade.Window):
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
         # test segment cast
-        circle0 = self.agentCircles[0]
-        reach = 100
-        x0 = circle0.center_x
-        y0 = circle0.center_y
-        rayFactorMatrix = visionCast(circle0.agent.position,reach,self.simulation)
-        for i in range(8):
-            a = visionDirList[i]
-            x1 = x0 + SCALE * reach * a[0]
-            y1 = y0 + SCALE * reach * a[1]
-            white = (255, 255, 255, 50)
-            red = (255, 0, 0, 100)
-            color = white if rayFactorMatrix[self.index,i] > reach else red
-            arcade.draw_line(x0, y0, x1, y1, color, 20)
+        # circle0 = self.agentCircles[0]
+        # reach = 100
+        # x0 = circle0.center_x
+        # y0 = circle0.center_y
+        # rayFactorMatrix = visionCast(circle0.agent.position,reach,self.simulation)
+        # for i in range(8):
+        #     a = visionDirList[i]
+        #     x1 = x0 + SCALE * reach * a[0]
+        #     y1 = y0 + SCALE * reach * a[1]
+        #     white = (255, 255, 255, 50)
+        #     red = (255, 0, 0, 100)
+        #     color = white if rayFactorMatrix[self.index,i] > reach else red
+        #     arcade.draw_line(x0, y0, x1, y1, color, 20)
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[0].agent.action[self.index] = self.get_user_action()
@@ -135,22 +135,7 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
 
-# simulation = Simulation(20,0.1)
-# agent0 = Agent(simulation, 0)
-# agent1 = Agent(simulation, 1)
-# blade0 = Blade(simulation, agent0)
-# blade1 = Blade(simulation, agent1)
-# agent0.position = 50*(2*torch.rand((simulation.count,2)) - 1)
-# agent1.position = 50*(2*torch.rand((simulation.count,2)) - 1)
-# size = 200
-# boundary = Boundary(simulation,[
-#     [-size,-size],
-#     [+size,-size],
-#     [+size,+size],
-#     [-size,+size]
-# ])
-
-generator = Generator(count=3, timeStep=0.1)
+generator = DataGenerator(count=3, timeStep=0.1)
 generator.setup()
 simulation = generator.simulation
 

@@ -6,6 +6,7 @@ from torch import Tensor
 from math import cos, inf, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("device = " + str(device))
 floatType = torch.float32
 torch.set_default_device(device)
 
