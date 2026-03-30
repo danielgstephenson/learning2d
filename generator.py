@@ -11,12 +11,13 @@ class DataGenerator:
         self.count = count
         self.simulation = Simulation(81 * count, timeStep)
         self.size = 200
-        self.boundary = Boundary(self.simulation,[
+        points = torch.tensor([
             [-self.size,-self.size],
             [+self.size,-self.size],
             [+self.size,+self.size],
             [-self.size,+self.size]
         ])
+        self.simulation.boundary.setup(points)
         self.visionReach = 100
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)

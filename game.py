@@ -18,8 +18,8 @@ torch.set_default_device(physics.device)
 class AgentCircle(arcade.SpriteCircle):
     def __init__(self, index: int, agent: Agent):
         radius = SCALE * agent.radius
-        color = csscolor.BLUE
-        if agent.align == 1: color = csscolor.GREEN
+        color = csscolor.GREEN
+        if agent.align == 1: color = csscolor.BLUE
         if agent.align == 2: color = csscolor.RED
         x = agent.position[index,0].item()
         y = agent.position[index,0].item()
@@ -29,8 +29,8 @@ class AgentCircle(arcade.SpriteCircle):
 class BladeCircle(arcade.SpriteCircle):
     def __init__(self, index: int, blade: Blade):
         radius = SCALE * blade.radius
-        color = csscolor.AQUA
-        if blade.agent.align == 1: color = (100,255,50,255)
+        color = (100,255,50,255)
+        if blade.agent.align == 1: color = csscolor.AQUA
         if blade.agent.align == 2: color = csscolor.MAGENTA
         x = blade.position[index,0].item()
         y = blade.position[index,0].item()
@@ -98,10 +98,10 @@ class Game(arcade.Window):
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
-        self.agentCircles[0].agent.action[self.index] = self.get_user_action()
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         self.simulation.step()
         self.update_callback()
-        self.camera.position = self.agentCircles[0].position
+        self.camera.position = self.agentCircles[1].position
     
     def get_user_action(self):
         dx = 0.0

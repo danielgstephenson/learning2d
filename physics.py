@@ -49,17 +49,21 @@ class Blade(Circle):
         self.drag = 0.3
 
 class Boundary():
-    def __init__(self, simulation: Simulation, points: list[list[int | float]]):
+    def __init__(self, simulation: Simulation):
         self.simulation = simulation
         simulation.boundary = self
-        self.points = points
+        self.points: list[list[float]] = []
         self.walls: list[Tensor] = []
         self.corners: list[Tensor] = []
-        n = len(points)
+
+    def setup(self, points: Tensor):
+        n = points.shape[0]
+        points = points.to(floatType)
         for i in range(n):
             j = i - 1 if i > 0 else n - 1
-            self.corners.append(torch.tensor(points[i],dtype=floatType))
-            self.walls.append(torch.tensor( [points[i],points[j]],dtype=floatType))
+            self.corners.append(points[i,:])
+            self.walls.append(points[[i,j],:])
+            self.points.append(points[i,:].detach().cpu().tolist())
 
 actionVectorList = [[0.0,0.0]]
 for i in range(8):
@@ -89,7 +93,7 @@ class Simulation:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
-        self.boundary: Boundary = Boundary(self, [])
+        self.boundary: Boundary = Boundary(self)
 
     def step(self):
         for agent in self.agents:

@@ -52,8 +52,9 @@ for batch in range(100000000000):
     with torch.no_grad():
         reward = get_reward(state).reshape(batch_size,1,1)
         life = get_life(state).reshape(batch_size,1,1)
-        next_values = life * get_reward(outcomes).reshape((batch_size,9,9)) # Should use old_model if horizon > 0
+        next_values = get_reward(outcomes).reshape((batch_size,9,9)) # Should use old_model if horizon > 0
         values = (1-discount)*reward + discount*next_values
+        values = life*values + (1-life)*reward
         row_means = torch.mean(values,2)
         row_mins = torch.amin(values,2)
         action_values = (1-other_noise)*row_mins + other_noise*row_means
