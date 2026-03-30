@@ -68,7 +68,7 @@ loss_threshold = 0.02
 new_horizon = True
 print('Training...')
 for epoch in range(10000000):
-    if smooth_loss < 1: 
+    if smooth_loss < 1: # We need a more flexible condition here. We should expect loss to be higher with longer horizons.
         horizon += 1
         old_model.load_state_dict(model.state_dict())
         new_horizon = True
