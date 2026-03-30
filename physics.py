@@ -57,6 +57,9 @@ class Boundary():
         self.corners: list[Tensor] = []
 
     def setup(self, points: Tensor):
+        self.points = []
+        self.walls = []
+        self.corners = []
         n = points.shape[0]
         points = points.to(floatType)
         for i in range(n):

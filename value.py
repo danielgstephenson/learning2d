@@ -43,7 +43,6 @@ smooth_loss = 0
 loss_smoothing = 0.05
 loss_threshold = 0.02
 print('Training...')
-optimizer.zero_grad()
 for batch in range(100000000000):
     optimizer.zero_grad()
     state, outcomes = generator.generate()
@@ -63,8 +62,10 @@ for batch in range(100000000000):
         target = (1-noise)*action_value_max + noise*action_value_mean
         target = target.unsqueeze(1)
     loss = F.mse_loss(output, target, reduction='mean')
-    loss_value = loss.detach().cpu().numpy()
-    if not np.isfinite(loss_value): continue
+    loss_value = loss.item()
+    if not np.isfinite(loss_value): 
+        print('non-finite loss')
+        continue
     smooth_loss = loss_smoothing*loss_value + (1-loss_smoothing)*smooth_loss
     if batch == 0: smooth_loss = 2 * loss_value
     message = ''

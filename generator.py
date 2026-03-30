@@ -50,11 +50,11 @@ class DataGenerator:
             [+self.boundarySize,+self.boundarySize],
             [-self.boundarySize,+self.boundarySize]
         ],dtype=floatType)
-        boundaryPoints = torch.einsum('ij,kj->ki', rotation, boundaryPoints)
+        # boundaryPoints = torch.einsum('ij,kj->ki', rotation, boundaryPoints)
         self.simulation.boundary.setup(boundaryPoints)
-        self.agentPosition0 = torch.einsum('ij,kj->ki', rotation, self.agentPosition0)
-        self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
-        self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
+        # self.agentPosition0 = torch.einsum('ij,kj->ki', rotation, self.agentPosition0)
+        # self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
+        # self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
         self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation)
         self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
         self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
@@ -90,7 +90,7 @@ class DataGenerator:
 
 def get_random_directions(count: int)->Tensor:
     normals = torch.randn((count, 2))
-    unit = F.normalize(normals,p=2,dim=0)
+    unit = F.normalize(normals,p=2,dim=1)
     return unit
 
 def get_random_vectors(count: int, max_scale=1) ->Tensor:
