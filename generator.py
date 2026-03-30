@@ -1,23 +1,16 @@
-from typing import Sequence
-from sympy import sequence
+from math import cos, pi, sin
+import numpy as np
 import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from physics import Agent, Blade, Boundary, Simulation, actions, visionCast
+from physics import Agent, Blade, Boundary, Simulation, actions, visionCast,floatType
 
 class DataGenerator:
     def __init__(self, count = 3, timeStep = 0.1):
         self.count = count
         self.simulation = Simulation(81 * count, timeStep)
-        self.size = 200
-        points = torch.tensor([
-            [-self.size,-self.size],
-            [+self.size,-self.size],
-            [+self.size,+self.size],
-            [-self.size,+self.size]
-        ])
-        self.simulation.boundary.setup(points)
+        self.boundarySize = 200
         self.visionReach = 100
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
@@ -35,11 +28,10 @@ class DataGenerator:
         self.vision0: Tensor
 
     def setup(self):
-        agentBound = self.size - self.agent0.radius
+        agentBound = self.boundarySize - self.agent0.radius
         self.agentPosition0 = agentBound * (1 - 2 * torch.rand(self.count,2))
-        self.agentPosition1 = agentBound * (1 - 2 * torch.rand(self.count,2))
-        self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation)
-        bladeBound = torch.zeros(self.count, 2) + self.size - self.blade1.radius
+        self.agentPosition1 = agentBound *  (1 - 2 * torch.rand(self.count,2))
+        bladeBound = torch.zeros(self.count, 2) + self.boundarySize - self.blade1.radius
         bladeMax1 = torch.min(self.agentPosition1 + 100, +bladeBound)
         bladeMin1 = torch.max(self.agentPosition1 - 100, -bladeBound)
         bladeRange1 = bladeMax1 - bladeMin1
@@ -47,6 +39,23 @@ class DataGenerator:
         self.agentVelocity0 = get_random_vectors(self.count,30)
         self.agentVelocity1 = get_random_vectors(self.count,30)
         self.bladeVelocity1 = get_random_vectors(self.count,70)
+        angle = np.random.rand()*2*pi
+        rotation = torch.tensor([
+            [+cos(angle), -sin(angle)],
+            [+sin(angle), +cos(angle)]
+        ])
+        boundaryPoints = torch.tensor([
+            [-self.boundarySize,-self.boundarySize],
+            [+self.boundarySize,-self.boundarySize],
+            [+self.boundarySize,+self.boundarySize],
+            [-self.boundarySize,+self.boundarySize]
+        ],dtype=floatType)
+        boundaryPoints = torch.einsum('ij,kj->ki', rotation, boundaryPoints)
+        self.simulation.boundary.setup(boundaryPoints)
+        self.agentPosition0 = torch.einsum('ij,kj->ki', rotation, self.agentPosition0)
+        self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
+        self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
+        self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation)
         self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
         self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
         self.agent1.position = self.agentPosition1.repeat_interleave(81, 0)
