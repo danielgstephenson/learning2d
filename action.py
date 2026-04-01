@@ -41,7 +41,8 @@ batch_size = 1000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 
 smooth_loss = 10
-loss_smoothing = 0.05
+smooth_accuracy = 0
+smoothing = 0.05
 print('Training...')
 for batch in range(10000000):
     optimizer.zero_grad()
@@ -60,7 +61,8 @@ for batch in range(10000000):
     torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
     optimizer.step()
     save_action_value_checkpoint(action_checkpoint_path, action_model, optimizer)
-    smooth_loss = loss_smoothing*loss_item + (1-loss_smoothing)*smooth_loss
+    smooth_loss = smoothing*loss_item + (1-smoothing)*smooth_loss
+    smooth_accuracy = smoothing*accuracy + (1-smoothing)*smooth_accuracy
     if batch == 0: smooth_loss = 2 * loss_item
     message = ''
     message += f'Batch: {batch+1}, '
@@ -68,6 +70,7 @@ for batch in range(10000000):
     message += f'Loss: {loss_item:.4f}, '
     message += f'SmoothLoss: {smooth_loss:.4f}, '
     message += f'Accuracy: {accuracy:.4f}, '
+    message += f'SmoothAccuracy: {smooth_accuracy:.4f}, '
     print(message)
     # x = torch.stack((
     #     best_actions[0:10],
