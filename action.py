@@ -46,13 +46,12 @@ print('Training...')
 for batch in range(10000000):
     optimizer.zero_grad()
     state, outcomes = generator.generate()
-    action_probs = action_model(state)
+    action_logits = action_model(state)
+    chosen_actions = torch.argmax(action_logits, dim=1)
     action_values = get_action_values(value_model, state, outcomes, horizon)
     best_actions = torch.argmax(action_values, dim=1)
-    action_value_max = torch.amax(action_values,1,keepdim=True)
-    action_value_expected = torch.sum(action_probs*action_values,1,keepdim=True)
-    mistake = action_value_max - action_value_expected
-    loss = torch.mean(mistake)
+    accuracy = torch.mean((chosen_actions==best_actions).int().float())
+    loss = F.cross_entropy(action_logits,best_actions)
     loss_item = loss.item()
     if not np.isfinite(loss_item): 
         print('non-finite loss')
@@ -67,11 +66,11 @@ for batch in range(10000000):
     message += f'Batch: {batch+1}, '
     message += f'Discount: {discount}, '
     message += f'Loss: {loss_item:.4f}, '
-    message += f'Smooth: {smooth_loss:.4f}, '
-    # print(message)
-    x = torch.stack((
-        torch.argmax(action_values,dim=1)[0:10],
-        torch.argmax(action_probs,dim=1)[0:10]
-    ))
-    print(x)
-    # print(torch.argmax(action_probs,dim=1)[0:10])
+    message += f'SmoothLoss: {smooth_loss:.4f}, '
+    message += f'Accuracy: {accuracy:.4f}, '
+    print(message)
+    # x = torch.stack((
+    #     best_actions[0:10],
+    #     torch.argmax(action_logits,dim=1)[0:10]
+    # ))
+    # print(x)
