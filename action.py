@@ -8,14 +8,14 @@ from generator import DataGenerator
 import os
 
 from reward import get_reward
-from save import save_action_value_checkpoint
+from save import save_action_checkpoint
 from models import ValueModel, get_action_values, ActionModel
     
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel().eval()
 action_model = ActionModel()
-optimizer = torch.optim.AdamW(action_model.parameters(),lr=0.001)
+action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=0.001)
 horizon = 0
 
 if os.path.exists(value_checkpoint_path):
@@ -33,7 +33,7 @@ if os.path.exists(action_checkpoint_path):
 # horizon = 0
 
 lr = 0.001
-for param_group in optimizer.param_groups:
+for param_group in action_optimizer.param_groups:
     param_group['lr'] = lr
 
 batch_size = 1000 # Reduce to 1000 if GPU memory is limited
@@ -44,30 +44,30 @@ smooth_accuracy = 0
 smoothing = 0.05
 print('Training...')
 for batch in range(10000000):
-    optimizer.zero_grad()
+    action_optimizer.zero_grad()
     state, outcomes = generator.generate()
     action_logits = action_model(state)
     chosen_actions = torch.argmax(action_logits, dim=1)
     action_values = get_action_values(value_model, state, outcomes, horizon)
     best_actions = torch.argmax(action_values, dim=1)
-    accuracy = torch.mean((chosen_actions==best_actions).int().float())
-    loss = F.cross_entropy(action_logits,best_actions)
-    loss_item = loss.item()
+    action_accuracy = torch.mean((chosen_actions==best_actions).int().float())
+    action_loss = F.cross_entropy(action_logits,best_actions)
+    loss_item = action_loss.item()
     if not np.isfinite(loss_item): 
         print('non-finite loss')
         continue
-    loss.backward()
+    action_loss.backward()
     torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
-    optimizer.step()
-    save_action_value_checkpoint(action_checkpoint_path, action_model, optimizer)
+    action_optimizer.step()
+    save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
     smooth_loss = smoothing*loss_item + (1-smoothing)*smooth_loss
-    smooth_accuracy = smoothing*accuracy + (1-smoothing)*smooth_accuracy
+    smooth_accuracy = smoothing*action_accuracy + (1-smoothing)*smooth_accuracy
     if batch == 0: smooth_loss = 2 * loss_item
     message = ''
     message += f'Batch: {batch+1}, '
     message += f'Loss: {loss_item:.4f}, '
     message += f'SmoothLoss: {smooth_loss:.4f}, '
-    message += f'Accuracy: {accuracy:.4f}, '
+    message += f'Accuracy: {action_accuracy:.4f}, '
     message += f'SmoothAccuracy: {smooth_accuracy:.4f}, '
     print(message)
     # x = torch.stack((

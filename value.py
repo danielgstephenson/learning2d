@@ -10,7 +10,7 @@ from generator import DataGenerator
 from models import ValueModel, get_action_values
 from reward import get_reward
 import reward
-from save import save_state_value_checkpoint
+from save import save_value_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 value_model = ValueModel()
@@ -60,7 +60,7 @@ for epoch in range(10000000):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
         optimizer.step()
-        save_state_value_checkpoint(value_checkpoint_path, value_model, old_value_model, optimizer, horizon)
+        save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, optimizer, horizon)
         smooth_loss = loss_smoothing*loss_item + (1-loss_smoothing)*smooth_loss
         if batch == 0: smooth_loss = 2 * loss_item
         message = ''

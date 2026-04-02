@@ -3,7 +3,7 @@ from torch import nn
 from typing import Any
 
 
-def save_state_value_checkpoint(
+def save_value_checkpoint(
         path: str,
         model: nn.Module,
         old_model: nn.Module,
@@ -24,7 +24,7 @@ def save_state_value_checkpoint(
         print('Checkpoint saved.')
         raise
 
-def save_action_value_checkpoint(
+def save_action_checkpoint(
         path: str,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
