@@ -1,18 +1,14 @@
 import os
-
-import numpy as np
-from math import pi, sqrt
-from typing import Callable
 import torch
-from torch import Tensor
+import torch.nn.functional as F
 import arcade
-from arcade import SpriteCircle, csscolor
+from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 from generator import DataGenerator
 from models import ActionModel
 import physics
-from physics import Agent, Blade, Boundary, Simulation, actionVectors, visionDirList, rayCastSegments, visionCast
+from physics import Agent, Blade, Simulation, actionVectors, visionCast
 
 SCALE = 10
 
@@ -137,6 +133,22 @@ generator = DataGenerator(count=3, timeStep=0.1)
 generator.setup()
 simulation = generator.simulation
 
-game = Game(simulation)
+def action_callback():
+    vision0 = visionCast(generator.agent0.position, generator.visionReach, generator.simulation.boundary.walls)
+    stateTensors = [
+        generator.agent1.position - generator.agent0.position,
+        generator.agent1.velocity,
+        generator.blade1.position - generator.agent1.position,
+        generator.blade1.velocity,
+        generator.agent0.velocity,
+        vision0,
+    ]
+    state = torch.cat(stateTensors,dim=1)
+    action_logits = action_model(state)
+    action_probs = F.softmax(action_logits)
+    action = torch.multinomial(action_probs,1).squeeze(1)
+    generator.agent0.action = action
+
+game = Game(simulation,action_callback)
 arcade.enable_timings()
 game.run()

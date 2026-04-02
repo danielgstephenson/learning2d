@@ -10,6 +10,6 @@ def get_reward(state: Tensor)->Tensor:
     agentVector0 = state[:,0:2]
     distance = torch.norm(agentVector0,p=2,dim=1)
     distanceError = torch.abs(distance - 40)
-    life = get_life(state)
+    life = 1 # get_life(state)
     reward = life * (1000 - distanceError)
     return reward

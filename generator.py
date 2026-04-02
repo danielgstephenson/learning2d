@@ -26,6 +26,7 @@ class DataGenerator:
         self.bladePosition1: Tensor
         self.bladeVelocity1: Tensor
         self.vision0: Tensor
+        self.setup()
 
     def setup(self):
         agentBound = self.boundarySize - self.agent0.radius
@@ -56,6 +57,12 @@ class DataGenerator:
         self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
         self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
         self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation.boundary.walls)
+        self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
+        self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
+        self.agent1.position = self.agentPosition1.repeat_interleave(81, 0)
+        self.agent1.velocity = self.agentVelocity1.repeat_interleave(81, 0)
+        self.blade1.position = self.bladePosition1.repeat_interleave(81, 0)
+        self.blade1.velocity = self.bladeVelocity1.repeat_interleave(81, 0)
     
     def generate(self)->tuple[Tensor,Tensor]:
         self.setup()
@@ -68,12 +75,6 @@ class DataGenerator:
             self.vision0,
         ]
         state = torch.cat(startTensors,dim=1)
-        self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
-        self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
-        self.agent1.position = self.agentPosition1.repeat_interleave(81, 0)
-        self.agent1.velocity = self.agentVelocity1.repeat_interleave(81, 0)
-        self.blade1.position = self.bladePosition1.repeat_interleave(81, 0)
-        self.blade1.velocity = self.bladeVelocity1.repeat_interleave(81, 0)
         self.simulation.step()
         outcomeVision0 = visionCast(self.agent0.position, self.visionReach, self.simulation.boundary.walls)
         outcomeTensors = [
