@@ -56,12 +56,6 @@ class DataGenerator:
         self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
         self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
         self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation)
-        self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
-        self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
-        self.agent1.position = self.agentPosition1.repeat_interleave(81, 0)
-        self.agent1.velocity = self.agentVelocity1.repeat_interleave(81, 0)
-        self.blade1.position = self.bladePosition1.repeat_interleave(81, 0)
-        self.blade1.velocity = self.bladeVelocity1.repeat_interleave(81, 0)
     
     def generate(self)->tuple[Tensor,Tensor]:
         self.setup()
@@ -74,16 +68,21 @@ class DataGenerator:
             self.vision0,
         ]
         state = torch.cat(startTensors,dim=1)
+        self.agent0.position = self.agentPosition0.repeat_interleave(81, 0)
+        self.agent0.velocity = self.agentVelocity0.repeat_interleave(81, 0)
+        self.agent1.position = self.agentPosition1.repeat_interleave(81, 0)
+        self.agent1.velocity = self.agentVelocity1.repeat_interleave(81, 0)
+        self.blade1.position = self.bladePosition1.repeat_interleave(81, 0)
+        self.blade1.velocity = self.bladeVelocity1.repeat_interleave(81, 0)
         self.simulation.step()
-        outcomeAgentPosistion1 = self.agent1.position
-        outcomeVision1 = visionCast(outcomeAgentPosistion1, self.visionReach, self.simulation)
+        outcomeVision0 = visionCast(self.agent0.position, self.visionReach, self.simulation)
         outcomeTensors = [
             self.agent1.position - self.agent0.position,
             self.agent1.velocity,
             self.blade1.position - self.agent1.position,
             self.blade1.velocity,
             self.agent0.velocity,
-            outcomeVision1,
+            outcomeVision0,
         ]
         outcomes = torch.cat(outcomeTensors,dim=1)
         return state, outcomes

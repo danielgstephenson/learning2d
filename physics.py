@@ -206,7 +206,7 @@ def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[Tensor])
     rayFactors = torch.amin(rayFactorMatrix,dim=1)
     return rayFactors
     
-def visionCast(origin: Tensor, reach: int, simulation: Simulation)->Tensor:
+def visionCast(origin: Tensor, reach: float, simulation: Simulation)->Tensor:
     rayFactorColumns: list[Tensor] = []
     for lookDir in visionDirs:
         lookVector = reach*lookDir

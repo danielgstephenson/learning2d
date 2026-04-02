@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from math import pi, sqrt
 from typing import Callable
@@ -8,6 +10,7 @@ from arcade import SpriteCircle, csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 from generator import DataGenerator
+from models import ActionModel
 import physics
 from physics import Agent, Blade, Boundary, Simulation, actionVectors, visionDirList, rayCastSegments, visionCast
 
@@ -102,6 +105,7 @@ class Game(arcade.Window):
         self.simulation.step()
         self.update_callback()
         self.camera.position = self.agentCircles[1].position
+
     
     def get_user_action(self):
         dx = 0.0
@@ -120,6 +124,14 @@ class Game(arcade.Window):
             dots = torch.einsum('ij,j->i',actionVectors, vector)
             action = torch.argmax(dots).item()
         return action
+
+action_checkpoint_path = './checkpoints/action_checkpoint.pt'
+action_model = ActionModel()
+
+if os.path.exists(action_checkpoint_path):
+    print('Loading Action Checkpoint...')
+    checkpoint = torch.load(action_checkpoint_path, weights_only=False)
+    action_model.load_state_dict(checkpoint['model_state_dict'])
 
 generator = DataGenerator(count=3, timeStep=0.1)
 generator.setup()
