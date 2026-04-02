@@ -51,19 +51,20 @@ for epoch in range(10000000):
     old_value_model.load_state_dict(value_model.state_dict())
     for batch in range(2000):
         value_optimizer.zero_grad()
+        action_optimizer.zero_grad()
         state, outcomes = generator.generate()
-        action_output = action_model(state)
         value_output = value_model(state)
         value_target = torch.zeros_like(value_output)
         action_values = get_action_values(old_value_model, state, outcomes, horizon)
-        best_actions = torch.argmax(action_values, dim=1)
-        action_loss = F.mse_loss(action_output, action_values, reduction='mean')
-        action_loss_item = action_loss.item()
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
         value_target = (1-self_noise)*action_value_max + self_noise*action_value_mean
         value_loss = F.mse_loss(value_output, value_target, reduction='mean')
         value_loss_item = value_loss.item()
+        action_output = action_model(state)
+        advantage = action_values - action_value_mean
+        action_loss = F.mse_loss(action_output, advantage, reduction='mean')
+        action_loss_item = action_loss.item()
         if not np.isfinite(value_loss_item): 
             print('non-finite value loss')
             continue
