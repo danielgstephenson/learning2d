@@ -46,23 +46,19 @@ batch_size = 1000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 
 self_noise = 0.2
-smooth_value_loss = 10
-loss_smoothing = 0.05
 print('Training...')
 for epoch in range(10000000):
     old_value_model.load_state_dict(value_model.state_dict())
     for batch in range(2000):
         value_optimizer.zero_grad()
         state, outcomes = generator.generate()
-        action_logits = action_model(state)
-        chosen_actions = torch.argmax(action_logits, dim=1)
+        action_output = action_model(state)
         value_output = value_model(state)
         value_target = torch.zeros_like(value_output)
         action_values = get_action_values(old_value_model, state, outcomes, horizon)
         best_actions = torch.argmax(action_values, dim=1)
-        action_loss = F.cross_entropy(action_logits,best_actions)
+        action_loss = F.mse_loss(action_output, action_values, reduction='mean')
         action_loss_item = action_loss.item()
-        action_accuracy = torch.mean((chosen_actions==best_actions).int().float())
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
         value_target = (1-self_noise)*action_value_max + self_noise*action_value_mean
@@ -82,13 +78,10 @@ for epoch in range(10000000):
         torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
         value_optimizer.step()
         save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
-        smooth_value_loss = loss_smoothing*value_loss_item + (1-loss_smoothing)*smooth_value_loss
-        if batch == 0: smooth_value_loss = 2 * value_loss_item
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {sqrt(value_loss_item):.1f}, '
-        message += f'Smooth: {sqrt(smooth_value_loss):.1f}, '
-        message += f'ActionAccuracy: {action_accuracy:.2f}, '
+        message += f'RootActionLoss: {sqrt(action_loss_item):.2f}, '
         print(message)
     horizon += 1
