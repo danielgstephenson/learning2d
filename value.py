@@ -12,7 +12,7 @@ from reward import get_reward
 import reward
 from save import save_state_value_checkpoint
 
-value_checkpoint_path = './checkpoints/state_value_checkpoint.pt'
+value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
 optimizer = torch.optim.AdamW(value_model.parameters(),lr=0.001)
@@ -28,7 +28,7 @@ if os.path.exists(value_checkpoint_path):
     horizon = value_checkpoint['horizon']
 
 # discount = 0.9
-horizon = 0
+# horizon = 0
 
 lr = 0.001
 for param_group in optimizer.param_groups:

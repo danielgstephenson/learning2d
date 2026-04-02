@@ -16,7 +16,6 @@ action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel().eval()
 action_model = ActionModel()
 optimizer = torch.optim.AdamW(action_model.parameters(),lr=0.001)
-discount = 0.9
 horizon = 0
 
 if os.path.exists(value_checkpoint_path):
@@ -66,7 +65,6 @@ for batch in range(10000000):
     if batch == 0: smooth_loss = 2 * loss_item
     message = ''
     message += f'Batch: {batch+1}, '
-    message += f'Discount: {discount}, '
     message += f'Loss: {loss_item:.4f}, '
     message += f'SmoothLoss: {smooth_loss:.4f}, '
     message += f'Accuracy: {accuracy:.4f}, '
