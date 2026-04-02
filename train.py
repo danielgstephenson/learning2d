@@ -77,7 +77,7 @@ for epoch in range(10000000):
         save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, value_optimizer, horizon)
         action_loss.backward()
         torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
-        value_optimizer.step()
+        action_optimizer.step()
         save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
         message = ''
         message += f'Horizon: {horizon}, '
