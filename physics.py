@@ -206,11 +206,11 @@ def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[Tensor])
     rayFactors = torch.amin(rayFactorMatrix,dim=1)
     return rayFactors
     
-def visionCast(origin: Tensor, reach: float, simulation: Simulation)->Tensor:
+def visionCast(origin: Tensor, reach: float, walls: list[Tensor])->Tensor:
     rayFactorColumns: list[Tensor] = []
     for lookDir in visionDirs:
         lookVector = reach*lookDir
-        rayFactors = rayCastSegments(origin, lookVector, simulation.boundary.walls)
+        rayFactors = rayCastSegments(origin, lookVector, walls)
         rayFactorColumns.append(reach * rayFactors)
     rayFectorMatrix = torch.stack(rayFactorColumns,1)
     return rayFectorMatrix

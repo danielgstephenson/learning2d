@@ -55,7 +55,7 @@ class DataGenerator:
         self.agentPosition0 = torch.einsum('ij,kj->ki', rotation, self.agentPosition0)
         self.agentPosition1 = torch.einsum('ij,kj->ki', rotation, self.agentPosition1)
         self.bladePosition1 = torch.einsum('ij,kj->ki', rotation, self.bladePosition1)
-        self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation)
+        self.vision0 = visionCast(self.agentPosition0,self.visionReach,self.simulation.boundary.walls)
     
     def generate(self)->tuple[Tensor,Tensor]:
         self.setup()
@@ -75,7 +75,7 @@ class DataGenerator:
         self.blade1.position = self.bladePosition1.repeat_interleave(81, 0)
         self.blade1.velocity = self.bladeVelocity1.repeat_interleave(81, 0)
         self.simulation.step()
-        outcomeVision0 = visionCast(self.agent0.position, self.visionReach, self.simulation)
+        outcomeVision0 = visionCast(self.agent0.position, self.visionReach, self.simulation.boundary.walls)
         outcomeTensors = [
             self.agent1.position - self.agent0.position,
             self.agent1.velocity,
