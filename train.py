@@ -58,17 +58,21 @@ for epoch in range(10000000):
         action_values = get_action_values(old_value_model, state, outcomes, horizon)
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
+        action_value_min = torch.amin(action_values,1,keepdim=True)
+        action_value_range = action_value_max - action_value_min
         value_target = (1-self_noise)*action_value_max + self_noise*action_value_mean
         value_loss = F.mse_loss(value_output, value_target, reduction='mean')
-        value_loss_item = value_loss.item()
-        action_output = action_model(state)
-        advantage = action_values - action_value_mean
-        action_loss = F.mse_loss(action_output, advantage, reduction='mean')
-        action_loss_item = action_loss.item()
-        if not np.isfinite(value_loss_item): 
+        action_logits = action_model(state)
+        action_probs = F.softmax(action_logits,dim=1)
+        expected_action_value = torch.sum(action_probs*action_values,dim=1)
+        disadvantage = action_value_max - expected_action_value
+        random_disadvantage = action_value_max - action_value_mean
+        action_loss = torch.mean(disadvantage)
+        random_action_loss = torch.mean(random_disadvantage)
+        if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
-        if not np.isfinite(action_loss_item): 
+        if not np.isfinite(action_loss.item()): 
             print('non-finite action loss')
             continue
         value_loss.backward()
@@ -82,7 +86,7 @@ for epoch in range(10000000):
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'RootValueLoss: {sqrt(value_loss_item):.1f}, '
-        message += f'RootActionLoss: {sqrt(action_loss_item):.2f}, '
+        message += f'RootValueLoss: {sqrt(value_loss.item()):.1f}, '
+        message += f'NormActionLoss: {action_loss/random_action_loss:.2f}, '
         print(message)
     horizon += 1

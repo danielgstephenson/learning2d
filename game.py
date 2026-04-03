@@ -9,6 +9,7 @@ from generator import DataGenerator
 from models import ActionModel
 import physics
 from physics import Agent, Blade, Simulation, actionVectors, visionCast
+from reward import get_reward
 
 SCALE = 10
 
