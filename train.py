@@ -24,7 +24,6 @@ horizon = 0
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
-    print(value_checkpoint.keys())
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
     old_value_model.load_state_dict(value_checkpoint['old_model_state_dict'])
     value_optimizer.load_state_dict(value_checkpoint['optimizer_state_dict'])
