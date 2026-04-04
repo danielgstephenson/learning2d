@@ -12,7 +12,7 @@ class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = 18
-        k = 200
+        k = 300
         self.hidden_count = 4
         self.projection_layer = nn.Linear(self.input_dim, k)
         self.hidden_layers = nn.ModuleList()

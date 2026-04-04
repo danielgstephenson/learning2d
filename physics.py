@@ -210,6 +210,7 @@ def visionCast(origin: Tensor, reach: float, walls: list[Tensor])->Tensor:
     for lookDir in visionDirs:
         lookVector = reach*lookDir
         rayFactors = rayCastSegments(origin, lookVector, walls)
+        rayFactors = torch.where(rayFactors < 1, rayFactors, 1)
         rayFactorColumns.append(reach * rayFactors)
     rayFectorMatrix = torch.stack(rayFactorColumns,1)
     return rayFectorMatrix

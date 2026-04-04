@@ -106,7 +106,7 @@ class Game(arcade.Window):
         y0 = SCALE * agent.position[i,1].item()
         x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
         y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
-        arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,10)
+        arcade.draw_line(x0,y0,x1,y1,csscolor.RED,1)
 
         # Graphically show the outcome state positions:
         # outcome_positions = self.generator.outcome_agent0.position
@@ -119,7 +119,7 @@ class Game(arcade.Window):
         #     outcome_position = outcome_positions[action]
         #     x1 = SCALE * outcome_position[0].item()
         #     y1 = SCALE * outcome_position[1].item()
-        #     arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,5)
+        #     arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,1)
 
 
     def on_update(self, delta_time: float) -> bool | None:
@@ -170,15 +170,11 @@ generator.reset()
 
 def action_callback():
     state = get_simulation_state(generator.start_simulation)
-    generator.generate_outcomes()
+    # generator.generate_outcomes()
     # action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
     # chosen_action = torch.argmax(action_values, dim=1)
-    # print('action values:')
-    # print(torch.stack((actions,action_values[0]),dim=1))
-    # print('chosen_action',chosen_action[0].item())
 
     action_logits = action_model(state)
-    # action_probs = torch.softmax(action_logits,dim=1)
     chosen_action = torch.argmax(action_logits, dim=1)
     generator.start_agent0.action = chosen_action
 
