@@ -26,7 +26,9 @@ class DataGenerator:
         self.bladePosition1: Tensor
         self.bladeVelocity1: Tensor
         self.vision0: Tensor
-        self.setup()
+        self.state: Tensor
+        self.outcomes: Tensor
+        self.generate()
 
     def setup(self):
         agentBound = self.boundarySize - self.agent0.radius
@@ -74,7 +76,7 @@ class DataGenerator:
             self.agentVelocity0,
             self.vision0,
         ]
-        state = torch.cat(startTensors,dim=1)
+        self.state = torch.cat(startTensors,dim=1)
         self.simulation.step()
         outcomeVision0 = visionCast(self.agent0.position, self.visionReach, self.simulation.boundary.walls)
         outcomeTensors = [
@@ -85,8 +87,8 @@ class DataGenerator:
             self.agent0.velocity,
             outcomeVision0,
         ]
-        outcomes = torch.cat(outcomeTensors,dim=1)
-        return state, outcomes
+        self.outcomes = torch.cat(outcomeTensors,dim=1)
+        return self.state, self.outcomes
 
 def get_random_directions(count: int)->Tensor:
     normals = torch.randn((count, 2))

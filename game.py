@@ -1,4 +1,5 @@
 import os
+from numpy import argmax
 import torch
 import torch.nn.functional as F
 import arcade
@@ -6,7 +7,7 @@ from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 from generator import DataGenerator
-from models import ActionModel
+from models import ActionModel, ValueModel, get_action_values
 import physics
 from physics import Agent, Blade, Simulation, actionVectors, visionCast
 from reward import get_reward
@@ -96,6 +97,13 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[i,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
+        # agent = self.agentCircles[0].agent
+        # action_vector = actionVectors[agent.action[i]]
+        # x0 = SCALE * agent.position[i,0].item()
+        # y0 = SCALE * agent.position[i,1].item()
+        # x1 = SCALE * (agent.position[i,0].item() + 20*action_vector[0].item())
+        # y1 = SCALE * (agent.position[i,1].item() + 20*action_vector[1].item())
+        # arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,10)
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
@@ -122,7 +130,9 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
 
+value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
+value_model = ValueModel()
 action_model = ActionModel()
 
 if os.path.exists(action_checkpoint_path):
@@ -130,8 +140,13 @@ if os.path.exists(action_checkpoint_path):
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
 
+if os.path.exists(value_checkpoint_path):
+    print('Loading Value Checkpoint...')
+    value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
+    print(value_checkpoint.keys())
+    value_model.load_state_dict(value_checkpoint['model_state_dict'])
+
 generator = DataGenerator(count=3, timeStep=0.1)
-generator.setup()
 simulation = generator.simulation
 
 def action_callback():
@@ -145,12 +160,10 @@ def action_callback():
         vision0,
     ]
     state = torch.cat(stateTensors,dim=1)
-    vision = state[:,-8:]
-    print(vision[0,:].to(torch.int).detach().cpu().tolist())
     action_logits = action_model(state)
-    action_probs = F.softmax(action_logits,1)
-    action = torch.multinomial(action_probs,1).squeeze(1)
-    generator.agent0.action = action
+    chosen_action = torch.argmax(action_logits, dim=1)
+    generator.agent0.action = chosen_action
+
 
 game = Game(simulation,action_callback)
 arcade.enable_timings()

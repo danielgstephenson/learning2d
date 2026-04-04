@@ -62,8 +62,8 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
             next_values = get_reward(outcomes).reshape((-1,9,9))
         values = (1-discount)*reward + discount*next_values
         values = life*values + (1-life)*reward
-        # row_means = torch.mean(values,2)
-        # row_mins = torch.amin(values,2)
-        # action_values = (1-other_noise)*row_mins + other_noise*row_means
-        action_values = values[:,0]
+        row_means = torch.mean(values,2)
+        row_mins = torch.amin(values,2)
+        action_values = (1-other_noise)*row_mins + other_noise*row_means
+        # action_values = values[:,:,0] # batch, selfAction, otherAction
     return action_values
