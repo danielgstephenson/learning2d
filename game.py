@@ -145,8 +145,10 @@ def action_callback():
         vision0,
     ]
     state = torch.cat(stateTensors,dim=1)
+    vision = state[:,-8:]
+    print(vision[0,:].to(torch.int).detach().cpu().tolist())
     action_logits = action_model(state)
-    action_probs = F.softmax(action_logits)
+    action_probs = F.softmax(action_logits,1)
     action = torch.multinomial(action_probs,1).squeeze(1)
     generator.agent0.action = action
 

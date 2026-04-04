@@ -10,7 +10,7 @@ class DataGenerator:
     def __init__(self, count = 3, timeStep = 0.1):
         self.count = count
         self.simulation = Simulation(81 * count, timeStep)
-        self.boundarySize = 100
+        self.boundarySize = 50
         self.visionReach = 100
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
