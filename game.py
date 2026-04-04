@@ -64,7 +64,7 @@ class Game(arcade.Window):
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
         self.boundaryPolygons: list[Point2List] = []
-        polygon = tuple((SCALE*p[0], SCALE*p[1]) for p in self.simulation.boundary.points)
+        polygon = tuple((SCALE*p[0].item(), SCALE*p[1].item()) for p in self.simulation.boundary.corners)
         self.boundaryPolygons.append(polygon)
 
 

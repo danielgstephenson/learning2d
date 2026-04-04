@@ -52,12 +52,10 @@ class Boundary():
     def __init__(self, simulation: Simulation):
         self.simulation = simulation
         simulation.boundary = self
-        self.points: list[list[float]] = []
         self.walls: list[Tensor] = []
         self.corners: list[Tensor] = []
 
     def setup(self, points: Tensor):
-        self.points = []
         self.walls = []
         self.corners = []
         n = points.shape[0]
@@ -66,7 +64,6 @@ class Boundary():
             j = i - 1 if i > 0 else n - 1
             self.corners.append(points[i,:])
             self.walls.append(points[[i,j],:])
-            self.points.append(points[i,:].detach().cpu().tolist())
 
 actionVectorList = [[0.0,0.0]]
 for i in range(8):
