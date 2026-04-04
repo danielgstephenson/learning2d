@@ -50,7 +50,7 @@ for epoch in range(10000000):
         action_optimizer.zero_grad()
         state, outcomes = generator.generate()
         value_output = value_model(state)
-        action_values = get_action_values(old_value_model, state, outcomes, horizon)
+        action_values = get_action_values(old_value_model, state, outcomes, horizon=0) # horizon = horizon
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
         action_value_min = torch.amin(action_values,1,keepdim=True)

@@ -6,7 +6,7 @@ import arcade
 from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
-from generator import DataGenerator
+from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel, get_action_values
 import physics
 from physics import Agent, Blade, Simulation, actionVectors, visionCast
@@ -145,23 +145,18 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(count=3, timeStep=0.1)
-simulation = generator.simulation
+generator = DataGenerator(batch_size=1, timeStep=0.1)
+simulation = generator.start_simulation
 
 def action_callback():
-    vision0 = visionCast(generator.agent0.position, generator.visionReach, generator.simulation.boundary.walls)
-    stateTensors = [
-        generator.agent1.position - generator.agent0.position,
-        generator.agent1.velocity,
-        generator.blade1.position - generator.agent1.position,
-        generator.blade1.velocity,
-        generator.agent0.velocity,
-        vision0,
-    ]
-    state = torch.cat(stateTensors,dim=1)
-    action_logits = action_model(state)
-    chosen_action = torch.argmax(action_logits, dim=1)
-    generator.agent0.action = chosen_action
+    generator.setup_outcome_simulation()
+    generator.outcome_simulation.step()
+    state = get_simulation_state(generator.start_simulation)
+    outcomes = get_simulation_state(generator.outcome_simulation)
+    action_values = get_action_values(value_model, state, outcomes, 0)
+    # action_logits = action_model(state)
+    chosen_action = torch.argmax(action_values, dim=1)
+    generator.start_agent0.action = chosen_action
 
 
 game = Game(simulation,action_callback)
