@@ -49,9 +49,9 @@ class ActionModel(nn.Module):
         return x
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)
-
+    
 discount = 0.95
-other_noise = 1
+other_noise = 0.5
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         reward = get_reward(state).reshape(-1,1,1)

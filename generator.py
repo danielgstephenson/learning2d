@@ -33,10 +33,11 @@ class DataGenerator:
         self.outcome_blade1 = Blade(self.outcome_simulation, self.outcome_agent1)
         self.outcome_agent0.action = actions.repeat_interleave(9, dim=0).repeat(self.batch_size)
         self.outcome_agent1.action = actions.repeat(9).repeat(self.batch_size)
-        print('self.outcome_agent0.position.shape',self.outcome_agent0.position.shape)
-        print('self.outcome_agent0.action.shape',self.outcome_agent0.action.shape)
         self.rotation: Tensor
-        self.setup_boundary()
+        self.state: Tensor
+        self.outcomes: Tensor
+        self.reset()
+        self.generate_outcomes()
 
     def setup_boundary(self):
         angle = np.random.rand()*2*pi
@@ -54,7 +55,8 @@ class DataGenerator:
         self.outcome_simulation.boundary.setup(boundaryPoints)
         self.start_simulation.boundary.setup(boundaryPoints)
     
-    def setup_start_simulation(self):
+    def reset(self):
+        self.setup_boundary()
         agentBound = self.boundarySize - self.start_agent0.radius
         agentPosition0 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
         agentPosition1 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
@@ -69,23 +71,19 @@ class DataGenerator:
         self.start_agent0.velocity = get_random_vectors(self.batch_size,30)
         self.start_agent1.velocity = get_random_vectors(self.batch_size,30)
         self.start_blade1.velocity = get_random_vectors(self.batch_size,70)
+        self.state = get_simulation_state(self.start_simulation)
 
-    def setup_outcome_simulation(self):
+    def generate_outcomes(self):
         self.outcome_agent0.position = self.start_agent0.position.repeat_interleave(81, 0)
         self.outcome_agent0.velocity = self.start_agent0.velocity.repeat_interleave(81, 0)
         self.outcome_agent1.position = self.start_agent1.position.repeat_interleave(81, 0)
         self.outcome_agent1.velocity = self.start_agent1.velocity.repeat_interleave(81, 0)
         self.outcome_blade1.position = self.start_blade1.position.repeat_interleave(81, 0)
         self.outcome_agent1.velocity = self.start_blade1.velocity.repeat_interleave(81, 0)
-    
-    def generate(self)->tuple[Tensor,Tensor]:
-        self.setup_boundary()
-        self.setup_start_simulation()
-        self.setup_outcome_simulation()
-        self.outcome_simulation.step()
-        state = get_simulation_state(self.start_simulation)
-        outcomes = get_simulation_state(self.outcome_simulation)
-        return state, outcomes
+        for _ in range(10):
+            self.outcome_simulation.step()
+        self.state = get_simulation_state(self.start_simulation)
+        self.outcomes = get_simulation_state(self.outcome_simulation)
     
     # def generate(self)->tuple[Tensor,Tensor]:
     #     self.setup()

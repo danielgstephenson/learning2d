@@ -9,7 +9,7 @@ from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel, get_action_values
 import physics
-from physics import Agent, Blade, Simulation, actionVectors, visionCast
+from physics import Agent, Blade, Simulation, actionVectors, actions
 from reward import get_reward
 
 SCALE = 10
@@ -39,7 +39,7 @@ class BladeCircle(arcade.SpriteCircle):
         self.blade = blade
 
 class Game(arcade.Window):
-    def __init__(self, simulation: Simulation, update_callback = (lambda: None) ):
+    def __init__(self, generator: DataGenerator, update_callback = (lambda: None) ):
         super().__init__(800, 600, 'learning2d')
         arcade.set_background_color((20,20,20,255))
         self.update_callback = update_callback
@@ -49,16 +49,17 @@ class Game(arcade.Window):
         self.timeScale = 2
         self.set_update_rate(1 / 30)
         self.accumulator = 0
-        self.simulation = simulation
+        self.generator = generator
+        self.simulation = generator.start_simulation
         self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
         self.sprites = arcade.SpriteList()
-        for blade in simulation.blades:
+        for blade in self.simulation.blades:
             blade_circle = BladeCircle(self.index, blade)
             self.bladeCircles.append(blade_circle)
             self.sprites.append(blade_circle)
-        for blade in simulation.agents:
+        for blade in self.simulation.agents:
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
@@ -101,9 +102,21 @@ class Game(arcade.Window):
         # action_vector = actionVectors[agent.action[i]]
         # x0 = SCALE * agent.position[i,0].item()
         # y0 = SCALE * agent.position[i,1].item()
-        # x1 = SCALE * (agent.position[i,0].item() + 20*action_vector[0].item())
-        # y1 = SCALE * (agent.position[i,1].item() + 20*action_vector[1].item())
+        # x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
+        # y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
         # arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,10)
+        outcome_positions = self.generator.outcome_agent0.position
+        outcome_positions = outcome_positions.reshape(self.generator.batch_size,9,9,-1)
+        outcome_positions = outcome_positions[i,:,0,:]
+        start_position = self.generator.start_agent0.position[0]
+        x0 = SCALE * start_position[0].item()
+        y0 = SCALE * start_position[1].item()
+        for action in range(9):
+            outcome_position = outcome_positions[action]
+            x1 = SCALE * outcome_position[0].item()
+            y1 = SCALE * outcome_position[1].item()
+            arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,5)
+
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
@@ -145,20 +158,24 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=1, timeStep=0.1)
-simulation = generator.start_simulation
+generator = DataGenerator(batch_size=2, timeStep=0.1)
+generator.reset()
 
 def action_callback():
-    generator.setup_outcome_simulation()
-    generator.outcome_simulation.step()
     state = get_simulation_state(generator.start_simulation)
-    outcomes = get_simulation_state(generator.outcome_simulation)
-    action_values = get_action_values(value_model, state, outcomes, 0)
-    # action_logits = action_model(state)
+    generator.generate_outcomes()
+    action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
     chosen_action = torch.argmax(action_values, dim=1)
+    # Graphically show the outcome state positions...
+    # print('action values:')
+    # print(torch.stack((actions,action_values[0]),dim=1))
+    # print('chosen_action',chosen_action[0].item())
+
+    # action_logits = action_model(state)
+    # chosen_action = torch.argmax(action_logits, dim=1)
     generator.start_agent0.action = chosen_action
 
 
-game = Game(simulation,action_callback)
+game = Game(generator,action_callback)
 arcade.enable_timings()
 game.run()

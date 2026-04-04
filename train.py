@@ -1,15 +1,11 @@
-from math import isfinite, sqrt
-
+from math import sqrt
 import numpy as np
 import torch
-from torch import nn, Tensor
 import torch.nn.functional as F
 import os
 
 from generator import DataGenerator
 from models import ActionModel, ValueModel, get_action_values
-from reward import get_reward
-import reward
 from save import save_action_checkpoint, save_value_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
@@ -41,6 +37,8 @@ for param_group in value_optimizer.param_groups:
 batch_size = 1000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 
+# horizon = 0
+
 self_noise = 0.2
 print('Training...')
 for epoch in range(10000000):
@@ -48,9 +46,12 @@ for epoch in range(10000000):
     for batch in range(2000):
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
-        state, outcomes = generator.generate()
+        generator.reset()
+        generator.generate_outcomes()
+        state = generator.state
+        outcomes = generator.outcomes
         value_output = value_model(state)
-        action_values = get_action_values(old_value_model, state, outcomes, horizon=0) # horizon = horizon
+        action_values = get_action_values(old_value_model, state, outcomes, horizon)
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
         action_value_min = torch.amin(action_values,1,keepdim=True)
@@ -61,6 +62,7 @@ for epoch in range(10000000):
         action_loss = F.cross_entropy(action_logits, best_action)
         chosen_action = torch.argmax(action_logits, dim=1)
         action_accuracy = torch.mean((best_action==chosen_action).to(torch.float))
+        action_value_range = torch.mean((action_value_max-action_value_min))
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
@@ -79,6 +81,7 @@ for epoch in range(10000000):
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {sqrt(value_loss.item()):.2f}, '
+        message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
     horizon += 1
