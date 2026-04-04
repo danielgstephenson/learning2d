@@ -20,7 +20,7 @@ def get_simulation_state(simulation: Simulation)->Tensor:
     return simulation_state
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, timeStep = 0.1):
+    def __init__(self, batch_size = 3, timeStep = 0.2):
         self.batch_size = batch_size
         self.start_simulation = Simulation(batch_size, timeStep)
         self.outcome_simulation = Simulation(81 * batch_size, timeStep)
@@ -80,8 +80,7 @@ class DataGenerator:
         self.outcome_agent1.velocity = self.start_agent1.velocity.repeat_interleave(81, 0)
         self.outcome_blade1.position = self.start_blade1.position.repeat_interleave(81, 0)
         self.outcome_agent1.velocity = self.start_blade1.velocity.repeat_interleave(81, 0)
-        for _ in range(10):
-            self.outcome_simulation.step()
+        self.outcome_simulation.step()
         self.state = get_simulation_state(self.start_simulation)
         self.outcomes = get_simulation_state(self.outcome_simulation)
     

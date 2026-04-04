@@ -39,6 +39,9 @@ generator = DataGenerator(batch_size)
 
 # horizon = 0
 
+# TO DO: 
+# Setup the physics engine to let the boundary vary across batches.
+
 self_noise = 0.2
 print('Training...')
 for epoch in range(10000000):
@@ -84,4 +87,4 @@ for epoch in range(10000000):
         message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
-    horizon += 1
+    # horizon += 1

@@ -87,7 +87,7 @@ visionDirs: list[Tensor] = [
 ]
 
 class Simulation:
-    def __init__(self, count: int, timeStep=0.1):
+    def __init__(self, count: int, timeStep):
         self.count = count
         self.device = device
         self.timeStep = timeStep
@@ -154,7 +154,6 @@ def collideCirclePoint(circle: Circle, point: Tensor):
     impactSpeed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
     circle.impulse += torch.where(overlap > 0, 1.2 * impactSpeed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
-
 
 def collideCircleSegment(circle: Circle, segment: Tensor):
     a = segment[0,:]

@@ -98,24 +98,28 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[i,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
-        # agent = self.agentCircles[0].agent
-        # action_vector = actionVectors[agent.action[i]]
-        # x0 = SCALE * agent.position[i,0].item()
-        # y0 = SCALE * agent.position[i,1].item()
-        # x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
-        # y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
-        # arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,10)
-        outcome_positions = self.generator.outcome_agent0.position
-        outcome_positions = outcome_positions.reshape(self.generator.batch_size,9,9,-1)
-        outcome_positions = outcome_positions[i,:,0,:]
-        start_position = self.generator.start_agent0.position[0]
-        x0 = SCALE * start_position[0].item()
-        y0 = SCALE * start_position[1].item()
-        for action in range(9):
-            outcome_position = outcome_positions[action]
-            x1 = SCALE * outcome_position[0].item()
-            y1 = SCALE * outcome_position[1].item()
-            arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,5)
+
+        # Graphically show the chosen action:
+        agent = self.agentCircles[0].agent
+        action_vector = actionVectors[agent.action[i]]
+        x0 = SCALE * agent.position[i,0].item()
+        y0 = SCALE * agent.position[i,1].item()
+        x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
+        y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
+        arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,10)
+
+        # Graphically show the outcome state positions:
+        # outcome_positions = self.generator.outcome_agent0.position
+        # outcome_positions = outcome_positions.reshape(self.generator.batch_size,9,9,-1)
+        # outcome_positions = outcome_positions[i,:,0,:]
+        # start_position = self.generator.start_agent0.position[0]
+        # x0 = SCALE * start_position[0].item()
+        # y0 = SCALE * start_position[1].item()
+        # for action in range(9):
+        #     outcome_position = outcome_positions[action]
+        #     x1 = SCALE * outcome_position[0].item()
+        #     y1 = SCALE * outcome_position[1].item()
+        #     arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,5)
 
 
     def on_update(self, delta_time: float) -> bool | None:
@@ -161,18 +165,21 @@ if os.path.exists(value_checkpoint_path):
 generator = DataGenerator(batch_size=2, timeStep=0.1)
 generator.reset()
 
+# TO DO: 
+# Setup the physics engine to let the boundary vary across batches.
+
 def action_callback():
     state = get_simulation_state(generator.start_simulation)
     generator.generate_outcomes()
-    action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
-    chosen_action = torch.argmax(action_values, dim=1)
-    # Graphically show the outcome state positions...
+    # action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
+    # chosen_action = torch.argmax(action_values, dim=1)
     # print('action values:')
     # print(torch.stack((actions,action_values[0]),dim=1))
     # print('chosen_action',chosen_action[0].item())
 
-    # action_logits = action_model(state)
-    # chosen_action = torch.argmax(action_logits, dim=1)
+    action_logits = action_model(state)
+    # action_probs = torch.softmax(action_logits,dim=1)
+    chosen_action = torch.argmax(action_logits, dim=1)
     generator.start_agent0.action = chosen_action
 
 
