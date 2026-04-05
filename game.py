@@ -162,7 +162,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=2, timeStep=0.1)
+generator = DataGenerator(batch_size=2,timeStep=0.1)
 generator.reset()
 
 # TO DO: 

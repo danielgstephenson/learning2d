@@ -10,9 +10,9 @@ def get_reward(state: Tensor)->Tensor:
     agentVector = state[:,0:2]
     agentDistance = torch.norm(agentVector,p=2,dim=1)
     distanceError = torch.abs(agentDistance - 40)
-    # vision = state[:,-8:]
-    # minVision = torch.amin(vision,dim=1)
-    # visionCost = 500 / (minVision + 5)
-    life = get_life(state)
-    reward = life * (1000 - distanceError)
+    velocity = state[:,8:10]
+    speed = torch.norm(velocity,p=2,dim=1)
+    move = torch.where(speed < 10, speed, 10)
+    life = 1 # get_life(state)
+    reward = life * (1000 + 10*move - distanceError)
     return reward

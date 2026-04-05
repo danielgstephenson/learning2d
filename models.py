@@ -55,7 +55,7 @@ other_noise = 0.5
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         reward = get_reward(state).reshape(-1,1,1)
-        life = 1 # get_life(state).reshape(-1,1,1)
+        life = get_life(state).reshape(-1,1,1)
         if horizon > 1:
             next_values = value_model(outcomes).reshape((-1,9,9))
         else:
