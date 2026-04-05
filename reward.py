@@ -1,15 +1,19 @@
-from torch import Tensor
+from torch import Tensor, tensor
 import torch
 
 def get_life(state: Tensor)->Tensor:
     bladeVector = state[:,4:6]
     distance = torch.norm(bladeVector,p=2,dim=1)
-    return torch.where(distance > 15, 1, 0)
+    death_range = -1 # 15
+    return torch.where(distance > death_range, 1, 0)
 
-def get_reward(state: Tensor)->Tensor:
+def get_objective(state: Tensor)->Tensor:
     agentVector = state[:,0:2]
     agentDistance = torch.norm(agentVector,p=2,dim=1)
     distanceError = torch.abs(agentDistance - 40)
-    life = 1 # get_life(state)
+    life = get_life(state)
     reward = life * (1000 - distanceError)
     return reward
+
+def get_reward(state: Tensor, outcome: Tensor)->Tensor:
+    return get_objective(outcome) - get_objective(state)

@@ -54,16 +54,15 @@ discount = 0.95
 other_noise = 1
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
-        reward = get_reward(state).reshape(-1,1,1)
-        life = 1 # get_life(state).reshape(-1,1,1)
+        states = state.repeat_interleave(81, dim=0)
+        life = get_life(state).reshape(-1,1,1)
+        reward = get_reward(states,outcomes).reshape(-1,9,9)
+        values = reward
         if horizon > 1:
             next_values = value_model(outcomes).reshape((-1,9,9))
-        else:
-            next_values = get_reward(outcomes).reshape((-1,9,9))
-        values = (1-discount)*reward + discount*next_values
+            values += discount*next_values
         values = life*values + (1-life)*reward
-        # row_means = torch.mean(values,2)
-        # row_mins = torch.amin(values,2)
-        # action_values = (1-other_noise)*row_mins + other_noise*row_means
-        action_values = values[:,:,0] # If other agent is passive
+        row_means = torch.mean(values,2)
+        row_mins = torch.amin(values,2)
+        action_values = other_noise*row_means + (1-other_noise)*row_mins
     return action_values

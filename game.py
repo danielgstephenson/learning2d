@@ -165,8 +165,9 @@ if os.path.exists(value_checkpoint_path):
 generator = DataGenerator(batch_size=2,timeStep=0.1)
 generator.reset()
 
-# TO DO: 
+# TO DO:
 # Setup the physics engine to let the boundary vary across batches.
+# reward = change in objective
 
 def action_callback():
     state = get_simulation_state(generator.start_simulation)

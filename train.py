@@ -87,4 +87,4 @@ for epoch in range(10000000):
         message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
-    horizon += 1
+    # horizon += 1
