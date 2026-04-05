@@ -46,7 +46,7 @@ self_noise = 0.2
 print('Training...')
 for epoch in range(10000000):
     old_value_model.load_state_dict(value_model.state_dict())
-    for batch in range(2000):
+    for batch in range(100):
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
         generator.reset()
