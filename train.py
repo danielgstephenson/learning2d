@@ -1,12 +1,14 @@
 from math import sqrt
 import numpy as np
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 import os
 
 from generator import DataGenerator
-from models import ActionModel, ValueModel, get_action_values
+from models import ActionModel, ValueModel
 from save import save_action_checkpoint, save_value_checkpoint
+from reward import get_life, get_reward
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -24,7 +26,6 @@ if os.path.exists(value_checkpoint_path):
     old_value_model.load_state_dict(value_checkpoint['old_model_state_dict'])
     value_optimizer.load_state_dict(value_checkpoint['optimizer_state_dict'])
     horizon = value_checkpoint['horizon']
-
 if os.path.exists(action_checkpoint_path):
     print('Loading Action Checkpoint...')
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
@@ -34,14 +35,30 @@ lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
-batch_size = 1000 # Reduce to 1000 if GPU memory is limited
-generator = DataGenerator(batch_size)
+discount = 0.95
+other_noise = 1
+def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
+    with torch.no_grad():
+        states = state.repeat_interleave(81, dim=0)
+        life = get_life(state).reshape(-1,1,1)
+        reward = get_reward(states,outcomes).reshape(-1,9,9)
+        values = reward
+        if horizon > 1:
+            next_values = value_model(outcomes).reshape((-1,9,9))
+            values += discount*next_values
+        values = life*values + (1-life)*reward
+        row_means = torch.mean(values,2)
+        row_mins = torch.amin(values,2)
+        action_values = other_noise*row_means + (1-other_noise)*row_mins
+    return action_values
 
 # horizon = 0
 
 # TO DO: 
 # Setup the physics engine to let the boundary vary across batches.
 
+batch_size = 1000 # Reduce to 1000 if GPU memory is limited
+generator = DataGenerator(batch_size)
 self_noise = 0.2
 epoch_size = 1000
 mean_value_loss = 0
@@ -90,4 +107,3 @@ for epoch in range(10000000):
         print(message)
     old_value_model.load_state_dict(value_model.state_dict())
     horizon += 1
-

@@ -7,9 +7,9 @@ from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
-from models import ActionModel, ValueModel, get_action_values
+from models import ActionModel, ValueModel
 import physics
-from physics import Agent, Blade, Simulation, actionVectors, actions
+from physics import Agent, Blade, actionVectors
 from reward import get_reward
 
 SCALE = 10
