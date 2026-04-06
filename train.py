@@ -40,13 +40,13 @@ other_noise = 1
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         states = state.repeat_interleave(81, dim=0)
-        life = get_life(state).reshape(-1,1,1)
         reward = get_reward(states,outcomes).reshape(-1,9,9)
-        values = reward
         if horizon > 1:
-            next_values = value_model(outcomes).reshape((-1,9,9))
-            values += discount*next_values
-        values = life*values + (1-life)*reward
+            life = get_life(state).reshape(-1,1,1)
+            next_values = life*value_model(outcomes).reshape((-1,9,9))
+            values = reward + discount*next_values
+        else:
+            values = reward
         row_means = torch.mean(values,2)
         row_mins = torch.amin(values,2)
         action_values = other_noise*row_means + (1-other_noise)*row_mins
