@@ -30,7 +30,7 @@ if os.path.exists(action_checkpoint_path):
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
 
-lr = 0.001
+lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
@@ -43,11 +43,10 @@ generator = DataGenerator(batch_size)
 # Setup the physics engine to let the boundary vary across batches.
 
 self_noise = 0.2
-epoch_size = 100
+epoch_size = 1000
 mean_value_loss = 0
 print('Training...')
 for epoch in range(10000000):
-    total_value_loss = 0
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
@@ -62,7 +61,6 @@ for epoch in range(10000000):
         action_value_min = torch.amin(action_values,1,keepdim=True)
         value_target = (1-self_noise)*action_value_max + self_noise*action_value_mean
         value_loss = F.mse_loss(value_output, value_target, reduction='mean')
-        total_value_loss += value_loss.item()
         best_action = torch.argmax(action_values,dim=1)
         action_logits = action_model(state)
         action_loss = F.cross_entropy(action_logits, best_action)
@@ -87,12 +85,9 @@ for epoch in range(10000000):
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {sqrt(value_loss.item()):.2f}, '
-        message += f'RootMeanValueLoss: {sqrt(mean_value_loss):.2f}, '
         message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
-    mean_value_loss = total_value_loss / epoch_size
-    if mean_value_loss < 0.0001:
-        old_value_model.load_state_dict(value_model.state_dict())
-        horizon += 1
+    old_value_model.load_state_dict(value_model.state_dict())
+    horizon += 1
 
