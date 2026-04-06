@@ -10,7 +10,7 @@ from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, actionVectors
-from reward import get_reward, get_action_values
+from objective import get_reward, get_action_values
 
 SCALE = 10
 
@@ -163,7 +163,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=2,timeStep=0.1)
+generator = DataGenerator(batch_size=2,timeStep=0.1,boundary_size=50)
 generator.reset()
 
 # TO DO:

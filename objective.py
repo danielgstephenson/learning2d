@@ -20,9 +20,10 @@ def get_objective(state: Tensor)->Tensor:
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:
     return get_objective(outcome) - get_objective(state)
 
-discount = 0.99
+discount = 0.9
 other_noise = 0.5
-other_passive = 0
+other_passive = 0.5
+weight = 1 / (1 + discount)
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         states = state.repeat_interleave(81, dim=0)
@@ -30,7 +31,7 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
         if horizon > 1:
             life = get_life(state).reshape(-1,1,1)
             next_values = life*value_model(outcomes).reshape((-1,9,9))
-            values = reward + discount*next_values
+            values = weight*reward + (1-weight)*next_values
         else:
             values = reward
         row_means = torch.mean(values,2)
