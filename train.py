@@ -38,7 +38,7 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 
 # TO DO: 
-# Setup the generator to vary the boundary batches.
+# Setup the generator to vary the boundary across batches.
 
 batch_size = 2000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
