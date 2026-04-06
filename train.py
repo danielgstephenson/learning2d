@@ -42,6 +42,7 @@ for param_group in value_optimizer.param_groups:
 
 discount = 0.99
 other_noise = 1
+other_passive = 1
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         states = state.repeat_interleave(81, dim=0)
@@ -52,10 +53,10 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
             values = reward + discount*next_values
         else:
             values = reward
-        # row_means = torch.mean(values,2)
-        # row_mins = torch.amin(values,2)
-        # action_values = other_noise*row_means + (1-other_noise)*row_mins
-        action_values = values[:,:,0] # if other agent is passive
+        row_means = torch.mean(values,2)
+        row_mins = torch.amin(values,2)
+        action_values = other_noise*row_means + (1-other_noise)*row_mins
+        action_values = other_passive*values[:,:,0] + (1-other_passive)*action_values
     return action_values
 
 batch_size = 2000 # Reduce to 1000 if GPU memory is limited
