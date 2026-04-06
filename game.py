@@ -64,7 +64,9 @@ class Game(arcade.Window):
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
         self.boundaryPolygons: list[Point2List] = []
-        polygon = tuple((SCALE*p[0].item(), SCALE*p[1].item()) for p in self.simulation.boundary.corners)
+        corner_count = len(self.simulation.boundary.corners)
+        corners = [SCALE * self.simulation.boundary.corners[i][0,:] for i in range(corner_count)]
+        polygon = tuple( (p[0].item(), p[1].item()) for p in corners)
         self.boundaryPolygons.append(polygon)
 
 
@@ -163,7 +165,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=2,timeStep=0.1,boundary_size=50)
+generator = DataGenerator(batch_size=5,timeStep=0.1,boundary_size=50)
 generator.reset()
 
 # TO DO:
@@ -172,13 +174,8 @@ generator.reset()
 
 def action_callback():
     state = get_simulation_state(generator.start_simulation)
-    # generator.generate_outcomes()
-    # action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
-    # chosen_action = torch.argmax(action_values, dim=1)
     action_logits = action_model(state)
     chosen_action = torch.argmax(action_logits, dim=1)
-    # action_probs = torch.softmax(action_logits, dim=0)
-    # chosen_action = torch.multinomial(action_probs, num_samples=1)
     generator.start_agent0.action = chosen_action
 
 

@@ -46,15 +46,19 @@ class DataGenerator:
             [+cos(angle), -sin(angle)],
             [+sin(angle), +cos(angle)]
         ])
-        boundaryPoints = torch.tensor([
-            [-self.boundarySize,-self.boundarySize],
-            [+self.boundarySize,-self.boundarySize],
-            [+self.boundarySize,+self.boundarySize],
-            [-self.boundarySize,+self.boundarySize]
-        ],dtype=floatType)
-        boundaryPoints = torch.einsum('ij,kj->ki', self.rotation, boundaryPoints)
-        self.outcome_simulation.boundary.setup(boundaryPoints)
-        self.start_simulation.boundary.setup(boundaryPoints)
+        boundary_points = [
+            torch.tensor([[-self.boundarySize,-self.boundarySize]]).repeat(self.batch_size,1),
+            torch.tensor([[+self.boundarySize,-self.boundarySize]]).repeat(self.batch_size,1),
+            torch.tensor([[+self.boundarySize,+self.boundarySize]]).repeat(self.batch_size,1),
+            torch.tensor([[-self.boundarySize,+self.boundarySize]]).repeat(self.batch_size,1)
+        ]
+        for i in range(len(boundary_points)):
+            point = boundary_points[i].to(floatType)
+            point = torch.einsum('ij,kj->ki', self.rotation, point)
+            boundary_points[i] = point
+        self.start_simulation.boundary.setup(boundary_points)
+        outcome_boundary_points = [point.repeat_interleave(81, dim=0) for point in boundary_points]
+        self.outcome_simulation.boundary.setup(outcome_boundary_points)
     
     def reset(self):
         self.setup_boundary()
@@ -75,12 +79,12 @@ class DataGenerator:
         self.state = get_simulation_state(self.start_simulation)
 
     def generate_outcomes(self):
-        self.outcome_agent0.position = self.start_agent0.position.repeat_interleave(81, 0)
-        self.outcome_agent0.velocity = self.start_agent0.velocity.repeat_interleave(81, 0)
-        self.outcome_agent1.position = self.start_agent1.position.repeat_interleave(81, 0)
-        self.outcome_agent1.velocity = self.start_agent1.velocity.repeat_interleave(81, 0)
-        self.outcome_blade1.position = self.start_blade1.position.repeat_interleave(81, 0)
-        self.outcome_agent1.velocity = self.start_blade1.velocity.repeat_interleave(81, 0)
+        self.outcome_agent0.position = self.start_agent0.position.repeat_interleave(81, dim=0)
+        self.outcome_agent0.velocity = self.start_agent0.velocity.repeat_interleave(81, dim=0)
+        self.outcome_agent1.position = self.start_agent1.position.repeat_interleave(81, dim=0)
+        self.outcome_agent1.velocity = self.start_agent1.velocity.repeat_interleave(81, dim=0)
+        self.outcome_blade1.position = self.start_blade1.position.repeat_interleave(81, dim=0)
+        self.outcome_agent1.velocity = self.start_blade1.velocity.repeat_interleave(81, dim=0)
         for _ in range(self.step_count): self.outcome_simulation.step()
         self.state = get_simulation_state(self.start_simulation)
         self.outcomes = get_simulation_state(self.outcome_simulation)

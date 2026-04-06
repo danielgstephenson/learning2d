@@ -52,18 +52,18 @@ class Boundary():
     def __init__(self, simulation: Simulation):
         self.simulation = simulation
         simulation.boundary = self
-        self.walls: list[Tensor] = []
+        self.walls: list[list[Tensor]] = []
         self.corners: list[Tensor] = []
 
-    def setup(self, points: Tensor):
+    def setup(self, points: list[Tensor]):
         self.walls = []
         self.corners = []
-        n = points.shape[0]
-        points = points.to(floatType)
+        n = len(points)
+        points = [x.to(floatType) for x in points]
         for i in range(n):
             j = i - 1 if i > 0 else n - 1
-            self.corners.append(points[i,:])
-            self.walls.append(points[[i,j],:])
+            self.corners.append(points[i])
+            self.walls.append([points[i],points[j]])
 
 actionVectorList = [[0.0,0.0]]
 for i in range(8):
@@ -152,18 +152,18 @@ def collideCirclePoint(circle: Circle, point: Tensor):
     circle.impulse += torch.where(overlap > 0, 1.2 * impactSpeed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
 
-def collideCircleSegment(circle: Circle, segment: Tensor):
-    a = segment[0,:]
-    b = segment[1,:]
+def collideCircleSegment(circle: Circle, segment: list[Tensor]):
+    a = segment[0]
+    b = segment[1]
     c = circle.position
     ab = b-a
     ac = c-a
     bc = c-b
-    sideDot0 = torch.einsum('ij,j->i',ac,+ab).unsqueeze(1)
-    sideDot1 = torch.einsum('ij,j->i',bc,-ab).unsqueeze(1)
-    segmentDir = F.normalize(ab,dim=0)
-    normal0 = torch.tensor([[-segmentDir[1], +segmentDir[0]]])
-    normal1 = torch.tensor([[+segmentDir[1], -segmentDir[0]]])
+    sideDot0 = torch.einsum('ij,ij->i',ac,+ab).unsqueeze(1)
+    sideDot1 = torch.einsum('ij,ij->i',bc,-ab).unsqueeze(1)
+    segmentDir = F.normalize(ab,dim=1)
+    normal0 = torch.stack((-segmentDir[:,1],+segmentDir[:,0]),dim=1)
+    normal1 = -normal0
     normalDot0 = torch.einsum('ij,ij->i',ac,normal0).unsqueeze(1)
     normal = torch.where(normalDot0 > 0, normal0, normal1)
     normalDot = torch.abs(normalDot0)
@@ -180,9 +180,9 @@ def cross2d(v0: Tensor, v1: Tensor):
     x1, y1 = v1[..., 0], v1[..., 1]
     return x0 * y1 - y0 * x1
 
-def rayCastSegment(rayStart: Tensor, rayVector: Tensor, segment: Tensor)->Tensor:
-    segmentStart = segment[0,:]
-    segmentEnd = segment[1,:]
+def rayCastSegment(rayStart: Tensor, rayVector: Tensor, segment: list[Tensor])->Tensor:
+    segmentStart = segment[0]
+    segmentEnd = segment[1]
     segmentVector = segmentEnd - segmentStart
     startDifference = segmentStart - rayStart
     denominator = cross2d(rayVector, segmentVector)
@@ -192,7 +192,7 @@ def rayCastSegment(rayStart: Tensor, rayVector: Tensor, segment: Tensor)->Tensor
     segmentHit = (0 < segmentFactor) & (segmentFactor < 1)
     return torch.where(rayHit & segmentHit, rayFactor, inf)
 
-def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[Tensor])->Tensor:
+def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[list[Tensor]])->Tensor:
     rayCount = rayStart.shape[0]
     segmentCount = len(segments)
     rayFactorMatrix = torch.zeros(rayCount, segmentCount) + inf
@@ -202,7 +202,7 @@ def rayCastSegments(rayStart: Tensor, rayVector: Tensor, segments: list[Tensor])
     rayFactors = torch.amin(rayFactorMatrix,dim=1)
     return rayFactors
     
-def visionCast(origin: Tensor, reach: float, walls: list[Tensor])->Tensor:
+def visionCast(origin: Tensor, reach: float, walls: list[list[Tensor]])->Tensor:
     rayFactorColumns: list[Tensor] = []
     for lookDir in visionDirs:
         lookVector = reach*lookDir
