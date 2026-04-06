@@ -35,7 +35,12 @@ lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
-discount = 0.95
+# horizon = 0
+
+# TO DO: 
+# Setup the physics engine to let the boundary vary across batches.
+
+discount = 0.99
 other_noise = 1
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
@@ -47,20 +52,16 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
             values = reward + discount*next_values
         else:
             values = reward
-        row_means = torch.mean(values,2)
-        row_mins = torch.amin(values,2)
-        action_values = other_noise*row_means + (1-other_noise)*row_mins
+        # row_means = torch.mean(values,2)
+        # row_mins = torch.amin(values,2)
+        # action_values = other_noise*row_means + (1-other_noise)*row_mins
+        action_values = values[:,:,0] # if other agent is passive
     return action_values
 
-# horizon = 0
-
-# TO DO: 
-# Setup the physics engine to let the boundary vary across batches.
-
-batch_size = 1000 # Reduce to 1000 if GPU memory is limited
+batch_size = 2000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
-self_noise = 0.2
-epoch_size = 1000
+self_noise = 0.1
+epoch_size = 100
 mean_value_loss = 0
 print('Training...')
 for epoch in range(10000000):
