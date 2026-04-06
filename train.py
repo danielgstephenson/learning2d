@@ -8,7 +8,7 @@ import os
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 from save import save_action_checkpoint, save_value_checkpoint
-from reward import get_life, get_reward
+from reward import get_action_values, get_life, get_reward
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -39,25 +39,6 @@ for param_group in value_optimizer.param_groups:
 
 # TO DO: 
 # Setup the physics engine to let the boundary vary across batches.
-
-discount = 0.99
-other_noise = 1
-other_passive = 1
-def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
-    with torch.no_grad():
-        states = state.repeat_interleave(81, dim=0)
-        reward = get_reward(states,outcomes).reshape(-1,9,9)
-        if horizon > 1:
-            life = get_life(state).reshape(-1,1,1)
-            next_values = life*value_model(outcomes).reshape((-1,9,9))
-            values = reward + discount*next_values
-        else:
-            values = reward
-        row_means = torch.mean(values,2)
-        row_mins = torch.amin(values,2)
-        action_values = other_noise*row_means + (1-other_noise)*row_mins
-        action_values = other_passive*values[:,:,0] + (1-other_passive)*action_values
-    return action_values
 
 batch_size = 2000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)

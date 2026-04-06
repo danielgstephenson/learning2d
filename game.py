@@ -1,5 +1,5 @@
 import os
-from numpy import argmax
+import numpy as np
 import torch
 import torch.nn.functional as F
 import arcade
@@ -10,7 +10,7 @@ from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, actionVectors
-from reward import get_reward
+from reward import get_reward, get_action_values
 
 SCALE = 10
 
@@ -100,15 +100,16 @@ class Game(arcade.Window):
         self.sprites.draw()
 
         # Graphically show the chosen action:
-        agent = self.agentCircles[0].agent
-        action_vector = actionVectors[agent.action[i]]
-        x0 = SCALE * agent.position[i,0].item()
-        y0 = SCALE * agent.position[i,1].item()
-        x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
-        y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
-        arcade.draw_line(x0,y0,x1,y1,csscolor.RED,1)
+        # agent = self.agentCircles[0].agent
+        # action_vector = actionVectors[agent.action[i]]
+        # x0 = SCALE * agent.position[i,0].item()
+        # y0 = SCALE * agent.position[i,1].item()
+        # x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
+        # y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
+        # arcade.draw_line(x0,y0,x1,y1,csscolor.RED,5)
 
         # Graphically show the outcome state positions:
+        # generator.generate_outcomes()
         # outcome_positions = self.generator.outcome_agent0.position
         # outcome_positions = outcome_positions.reshape(self.generator.batch_size,9,9,-1)
         # outcome_positions = outcome_positions[i,:,0,:]
@@ -174,9 +175,10 @@ def action_callback():
     # generator.generate_outcomes()
     # action_values = get_action_values(value_model, state, generator.outcomes, horizon=0)
     # chosen_action = torch.argmax(action_values, dim=1)
-
     action_logits = action_model(state)
     chosen_action = torch.argmax(action_logits, dim=1)
+    # action_probs = torch.softmax(action_logits, dim=0)
+    # chosen_action = torch.multinomial(action_probs, num_samples=1)
     generator.start_agent0.action = chosen_action
 
 
