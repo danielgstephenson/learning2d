@@ -212,24 +212,15 @@ def visionCast(origin: Tensor, reach: float, walls: list[list[Tensor]])->Tensor:
     rayFectorMatrix = torch.stack(rayFactorColumns,1)
     return rayFectorMatrix
 
-# test
-# simulation = Simulation(2,0.1)
-# agent0 = Agent(simulation, 0)
-# size = 200
-# boundary = Boundary(simulation,[
-#     [-size,-size],
-#     [+size,-size],
-#     [+size,+size],
-#     [-size,+size]
-# ])
-# rayStarts = torch.tensor([[0,0],[15,0]],dtype=simulation.dtype)
-# rayVector = torch.tensor([0,1],dtype=simulation.dtype)
-# segments = [
-#         torch.tensor([[-20,+20],[+20,+20]],dtype=simulation.dtype),
-#         torch.tensor([[-10,+10],[+10,+10]],dtype=simulation.dtype),
-# ]
-# print(rayStarts)
-# print(rayVector)
-# print(segments)
-# rayFactor = rayCastSegments(rayStarts, rayVector, segments)
-# print(rayFactor)
+visionReach = 100
+def get_simulation_state(simulation: Simulation)->Tensor:
+    stateTensors = [
+        simulation.agents[1].position - simulation.agents[0].position,
+        simulation.agents[1].velocity,
+        simulation.blades[0].position - simulation.agents[0].position,
+        simulation.blades[0].velocity,
+        simulation.agents[0].velocity,
+        visionCast(simulation.agents[0].position, visionReach, simulation.boundary.walls),
+    ]
+    simulation_state = torch.cat(stateTensors,dim=1)
+    return simulation_state

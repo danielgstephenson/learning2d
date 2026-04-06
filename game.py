@@ -6,10 +6,10 @@ import arcade
 from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
-from generator import DataGenerator, get_simulation_state
+from generator import DataGenerator
 from models import ActionModel, ValueModel
 import physics
-from physics import Agent, Blade, actionVectors
+from physics import Agent, Blade, actionVectors, get_simulation_state
 from objective import get_reward, get_action_values
 
 SCALE = 10

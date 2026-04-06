@@ -4,20 +4,7 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from physics import Agent, Blade, Boundary, Simulation, actions, visionCast,floatType
-
-visionReach = 100
-def get_simulation_state(simulation: Simulation)->Tensor:
-    stateTensors = [
-        simulation.agents[1].position - simulation.agents[0].position,
-        simulation.agents[1].velocity,
-        simulation.blades[0].position - simulation.agents[0].position,
-        simulation.blades[0].velocity,
-        simulation.agents[0].velocity,
-        visionCast(simulation.agents[0].position, visionReach, simulation.boundary.walls),
-    ]
-    simulation_state = torch.cat(stateTensors,dim=1)
-    return simulation_state
+from physics import Agent, Blade, Simulation, actions, get_simulation_state, floatType
 
 class DataGenerator:
     def __init__(self, batch_size = 3, timeStep = 0.1, step_count = 5, boundary_size = 50):
@@ -98,9 +85,3 @@ def get_random_vectors(count: int, max_scale=1) ->Tensor:
     directions = get_random_directions(count)
     scales = max_scale*torch.rand(count).unsqueeze(1)
     return scales*directions
-
-# TEST
-# generator = DataGenerator()
-# state, outcomes = generator.generate()
-# print(state.shape)
-# print(outcomes.shape)

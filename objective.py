@@ -20,7 +20,7 @@ def get_objective(state: Tensor)->Tensor:
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:
     return get_objective(outcome) - get_objective(state)
 
-discount = 0.95
+discount = 0.98
 other_noise = 0.5
 other_passive = 0.5
 weight = 1 / (1 + discount)
