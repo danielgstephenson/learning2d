@@ -14,11 +14,13 @@ def get_objective(state: Tensor)->Tensor:
     distance = torch.norm(agentVector,p=2,dim=1)
     nearAgent = torch.where(distance < 40, 1, 0)
     life = get_life(state)
-    reward = life * (100 + 5*nearAgent)
+    reward = life * (100 + 10*nearAgent)
     return reward.to(physicsFloatType)
 
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:
-    return get_objective(outcome) - get_objective(state)
+    start = get_objective(state)
+    end = torch.where(start > 0, get_objective(outcome), start)
+    return end - start
 
 discount = 0.98
 other_noise = 0.5
@@ -28,8 +30,7 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
         states = state.repeat_interleave(81, dim=0)
         reward = get_reward(states,outcomes).reshape(-1,9,9)
         if horizon > 1:
-            life = get_life(state).reshape(-1,1,1)
-            next_values = life*value_model(outcomes).reshape((-1,9,9))
+            next_values = value_model(outcomes).reshape((-1,9,9))
             values = reward + discount*next_values
         else:
             values = reward

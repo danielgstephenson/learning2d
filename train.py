@@ -31,7 +31,7 @@ if os.path.exists(action_checkpoint_path):
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
 
-lr = 0.0001
+lr = 0.001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
