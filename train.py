@@ -7,7 +7,7 @@ import os
 
 from generator import DataGenerator
 from models import ActionModel, ValueModel
-from save import save_action_checkpoint, save_value_checkpoint
+from checkpoint import save_action_checkpoint, save_value_checkpoint
 from objective import get_action_values, get_life, get_reward
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
@@ -26,6 +26,7 @@ if os.path.exists(value_checkpoint_path):
     old_value_model.load_state_dict(value_checkpoint['old_model_state_dict'])
     value_optimizer.load_state_dict(value_checkpoint['optimizer_state_dict'])
     horizon = value_checkpoint['horizon']
+
 if os.path.exists(action_checkpoint_path):
     print('Loading Action Checkpoint...')
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
@@ -36,9 +37,6 @@ for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
 # horizon = 0
-
-# TO DO: 
-# Setup the generator to vary the boundary across batches.
 
 batch_size = 2000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
