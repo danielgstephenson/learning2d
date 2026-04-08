@@ -7,7 +7,7 @@ from math import cos, inf, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device = " + str(device))
-physicsFloatType = torch.float32
+physics_dtype = torch.float32
 torch.set_default_device(device)
 
 class Entity:
@@ -23,11 +23,11 @@ class Circle(Entity):
         self.radius = radius
         self.mass = 0.01 * pi * radius ** 2
         self.drag = 0
-        self.position = torch.zeros(simulation.count,2,dtype=physicsFloatType)
-        self.velocity = torch.zeros(simulation.count,2,dtype=physicsFloatType)
-        self.force = torch.zeros(simulation.count,2,dtype=physicsFloatType)
-        self.impulse = torch.zeros(simulation.count,2,dtype=physicsFloatType)
-        self.shift = torch.zeros(simulation.count,2,dtype=physicsFloatType)
+        self.position = torch.zeros(simulation.count,2,dtype=physics_dtype)
+        self.velocity = torch.zeros(simulation.count,2,dtype=physics_dtype)
+        self.force = torch.zeros(simulation.count,2,dtype=physics_dtype)
+        self.impulse = torch.zeros(simulation.count,2,dtype=physics_dtype)
+        self.shift = torch.zeros(simulation.count,2,dtype=physics_dtype)
 
 class Agent(Circle):
     def __init__(self, simulation: Simulation, align: int):
@@ -59,7 +59,7 @@ class Boundary():
         self.walls = []
         self.corners = []
         n = len(points)
-        points = [x.to(physicsFloatType) for x in points]
+        points = [x.to(physics_dtype) for x in points]
         for i in range(n):
             j = i - 1 if i > 0 else n - 1
             self.corners.append(points[i])
@@ -70,7 +70,7 @@ for i in range(8):
     angle = 2 * pi * i / 8
     visionDir = [cos(angle), sin(angle)]
     actionVectorList.append(visionDir)
-actionVectors = torch.tensor(actionVectorList,dtype=physicsFloatType).to(device)
+actionVectors = torch.tensor(actionVectorList,dtype=physics_dtype).to(device)
 actions = torch.tensor([i for i in range(9)]).to(device)
 
 visionDirList: list[list[float]] = []
@@ -79,7 +79,7 @@ for i in range(8):
     visionDir = [cos(angle), sin(angle)]
     visionDirList.append(visionDir)
 visionDirs: list[Tensor] = [
-    torch.tensor(visionDir,dtype=physicsFloatType).to(device)
+    torch.tensor(visionDir,dtype=physics_dtype).to(device)
     for visionDir in visionDirList
 ]
 
