@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from physics import Agent, Blade, Simulation, actions, get_simulation_state, floatType
+from physics import Agent, Blade, Simulation, actions, get_simulation_state, physicsFloatType
 
 class DataGenerator:
     def __init__(self, batch_size = 3, timeStep = 0.1, step_count = 5):
@@ -35,7 +35,7 @@ class DataGenerator:
         self.rotation = torch.stack((
             torch.stack((cosAngle, -sinAngle)),
             torch.stack((sinAngle, +cosAngle))
-        )).permute(2,0,1).to(floatType)
+        )).permute(2,0,1).to(physicsFloatType)
         self.boundary_radius = 50*(1+1*torch.rand(self.batch_size,1))
         boundary_points = [
             self.boundary_radius*torch.tensor([[-1,-1]]).repeat(self.batch_size,1),
@@ -44,7 +44,7 @@ class DataGenerator:
             self.boundary_radius*torch.tensor([[-1,+1]]).repeat(self.batch_size,1)
         ]
         for i in range(len(boundary_points)):
-            point = boundary_points[i].to(floatType)
+            point = boundary_points[i].to(physicsFloatType)
             point = torch.einsum('kij,kj->ki', self.rotation, point)
             boundary_points[i] = point
         self.start_simulation.boundary.setup(boundary_points)

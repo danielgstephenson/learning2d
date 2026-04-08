@@ -1,4 +1,5 @@
 from torch import Tensor, tensor
+from physics import physicsFloatType
 import torch
 
 from models import ValueModel
@@ -14,7 +15,7 @@ def get_objective(state: Tensor)->Tensor:
     nearAgent = torch.where(distance < 40, 1, 0)
     life = get_life(state)
     reward = life * (100 + 5*nearAgent)
-    return reward
+    return reward.to(physicsFloatType)
 
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:
     return get_objective(outcome) - get_objective(state)

@@ -137,8 +137,8 @@ class Game(arcade.Window):
         return action
         
 
-value_checkpoint_path = './checkpoints/distance_value_checkpoint.pt'
-action_checkpoint_path = './checkpoints/distance_action_checkpoint.pt'
+value_checkpoint_path = './checkpoints/value_checkpoint.pt'
+action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel()
 action_model = ActionModel()
 
