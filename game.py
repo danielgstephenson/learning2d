@@ -1,4 +1,5 @@
 import os
+from matplotlib.backend_bases import key_press_handler
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -63,15 +64,16 @@ class Game(arcade.Window):
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
-        self.boundaryPolygons: list[Point2List] = []
         corner_count = len(self.simulation.boundary.corners)
-        corners = [SCALE * self.simulation.boundary.corners[i][0,:] for i in range(corner_count)]
-        polygon = tuple( (p[0].item(), p[1].item()) for p in corners)
-        self.boundaryPolygons.append(polygon)
+        corners = [SCALE * self.simulation.boundary.corners[i][self.index,:] for i in range(corner_count)]
+        self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
 
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
+        if symbol == arcade.key.SPACE:
+            self.index = (self.index + 1) % self.generator.batch_size
+            print('index',self.index)
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.pressed[symbol] = False
@@ -84,46 +86,31 @@ class Game(arcade.Window):
         # print(f"FPS: {fps:.2f}")
         self.clear()
         self.camera.use()
-        i = self.index
-        for boundaryPolygon in self.boundaryPolygons:
-            arcade.draw_polygon_filled(boundaryPolygon, color=csscolor.BLACK)
+        corner_count = len(self.simulation.boundary.corners)
+        corners = [SCALE * self.simulation.boundary.corners[i][self.index,:] for i in range(corner_count)]
+        self.boundaryPolygon = tuple( (p[0].item(), p[1].item()) for p in corners)
+        arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         for circle in self.bladeCircles:
-            circle.center_x = SCALE * circle.blade.position[i,0].item()
-            circle.center_y = SCALE * circle.blade.position[i,1].item()
+            circle.center_x = SCALE * circle.blade.position[self.index,0].item()
+            circle.center_y = SCALE * circle.blade.position[self.index,1].item()
         for circle in self.agentCircles:
-            circle.center_x = SCALE * circle.agent.position[i,0].item()
-            circle.center_y = SCALE * circle.agent.position[i,1].item()
+            circle.center_x = SCALE * circle.agent.position[self.index,0].item()
+            circle.center_y = SCALE * circle.agent.position[self.index,1].item()
         for circle in self.bladeCircles:
-            x0 = SCALE * circle.blade.position[i,0].item()
-            y0 = SCALE * circle.blade.position[i,1].item()
-            x1 = SCALE * circle.blade.agent.position[i,0].item()
-            y1 = SCALE * circle.blade.agent.position[i,1].item()
+            x0 = SCALE * circle.blade.position[self.index,0].item()
+            y0 = SCALE * circle.blade.position[self.index,1].item()
+            x1 = SCALE * circle.blade.agent.position[self.index,0].item()
+            y1 = SCALE * circle.blade.agent.position[self.index,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
-
         # Graphically show the chosen action:
         # agent = self.agentCircles[0].agent
-        # action_vector = actionVectors[agent.action[i]]
-        # x0 = SCALE * agent.position[i,0].item()
-        # y0 = SCALE * agent.position[i,1].item()
-        # x1 = SCALE * (agent.position[i,0].item() + 6*action_vector[0].item())
-        # y1 = SCALE * (agent.position[i,1].item() + 6*action_vector[1].item())
+        # action_vector = actionVectors[agent.action[self.index]]
+        # x0 = SCALE * agent.position[self.index,0].item()
+        # y0 = SCALE * agent.position[self.index,1].item()
+        # x1 = SCALE * (agent.position[self.index,0].item() + 6*action_vector[0].item())
+        # y1 = SCALE * (agent.position[self.index,1].item() + 6*action_vector[1].item())
         # arcade.draw_line(x0,y0,x1,y1,csscolor.RED,5)
-
-        # Graphically show the outcome state positions:
-        # generator.generate_outcomes()
-        # outcome_positions = self.generator.outcome_agent0.position
-        # outcome_positions = outcome_positions.reshape(self.generator.batch_size,9,9,-1)
-        # outcome_positions = outcome_positions[i,:,0,:]
-        # start_position = self.generator.start_agent0.position[0]
-        # x0 = SCALE * start_position[0].item()
-        # y0 = SCALE * start_position[1].item()
-        # for action in range(9):
-        #     outcome_position = outcome_positions[action]
-        #     x1 = SCALE * outcome_position[0].item()
-        #     y1 = SCALE * outcome_position[1].item()
-        #     arcade.draw_line(x0,y0,x1,y1,csscolor.WHITE,1)
-
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
@@ -131,7 +118,6 @@ class Game(arcade.Window):
         self.update_callback()
         self.camera.position = self.agentCircles[1].position
 
-    
     def get_user_action(self):
         dx = 0.0
         dy = 0.0
@@ -149,6 +135,7 @@ class Game(arcade.Window):
             dots = torch.einsum('ij,j->i',actionVectors, vector)
             action = torch.argmax(dots).item()
         return action
+        
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -165,7 +152,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=5,timeStep=0.1,boundary_size=50)
+generator = DataGenerator(batch_size=5,timeStep=0.1)
 generator.reset()
 
 # TO DO:

@@ -7,12 +7,11 @@ import torch.nn.functional as F
 from physics import Agent, Blade, Simulation, actions, get_simulation_state, floatType
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, timeStep = 0.1, step_count = 5, boundary_size = 50):
+    def __init__(self, batch_size = 3, timeStep = 0.1, step_count = 5):
         self.batch_size = batch_size
         self.step_count = step_count
         self.start_simulation = Simulation(batch_size, timeStep)
         self.outcome_simulation = Simulation(81 * batch_size, timeStep)
-        self.boundarySize = boundary_size
         self.start_agent0 = Agent(self.start_simulation, 0)
         self.start_agent1 = Agent(self.start_simulation, 1)
         self.start_blade1 = Blade(self.start_simulation, self.start_agent1)
@@ -21,27 +20,34 @@ class DataGenerator:
         self.outcome_blade1 = Blade(self.outcome_simulation, self.outcome_agent1)
         self.outcome_agent0.action = actions.repeat_interleave(9, dim=0).repeat(self.batch_size)
         self.outcome_agent1.action = actions.repeat(9).repeat(self.batch_size)
+        self.boundary_radius: Tensor
         self.rotation: Tensor
+        self.scale: Tensor
         self.state: Tensor
         self.outcomes: Tensor
         self.reset()
         self.generate_outcomes()
 
     def setup_boundary(self):
-        angle = np.random.rand()*2*pi
-        self.rotation = torch.tensor([
-            [+cos(angle), -sin(angle)],
-            [+sin(angle), +cos(angle)]
-        ])
+        angle = torch.rand(self.batch_size)*2*pi
+        cosAngle = torch.cos(angle)
+        sinAngle = torch.sin(angle)
+        self.rotation = torch.stack((
+            torch.stack((cosAngle, -sinAngle)),
+            torch.stack((sinAngle, +cosAngle))
+        )).permute(2,0,1).to(floatType)
+        self.boundary_radius = 50*(1+2*torch.rand(self.batch_size,1))
         boundary_points = [
-            torch.tensor([[-self.boundarySize,-self.boundarySize]]).repeat(self.batch_size,1),
-            torch.tensor([[+self.boundarySize,-self.boundarySize]]).repeat(self.batch_size,1),
-            torch.tensor([[+self.boundarySize,+self.boundarySize]]).repeat(self.batch_size,1),
-            torch.tensor([[-self.boundarySize,+self.boundarySize]]).repeat(self.batch_size,1)
+            self.boundary_radius*torch.tensor([[-1,-1]]).repeat(self.batch_size,1),
+            self.boundary_radius*torch.tensor([[+1,-1]]).repeat(self.batch_size,1),
+            self.boundary_radius*torch.tensor([[+1,+1]]).repeat(self.batch_size,1),
+            self.boundary_radius*torch.tensor([[-1,+1]]).repeat(self.batch_size,1)
         ]
+        self.scale = 1+2*torch.rand(self.batch_size,1)
         for i in range(len(boundary_points)):
             point = boundary_points[i].to(floatType)
-            point = torch.einsum('ij,kj->ki', self.rotation, point)
+            point = torch.einsum('kij,kj->ki', self.rotation, point)
+            point = self.scale*point
             boundary_points[i] = point
         self.start_simulation.boundary.setup(boundary_points)
         outcome_boundary_points = [point.repeat_interleave(81, dim=0) for point in boundary_points]
@@ -49,17 +55,17 @@ class DataGenerator:
     
     def reset(self):
         self.setup_boundary()
-        agentBound = self.boundarySize - self.start_agent0.radius
+        agentBound = self.boundary_radius - self.start_agent0.radius
         agentPosition0 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
         agentPosition1 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
-        bladeBound = torch.zeros(self.batch_size, 2) + self.boundarySize - self.start_blade1.radius
+        bladeBound = torch.zeros(self.batch_size, 2) + self.boundary_radius - self.start_blade1.radius
         bladeMax1 = torch.min(agentPosition1 + 100, +bladeBound)
         bladeMin1 = torch.max(agentPosition1 - 100, -bladeBound)
         bladeRange1 = bladeMax1 - bladeMin1
         bladePosition1 = bladeMin1 + bladeRange1 * torch.rand(self.batch_size,2)
-        self.start_agent0.position = torch.einsum('ij,kj->ki', self.rotation, agentPosition0)
-        self.start_agent1.position = torch.einsum('ij,kj->ki', self.rotation, agentPosition1)
-        self.start_blade1.position = torch.einsum('ij,kj->ki', self.rotation, bladePosition1)
+        self.start_agent0.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition0)
+        self.start_agent1.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition1)
+        self.start_blade1.position = torch.einsum('kij,kj->ki', self.rotation, bladePosition1)
         self.start_agent0.velocity = get_random_vectors(self.batch_size,30)
         self.start_agent1.velocity = get_random_vectors(self.batch_size,30)
         self.start_blade1.velocity = get_random_vectors(self.batch_size,70)
