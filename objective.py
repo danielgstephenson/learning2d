@@ -6,15 +6,14 @@ from models import ValueModel
 def get_life(state: Tensor)->Tensor:
     bladeVector = state[:,4:6]
     distance = torch.norm(bladeVector,p=2,dim=1)
-    death_range = -1 # 15
-    return torch.where(distance > death_range, 1, 0)
+    return torch.where(distance > 15, 1, 0)
 
 def get_objective(state: Tensor)->Tensor:
     agentVector = state[:,0:2]
-    agentDistance = torch.norm(agentVector,p=2,dim=1)
-    distanceError = torch.abs(agentDistance - 40)
+    distance = torch.norm(agentVector,p=2,dim=1)
+    nearAgent = torch.where(distance < 40, 1, 0)
     life = get_life(state)
-    reward = life * (1000 - distanceError)
+    reward = life * (100 + 5*nearAgent)
     return reward
 
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:
