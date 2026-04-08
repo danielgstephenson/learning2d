@@ -5,16 +5,16 @@ import torch
 from models import ValueModel
 
 def get_life(state: Tensor)->Tensor:
-    bladeVector = state[:,4:6]
-    distance = torch.norm(bladeVector,p=2,dim=1)
+    blade_vector = state[:,4:6]
+    distance = torch.norm(blade_vector,p=2,dim=1)
     return torch.where(distance > 15, 1, 0)
 
 def get_objective(state: Tensor)->Tensor:
-    agentVector = state[:,0:2]
-    distance = torch.norm(agentVector,p=2,dim=1)
-    nearAgent = torch.where(distance < 40, 1, 0)
+    agent_vector = state[:,0:2]
+    distance = torch.norm(agent_vector,p=2,dim=1)
+    near_agent = torch.where(distance < 40, 1, 0)
     life = get_life(state)
-    reward = life * (100 + 10*nearAgent)
+    reward = life * (100 + 10*near_agent)
     return reward.to(physics_dtype)
 
 def get_reward(state: Tensor, outcome: Tensor)->Tensor:

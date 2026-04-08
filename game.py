@@ -10,7 +10,7 @@ from collections import defaultdict
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 import physics
-from physics import Agent, Blade, actionVectors, get_simulation_state
+from physics import Agent, Blade, action_tensor, get_simulation_state
 from objective import get_reward, get_action_values
 
 SCALE = 10
@@ -132,7 +132,7 @@ class Game(arcade.Window):
         action = 0
         if dx != 0.0 or dy != 0.0:
             vector = torch.tensor([dx,dy])
-            dots = torch.einsum('ij,j->i',actionVectors, vector)
+            dots = torch.einsum('ij,j->i',action_tensor, vector)
             action = torch.argmax(dots).item()
         return action
         
