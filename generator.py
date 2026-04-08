@@ -36,18 +36,16 @@ class DataGenerator:
             torch.stack((cosAngle, -sinAngle)),
             torch.stack((sinAngle, +cosAngle))
         )).permute(2,0,1).to(floatType)
-        self.boundary_radius = 50*(1+2*torch.rand(self.batch_size,1))
+        self.boundary_radius = 50*(1+1*torch.rand(self.batch_size,1))
         boundary_points = [
             self.boundary_radius*torch.tensor([[-1,-1]]).repeat(self.batch_size,1),
             self.boundary_radius*torch.tensor([[+1,-1]]).repeat(self.batch_size,1),
             self.boundary_radius*torch.tensor([[+1,+1]]).repeat(self.batch_size,1),
             self.boundary_radius*torch.tensor([[-1,+1]]).repeat(self.batch_size,1)
         ]
-        self.scale = 1+2*torch.rand(self.batch_size,1)
         for i in range(len(boundary_points)):
             point = boundary_points[i].to(floatType)
             point = torch.einsum('kij,kj->ki', self.rotation, point)
-            point = self.scale*point
             boundary_points[i] = point
         self.start_simulation.boundary.setup(boundary_points)
         outcome_boundary_points = [point.repeat_interleave(81, dim=0) for point in boundary_points]
