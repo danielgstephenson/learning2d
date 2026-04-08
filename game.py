@@ -11,7 +11,7 @@ from generator import DataGenerator
 from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, action_tensor, get_simulation_state
-from objective import get_reward, get_action_values
+from objective import get_action_values
 
 SCALE = 10
 
@@ -103,6 +103,11 @@ class Game(arcade.Window):
             y1 = SCALE * circle.blade.agent.position[self.index,1].item()
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
+        # state_tensor = get_simulation_state(generator.start_simulation)
+        # value = value_model(state_tensor)[self.index].item()
+        # print('value', value)
+
+
         # Graphically show the chosen action:
         # agent = self.agentCircles[0].agent
         # action_vector = actionVectors[agent.action[self.index]]

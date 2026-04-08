@@ -9,6 +9,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device = " + str(device))
 physics_dtype = torch.float32
 torch.set_default_device(device)
+torch.set_printoptions(sci_mode=False, precision=4)
 
 class Entity:
     def __init__(self, simulation: Simulation):
