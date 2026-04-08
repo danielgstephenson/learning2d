@@ -30,7 +30,7 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
         states = state.repeat_interleave(81, dim=0)
         reward = get_reward(states,outcomes).reshape(-1,9,9)
         if horizon > 1:
-            next_values = value_model(outcomes).reshape((-1,9,9))
+            next_values = value_model(outcomes).reshape(-1,9,9)
             values = reward + discount*next_values
         else:
             values = reward
