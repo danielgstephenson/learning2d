@@ -18,13 +18,18 @@ def objective(state: Tensor)->Tensor:
     objective = life * (100 + 10*near_agent)
     return objective.to(physics_dtype)
 
-discount = 0.9
+def get_reward(state: Tensor, outcome: Tensor):
+    start = objective(state)
+    end = torch.where(start>0, objective(outcome), 0)
+    return end - start
+
+discount = 0.98
 other_noise = 0.5
 other_passive = 0.5
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         states = state.repeat_interleave(81, dim=0)
-        reward = objective(states).reshape(-1,9,9)
+        reward = get_reward(states, outcomes).reshape(-1,9,9)
         if horizon > 1:
             next_values = value_model(outcomes).reshape(-1,9,9)
             next_values = torch.where(reward > 0, next_values, 0)
