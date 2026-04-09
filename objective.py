@@ -5,29 +5,26 @@ import torch
 
 from models import ValueModel
 
-def get_life(state: Tensor)->Tensor:
-    blade_vector = state[:,4:6]
-    distance = torch.norm(blade_vector,p=2,dim=1)
-    return torch.where(distance > 15, 1, 0)
-
 def get_reward(state: Tensor)->Tensor:
     agent_vector = state[:,0:2]
-    distance = torch.norm(agent_vector,p=2,dim=1)
-    near_agent = torch.where(distance < 40, 1, 0)
-    life = get_life(state)
-    objective = life * (100 + 10*near_agent)
-    return objective.to(physics_dtype)
+    agent_distance = torch.norm(agent_vector,p=2,dim=1,keepdim=True)
+    agent_margin = 40
+    agent_reward = torch.where(agent_distance > agent_margin, agent_margin - agent_distance, 0)
+    blade_vector = state[:,4:6]
+    blade_distance = torch.norm(blade_vector,p=2,dim=1, keepdim=True)
+    blade_margin = 25
+    blade_reward = 30 * torch.where(blade_distance < blade_margin, blade_distance - 15, blade_margin - 15)
+    reward = agent_reward + blade_reward
+    return reward.to(physics_dtype)
 
 discount = 0.98
 other_noise = 0.5
 other_passive = 0.5
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
-        states = state.repeat_interleave(81, dim=0)
-        reward = get_reward(states).reshape(-1,9,9)
+        reward = get_reward(state).repeat_interleave(81, dim=0).reshape(-1,9,9)
         if horizon > 1:
             next_values = value_model(outcomes).reshape(-1,9,9)
-            next_values = torch.where(reward > 0, next_values, 0)
             value = reward + discount*next_values
         else:
             value = reward

@@ -26,19 +26,20 @@ if os.path.exists(value_checkpoint_path):
     old_value_model.load_state_dict(value_checkpoint['old_model_state_dict'])
     value_optimizer.load_state_dict(value_checkpoint['optimizer_state_dict'])
     horizon = value_checkpoint['horizon']
+
 if os.path.exists(action_checkpoint_path):
     print('Loading Action Checkpoint...')
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
 
-lr = 0.001
+lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
-# horizon = 0
+horizon = 0
 
-epoch_size = 10
-batch_size = 5000 # Reduce to 1000 if GPU memory is limited
+epoch_size = 100
+batch_size = 10000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 self_noise = 0.5
 mean_value_loss = 0
@@ -86,4 +87,4 @@ for epoch in range(10000000):
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
     old_value_model.load_state_dict(value_model.state_dict())
-    horizon += 1
+    # horizon += 1

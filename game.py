@@ -48,7 +48,7 @@ class Game(arcade.Window):
         self.camera.zoom = 0.1
         self.index = 0
         self.timeScale = 2
-        self.set_update_rate(1 / 30)
+        self.set_update_rate(1 / 10)
         self.accumulator = 0
         self.generator = generator
         self.simulation = generator.start_simulation
@@ -117,16 +117,11 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         state = get_simulation_state(self.generator.start_simulation).clone()
-        # objective = get_objective(state)[self.index].item()
-        # print('objective',objective)
         value = value_model(state)[self.index].item()
-        # print('value',value)
         self.simulation.step()
         outcome = get_simulation_state(self.generator.start_simulation).clone()
-        reward = get_reward(state, outcome)[self.index].item()
-        if reward != 0: 
-            print('value',value)
-            print('reward',reward)
+        reward = get_reward(state)[self.index].item()
+        print('reward',round(reward,2),round(value,2))
         self.update_callback()
         self.camera.position = self.agentCircles[1].position
 
