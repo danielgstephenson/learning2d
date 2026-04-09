@@ -37,10 +37,10 @@ for param_group in value_optimizer.param_groups:
 
 # horizon = 0
 
+epoch_size = 10
 batch_size = 5000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 self_noise = 0.5
-epoch_size = 100
 mean_value_loss = 0
 print('Training...')
 for epoch in range(10000000):
