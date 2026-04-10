@@ -116,12 +116,15 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
-        state = get_simulation_state(self.generator.start_simulation).clone()
-        value = value_model(state)[self.index].item()
-        self.simulation.step()
+        agentPosition = self.simulation.agents[0].position[self.index,:]
+        bladePosition = self.simulation.blades[0].position[self.index,:]
+        distance = torch.norm(agentPosition-bladePosition,p=2,dim=0)
+        # state = get_simulation_state(self.generator.start_simulation).clone()
+        # value = value_model(state)[self.index].item()
+        if distance > 15: self.simulation.step()
         outcome = get_simulation_state(self.generator.start_simulation).clone()
-        reward = get_reward(state)[self.index].item()
-        print('reward',round(reward,2),round(value,2))
+        # reward = get_reward(state)[self.index].item()
+        # print('reward',round(reward,2),round(value,2))
         self.update_callback()
         self.camera.position = self.agentCircles[1].position
 

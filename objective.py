@@ -12,14 +12,14 @@ def get_reward(state: Tensor)->Tensor:
     agent_reward = torch.where(agent_distance > agent_margin, agent_margin - agent_distance, 0)
     blade_vector = state[:,4:6]
     blade_distance = torch.norm(blade_vector,p=2,dim=1, keepdim=True)
-    blade_margin = 25
+    blade_margin = 30
     blade_reward = 30 * torch.where(blade_distance < blade_margin, blade_distance - 15, blade_margin - 15)
     reward = agent_reward + blade_reward
     return reward.to(physics_dtype)
 
 discount = 0.98
-other_noise = 0.5
-other_passive = 0.5
+other_noise = 0.2
+other_passive = 0
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         reward = get_reward(state).repeat_interleave(81, dim=0).reshape(-1,9,9)

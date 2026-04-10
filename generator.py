@@ -36,7 +36,7 @@ class DataGenerator:
             torch.stack((cosAngle, -sinAngle)),
             torch.stack((sinAngle, +cosAngle))
         )).permute(2,0,1).to(physics_dtype)
-        self.boundary_radius = 50*(1+1*torch.rand(self.batch_size,1))
+        self.boundary_radius = 100*(1+1*torch.rand(self.batch_size,1))
         boundary_points = [
             self.boundary_radius*torch.tensor([[-1,-1]]).repeat(self.batch_size,1),
             self.boundary_radius*torch.tensor([[+1,-1]]).repeat(self.batch_size,1),
