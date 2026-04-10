@@ -8,7 +8,7 @@ import os
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 from checkpoint import save_action_checkpoint, save_value_checkpoint
-from objective import get_action_values
+from objective import get_action_values, get_reward
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -36,12 +36,12 @@ lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 
-horizon = 0
+# horizon = 0
 
 epoch_size = 100
-batch_size = 10000 # Reduce to 1000 if GPU memory is limited
+batch_size = 9000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
-self_noise = 0.5
+self_noise = 0.3
 mean_value_loss = 0
 print('Training...')
 for epoch in range(10000000):
@@ -87,4 +87,4 @@ for epoch in range(10000000):
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
     old_value_model.load_state_dict(value_model.state_dict())
-    # horizon += 1
+    horizon += 1

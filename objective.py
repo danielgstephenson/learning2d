@@ -23,7 +23,7 @@ other_passive = 0.5
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
         reward = get_reward(state).repeat_interleave(81, dim=0).reshape(-1,9,9)
-        if horizon > 1:
+        if horizon > 0:
             next_values = value_model(outcomes).reshape(-1,9,9)
             value = reward + discount*next_values
         else:
