@@ -10,7 +10,7 @@ def get_reward(state: Tensor)->Tensor:
     blade_distance = torch.norm(blade_vector,p=2,dim=1, keepdim=True)
     return blade_distance.to(physics_dtype)
 
-discount = 0.98
+discount = 0.99
 other_noise = 0.1
 other_passive = 0
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
