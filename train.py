@@ -42,7 +42,6 @@ epoch_size = 100
 batch_size = 5000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 self_noise = 0.3
-mean_value_loss = 0
 print('Training...')
 for epoch in range(10000000):
     for batch in range(epoch_size):

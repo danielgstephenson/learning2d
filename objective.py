@@ -1,3 +1,4 @@
+from numpy import where
 from torch import Tensor, tensor
 from torch.functional import _return_counts
 from physics import physics_dtype
@@ -24,6 +25,7 @@ def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, 
         reward = get_reward(state).repeat_interleave(81, dim=0).reshape(-1,9,9)
         if horizon > 0:
             next_values = value_model(outcomes).reshape(-1,9,9)
+            next_values = torch.where(reward > 0, next_values, reward)
             value = reward + discount*next_values
         else:
             value = reward
