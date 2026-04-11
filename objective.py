@@ -6,15 +6,15 @@ import torch
 from models import ValueModel
 
 def get_reward(state: Tensor)->Tensor:
-    agent_vector = state[:,0:2]
-    agent_distance = torch.norm(agent_vector,p=2,dim=1,keepdim=True)
-    agent_margin = 40
-    agent_reward = torch.where(agent_distance > agent_margin, agent_margin - agent_distance, 0)
+    # agent_vector = state[:,0:2]
+    # agent_distance = torch.norm(agent_vector,p=2,dim=1,keepdim=True)
+    # agent_margin = 40
+    # agent_reward = torch.where(agent_distance > agent_margin, agent_margin - agent_distance, 0)
     blade_vector = state[:,4:6]
     blade_distance = torch.norm(blade_vector,p=2,dim=1, keepdim=True)
     blade_margin = 30
     blade_reward = 30 * torch.where(blade_distance < blade_margin, blade_distance - 15, blade_margin - 15)
-    reward = agent_reward + blade_reward
+    reward = blade_reward
     return reward.to(physics_dtype)
 
 discount = 0.98
