@@ -90,6 +90,5 @@ for epoch in range(10000000):
         message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
-    if root_value_loss < 0.5 * action_value_range or horizon == 0:
-        old_value_model.load_state_dict(value_model.state_dict())
-        horizon += 1
+    old_value_model.load_state_dict(value_model.state_dict())
+    horizon += 1
