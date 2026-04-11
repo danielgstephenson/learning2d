@@ -35,15 +35,19 @@ if os.path.exists(action_checkpoint_path):
 lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
+for param_group in action_optimizer.param_groups:
+    param_group['lr'] = lr
 
 # horizon = 1
 
 epoch_size = 100
-batch_size = 5000 # Reduce to 1000 if GPU memory is limited
+batch_size = 8000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size)
 self_noise = 0.3
 print('Training...')
 for epoch in range(10000000):
+    root_value_loss = 0
+    action_value_range = 0
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
@@ -63,7 +67,7 @@ for epoch in range(10000000):
         action_loss = F.cross_entropy(action_logits, best_action)
         chosen_action = torch.argmax(action_logits, dim=1)
         action_accuracy = torch.mean((best_action==chosen_action).to(torch.float))
-        action_value_range = torch.mean((action_value_max-action_value_min))
+        action_value_range = torch.mean((action_value_max-action_value_min)).item()
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
@@ -71,6 +75,7 @@ for epoch in range(10000000):
             print('non-finite action loss')
             continue
         value_loss.backward()
+        root_value_loss = sqrt(value_loss.item())
         torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
         value_optimizer.step()
         save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, value_optimizer, horizon)
@@ -81,9 +86,10 @@ for epoch in range(10000000):
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'RootValueLoss: {sqrt(value_loss.item()):.2f}, '
+        message += f'RootValueLoss: {root_value_loss:.2f}, '
         message += f'ActionValueRange: {action_value_range:.2f}, '
         message += f'ActionAccuracy: {action_accuracy:.2f}, '
         print(message)
-    old_value_model.load_state_dict(value_model.state_dict())
-    horizon += 1
+    if root_value_loss < 0.5 * action_value_range:
+        old_value_model.load_state_dict(value_model.state_dict())
+        horizon += 1
