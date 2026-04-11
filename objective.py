@@ -16,8 +16,8 @@ def get_reward(state: Tensor)->Tensor:
     reward = torch.where(blade_distance < blade_margin, blade_distance - 15, blade_margin - 15)
     return reward.to(physics_dtype)
 
-discount = 0.98
-other_noise = 0.2
+discount = 0.97
+other_noise = 0.3
 other_passive = 0
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
