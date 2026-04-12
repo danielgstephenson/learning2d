@@ -7,11 +7,11 @@ import torch.nn.functional as F
 from physics import Agent, Blade, Simulation, actions, get_simulation_state, physics_dtype
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, timeStep = 0.1, step_count = 5):
+    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 5):
         self.batch_size = batch_size
         self.step_count = step_count
-        self.start_simulation = Simulation(batch_size, timeStep)
-        self.outcome_simulation = Simulation(81 * batch_size, timeStep)
+        self.start_simulation = Simulation(batch_size, time_step)
+        self.outcome_simulation = Simulation(81 * batch_size, time_step)
         self.start_agent0 = Agent(self.start_simulation, 0)
         self.start_agent1 = Agent(self.start_simulation, 1)
         self.start_blade1 = Blade(self.start_simulation, self.start_agent1)

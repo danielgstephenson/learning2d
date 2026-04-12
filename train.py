@@ -8,7 +8,7 @@ import os
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 from checkpoint import save_action_checkpoint, save_value_checkpoint
-from objective import get_action_values, get_reward
+from objective import get_action_values
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -38,11 +38,11 @@ for param_group in value_optimizer.param_groups:
 for param_group in action_optimizer.param_groups:
     param_group['lr'] = lr
 
-# horizon = 1
+# horizon = 0
 
-epoch_size = 100
+epoch_size = 10
 batch_size = 5000 # Reduce to 1000 if GPU memory is limited
-generator = DataGenerator(batch_size)
+generator = DataGenerator(batch_size, time_step = 0.1, step_count = 5)
 self_noise = 0.3
 print('Training...')
 for epoch in range(10000000):

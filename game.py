@@ -11,8 +11,7 @@ from generator import DataGenerator
 from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, action_tensor, get_simulation_state
-from objective import get_action_values, get_reward, get_reward
-
+from objective import get_action_values
 SCALE = 10
 
 torch.set_default_device(physics.device)
@@ -104,27 +103,12 @@ class Game(arcade.Window):
             arcade.draw_line(x0,y0,x1,y1,circle._color,10)
         self.sprites.draw()
 
-
-        # Graphically show the chosen action:
-        # agent = self.agentCircles[0].agent
-        # action_vector = actionVectors[agent.action[self.index]]
-        # x0 = SCALE * agent.position[self.index,0].item()
-        # y0 = SCALE * agent.position[self.index,1].item()
-        # x1 = SCALE * (agent.position[self.index,0].item() + 6*action_vector[0].item())
-        # y1 = SCALE * (agent.position[self.index,1].item() + 6*action_vector[1].item())
-        # arcade.draw_line(x0,y0,x1,y1,csscolor.RED,5)
-
     def on_update(self, delta_time: float) -> bool | None:
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         agentPosition = self.simulation.agents[0].position[self.index,:]
         bladePosition = self.simulation.blades[0].position[self.index,:]
         distance = torch.norm(agentPosition-bladePosition,p=2,dim=0)
-        # state = get_simulation_state(self.generator.start_simulation).clone()
-        # value = value_model(state)[self.index].item()
         if distance > 15: self.simulation.step()
-        outcome = get_simulation_state(self.generator.start_simulation).clone()
-        # reward = get_reward(state)[self.index].item()
-        # print('reward',round(reward,2),round(value,2))
         self.update_callback()
         self.camera.position = self.agentCircles[1].position
 
@@ -162,7 +146,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(batch_size=5,timeStep=0.1)
+generator = DataGenerator(batch_size=5,time_step=0.1)
 generator.reset()
 
 # TO DO:
