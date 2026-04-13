@@ -41,7 +41,7 @@ for param_group in action_optimizer.param_groups:
 # horizon = 0
 
 epoch_size = 10
-batch_size = 5000 # Reduce to 1000 if GPU memory is limited
+batch_size = 1000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size, time_step = 0.1, step_count = 5)
 self_noise = 0.3
 print('Training...')
@@ -67,6 +67,7 @@ for epoch in range(10000000):
         action_probs = torch.softmax(action_logits,dim=1)
         disadvantage = action_value_max-action_values
         expected_disadvantage = torch.einsum('ij,ij->i',action_probs,disadvantage)
+        random_action_loss = torch.mean(disadvantage)
         action_loss = torch.mean(expected_disadvantage)
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
@@ -87,8 +88,9 @@ for epoch in range(10000000):
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {root_value_loss:.2f}, '
-        message += f'ActionValueRange: {action_value_range:.2f}, '
+        message += f'RandomActionLoss: {random_action_loss:.2f}, '
         message += f'ActionLoss: {action_loss:.2f}, '
+        message += f'ActionLossRatio: {action_loss/random_action_loss:.2f}, '
         print(message)
     old_value_model.load_state_dict(value_model.state_dict())
     horizon += 1
