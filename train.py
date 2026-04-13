@@ -60,14 +60,14 @@ for epoch in range(10000000):
         action_value_mean = torch.mean(action_values,1,keepdim=True)
         action_value_max = torch.amax(action_values,1,keepdim=True)
         action_value_min = torch.amin(action_values,1,keepdim=True)
+        action_value_range = torch.mean((action_value_max-action_value_min)).item()
         value_target = (1-self_noise)*action_value_max + self_noise*action_value_mean
         value_loss = F.mse_loss(value_output, value_target, reduction='mean')
-        best_action = torch.argmax(action_values,dim=1)
         action_logits = action_model(state)
-        action_loss = F.cross_entropy(action_logits, best_action)
-        chosen_action = torch.argmax(action_logits, dim=1)
-        action_accuracy = torch.mean((best_action==chosen_action).to(torch.float))
-        action_value_range = torch.mean((action_value_max-action_value_min)).item()
+        action_probs = torch.softmax(action_logits,dim=1)
+        disadvantage = action_values - action_value_max
+        expected_disadvantage = torch.einsum('ij,ij->i',action_probs,disadvantage)
+        action_loss = torch.mean(expected_disadvantage)
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
@@ -88,7 +88,7 @@ for epoch in range(10000000):
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {root_value_loss:.2f}, '
         message += f'ActionValueRange: {action_value_range:.2f}, '
-        message += f'ActionAccuracy: {action_accuracy:.2f}, '
+        message += f'ActionLoss: {action_loss:.2f}, '
         print(message)
     old_value_model.load_state_dict(value_model.state_dict())
     horizon += 1
