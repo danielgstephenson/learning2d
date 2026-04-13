@@ -7,10 +7,10 @@ import arcade
 from arcade import csscolor
 from arcade.types import Point2List
 from collections import defaultdict
-from generator import DataGenerator
+from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel
 import physics
-from physics import Agent, Blade, action_tensor, get_simulation_state
+from physics import Agent, Blade, action_tensor
 from objective import get_action_values
 SCALE = 10
 
@@ -50,7 +50,7 @@ class Game(arcade.Window):
         self.set_update_rate(1 / 10)
         self.accumulator = 0
         self.generator = generator
-        self.simulation = generator.start_simulation
+        self.simulation = generator.simulation
         self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
@@ -81,8 +81,6 @@ class Game(arcade.Window):
        self.camera.zoom *= 1 + 0.1*scroll_y
 
     def on_draw(self):
-        # fps = arcade.get_fps()
-        # print(f"FPS: {fps:.2f}")
         self.clear()
         self.camera.use()
         corner_count = len(self.simulation.boundary.corners)
@@ -137,7 +135,7 @@ value_model = ValueModel()
 action_model = ActionModel()
 
 if os.path.exists(action_checkpoint_path):
-    print('Loading Action Checkpoint...')
+    print('Loading Action 0 Checkpoint...')
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
 
@@ -154,10 +152,12 @@ generator.reset()
 # reward = change in objective
 
 def action_callback():
-    state = get_simulation_state(generator.start_simulation)
+    state = get_simulation_state(generator.simulation)
+    value = value_model(state)
+    print('value',value[game.index].item())
     action_logits = action_model(state)
     chosen_action = torch.argmax(action_logits, dim=1)
-    generator.start_agent0.action = chosen_action
+    generator.agent0.action = chosen_action
 
 
 game = Game(generator,action_callback)

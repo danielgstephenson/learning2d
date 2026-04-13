@@ -4,17 +4,17 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from physics import Agent, Blade, Simulation, actions, get_simulation_state, physics_dtype
+from physics import Agent, Blade, Simulation, actions, physics_dtype, visionCast
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 5):
+    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 1):
         self.batch_size = batch_size
         self.step_count = step_count
-        self.start_simulation = Simulation(batch_size, time_step)
+        self.simulation = Simulation(batch_size, time_step)
         self.outcome_simulation = Simulation(81 * batch_size, time_step)
-        self.start_agent0 = Agent(self.start_simulation, 0)
-        self.start_agent1 = Agent(self.start_simulation, 1)
-        self.start_blade1 = Blade(self.start_simulation, self.start_agent1)
+        self.agent0 = Agent(self.simulation, 0)
+        self.agent1 = Agent(self.simulation, 1)
+        self.blade1 = Blade(self.simulation, self.agent1)
         self.outcome_agent0 = Agent(self.outcome_simulation, 0)
         self.outcome_agent1 = Agent(self.outcome_simulation, 1)
         self.outcome_blade1 = Blade(self.outcome_simulation, self.outcome_agent1)
@@ -47,37 +47,36 @@ class DataGenerator:
             point = boundary_points[i].to(physics_dtype)
             point = torch.einsum('kij,kj->ki', self.rotation, point)
             boundary_points[i] = point
-        self.start_simulation.boundary.setup(boundary_points)
+        self.simulation.boundary.setup(boundary_points)
         outcome_boundary_points = [point.repeat_interleave(81, dim=0) for point in boundary_points]
         self.outcome_simulation.boundary.setup(outcome_boundary_points)
     
     def reset(self):
         self.setup_boundary()
-        agentBound = self.boundary_radius - self.start_agent0.radius
+        agentBound = self.boundary_radius - self.agent0.radius
         agentPosition0 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
         agentPosition1 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
-        bladeBound = torch.zeros(self.batch_size, 2) + self.boundary_radius - self.start_blade1.radius
+        bladeBound = torch.zeros(self.batch_size, 2) + self.boundary_radius - self.blade1.radius
         bladeMax1 = torch.min(agentPosition1 + 100, +bladeBound)
         bladeMin1 = torch.max(agentPosition1 - 100, -bladeBound)
         bladeRange1 = bladeMax1 - bladeMin1
         bladePosition1 = bladeMin1 + bladeRange1 * torch.rand(self.batch_size,2)
-        self.start_agent0.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition0)
-        self.start_agent1.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition1)
-        self.start_blade1.position = torch.einsum('kij,kj->ki', self.rotation, bladePosition1)
-        self.start_agent0.velocity = get_random_vectors(self.batch_size,30)
-        self.start_agent1.velocity = get_random_vectors(self.batch_size,30)
-        self.start_blade1.velocity = get_random_vectors(self.batch_size,70)
-        self.state = get_simulation_state(self.start_simulation)
+        self.agent0.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition0)
+        self.agent1.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition1)
+        self.blade1.position = torch.einsum('kij,kj->ki', self.rotation, bladePosition1)
+        self.agent0.velocity = get_random_vectors(self.batch_size,30)
+        self.agent1.velocity = get_random_vectors(self.batch_size,30)
+        self.blade1.velocity = get_random_vectors(self.batch_size,70)
+        self.state = get_simulation_state(self.simulation)
 
     def generate_outcomes(self):
-        self.outcome_agent0.position = self.start_agent0.position.repeat_interleave(81, dim=0)
-        self.outcome_agent0.velocity = self.start_agent0.velocity.repeat_interleave(81, dim=0)
-        self.outcome_agent1.position = self.start_agent1.position.repeat_interleave(81, dim=0)
-        self.outcome_agent1.velocity = self.start_agent1.velocity.repeat_interleave(81, dim=0)
-        self.outcome_blade1.position = self.start_blade1.position.repeat_interleave(81, dim=0)
-        self.outcome_agent1.velocity = self.start_blade1.velocity.repeat_interleave(81, dim=0)
+        self.outcome_agent0.position = self.agent0.position.repeat_interleave(81, dim=0)
+        self.outcome_agent0.velocity = self.agent0.velocity.repeat_interleave(81, dim=0)
+        self.outcome_agent1.position = self.agent1.position.repeat_interleave(81, dim=0)
+        self.outcome_agent1.velocity = self.agent1.velocity.repeat_interleave(81, dim=0)
+        self.outcome_blade1.position = self.blade1.position.repeat_interleave(81, dim=0)
+        self.outcome_agent1.velocity = self.blade1.velocity.repeat_interleave(81, dim=0)
         for _ in range(self.step_count): self.outcome_simulation.step()
-        self.state = get_simulation_state(self.start_simulation)
         self.outcomes = get_simulation_state(self.outcome_simulation)
 
 def get_random_directions(count: int)->Tensor:
@@ -89,3 +88,16 @@ def get_random_vectors(count: int, max_scale=1) ->Tensor:
     directions = get_random_directions(count)
     scales = max_scale*torch.rand(count).unsqueeze(1)
     return scales*directions
+
+vision_reach = 100
+def get_simulation_state(simulation: Simulation)->Tensor:
+    stateTensors = [
+        simulation.agents[1].position - simulation.agents[0].position,
+        simulation.agents[1].velocity,
+        simulation.blades[0].position - simulation.agents[0].position,
+        simulation.blades[0].velocity,
+        simulation.agents[0].velocity,
+        visionCast(simulation.agents[0].position, vision_reach, simulation.boundary.walls),
+    ]
+    simulation_state = torch.cat(stateTensors,dim=1)
+    return simulation_state

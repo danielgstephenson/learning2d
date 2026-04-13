@@ -106,7 +106,7 @@ class Simulation:
             blade.impulse[:,:] = 0
             blade.shift[:,:] = 0
         for agent in self.agents:
-            agent.force = agent.move_power * action_tensor[agent.action]
+            agent.force = agent.move_power * action_tensor[agent.action,:]
         for blade in self.blades:
             vector = blade.agent.position - blade.position
             blade.force = blade.move_power * vector
@@ -212,16 +212,3 @@ def visionCast(origin: Tensor, reach: float, walls: list[list[Tensor]])->Tensor:
         ray_factor_columns.append(reach * ray_factors)
     ray_factor_matrix = torch.stack(ray_factor_columns,1)
     return ray_factor_matrix
-
-vision_reach = 100
-def get_simulation_state(simulation: Simulation)->Tensor:
-    stateTensors = [
-        simulation.agents[1].position - simulation.agents[0].position,
-        simulation.agents[1].velocity,
-        simulation.blades[0].position - simulation.agents[0].position,
-        simulation.blades[0].velocity,
-        simulation.agents[0].velocity,
-        visionCast(simulation.agents[0].position, vision_reach, simulation.boundary.walls),
-    ]
-    simulation_state = torch.cat(stateTensors,dim=1)
-    return simulation_state
