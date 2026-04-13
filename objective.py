@@ -6,24 +6,26 @@ import torch
 
 from models import ValueModel
 
-def get_quality(state: Tensor)->Tensor:
+def get_life(state: Tensor)->Tensor:
     blade_vector = state[:,4:6]
     blade_distance = torch.norm(blade_vector,p=2,dim=1, keepdim=True)
-    blade_margin = 50
-    quality = torch.where(blade_distance < blade_margin, blade_distance - 15, blade_margin - 15)
-    return quality.to(physics_dtype)
+    return (blade_distance > 15).to(physics_dtype)
+
+def get_quality(state: Tensor)->Tensor:
+    return 100*get_life(state)
 
 discount = 0.9
 other_noise = 0.3
 other_passive = 0
 def get_action_values(value_model: ValueModel, state: Tensor, outcomes: Tensor, horizon: int):
     with torch.no_grad():
-        quality0 = get_quality(state).repeat_interleave(81, dim=0).reshape(-1,9,9)
-        quality1 = get_quality(outcomes).reshape(-1,9,9)
-        reward = quality1 - quality0
+        life0 = get_life(state).repeat_interleave(81, dim=0).reshape(-1,9,9)
+        life1 = get_life(outcomes).reshape(-1,9,9)
+        life1 = life0 * life1
+        reward = 100*(life1 - life0)
         if horizon > 0:
             next_values = value_model(outcomes).reshape(-1,9,9)
-            next_values = torch.where(quality0 > 0, next_values, -100)
+            next_values = torch.where(life0 > 0, next_values, 0)
             value = reward + discount*next_values
         else:
             value = reward
