@@ -33,7 +33,7 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.0001
+lr = 0.00001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 for param_group in action_optimizer.param_groups:
@@ -42,7 +42,7 @@ for param_group in action_optimizer.param_groups:
 horizon = 0
 
 epoch_size = 10000000
-batch_size = 3000 # Reduce to 1000 if GPU memory is limited
+batch_size = 8000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size, time_step = 0.1, step_count = 1)
 discount = 0.99
 noise = 0.2
