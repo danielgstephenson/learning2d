@@ -65,7 +65,7 @@ for epoch in range(10000000):
         value_loss = F.mse_loss(value_output, value_target, reduction='mean')
         action_logits = action_model(state)
         action_probs = torch.softmax(action_logits,dim=1)
-        disadvantage = action_values - action_value_max
+        disadvantage = action_value_max-action_values
         expected_disadvantage = torch.einsum('ij,ij->i',action_probs,disadvantage)
         action_loss = torch.mean(expected_disadvantage)
         if not np.isfinite(value_loss.item()): 
