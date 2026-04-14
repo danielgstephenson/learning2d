@@ -8,11 +8,12 @@ from models import ValueModel
 from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
+    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99, noise = 0.1):
         self.batch_size = batch_size
         self.step_count = step_count
         self.discount = discount
         self.time_step = time_step
+        self.noise = noise
         self.simulation = Simulation(batch_size, time_step)
         self.outcome_simulation = Simulation(81 * batch_size, time_step)
         self.agent0 = Agent(self.simulation, 0)
@@ -71,27 +72,32 @@ class DataGenerator:
         reward = torch.where(blade_distance > 15, 0, -100)
         return reward
     
-    def get_action_values(self, agent_index):
-        if agent_index == 0:
-            columns = [8,9]
-        else:
-            columns = [2,3]
-        start = self.state.repeat_interleave(9,0)
-        velocity = self.state[:,columns]
-        print(start.shape)
-
-        # consider 9 possible actions for the agent
-        # each action corresponds to a small change in the agent's velocity
-        # use the value_model to estimate the value under each change in velocity
-        # return the estimated action values as a matrix (batch_size x 9)
-        ...
+    def get_costate(self, agent_index: int)->Tensor:
+        columns = [8,9] if agent_index == 0 else [2,3]
+        start_values = value_model(self.state).repeat_interleave(9,dim=0)
+        outcomes = self.state.repeat_interleave(9,dim=0)
+        action_vectors = action_tensor.repeat(self.batch_size, 1)
+        dt = 0.1*self.time_step
+        outcomes[:,columns] += dt*action_vectors
+        outcome_values = value_model(outcomes)
+        gain = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
+        return gain
+    
+    def get_action(self, agent_index: int)->Tensor:
+        costate = self.get_costate(agent_index)
+        best_action = torch.argmax(costate, dim=1)
+        random_action = torch.randint_like(best_action,high=9)
+        runif = torch.rand_like(best_action)
+        action = torch.where(runif < self.noise, random_action, best_action)
+        return action
 
     def generate(self)->tuple[Tensor,...]:
         self.reset()
         start = self.state
         reward = self.get_reward()
         for t in range(self.step_count):
-            # adjust the actions taken by each agent
+            self.agent0.action = self.get_action(0)
+            self.agent1.action = self.get_action(1)
             self.simulation.step()
             discount_factor = self.discount ** (t+1)
             reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
@@ -127,20 +133,19 @@ def get_random_vectors(count: int, max_scale=1) ->Tensor:
 generator = DataGenerator()
 state = get_simulation_state(generator.simulation)
 
+value_model = ValueModel()
+
 self = generator
 agent_index = 0
-if agent_index == 0:
-    columns = [8,9]
-else:
-    columns = [2,3]
-start = self.state.repeat_interleave(9,dim=0)
-outcomes = start.clone()
+columns = [8,9] if agent_index == 0 else [2,3]
+start_values = value_model(self.state).repeat_interleave(9,dim=0)
+outcomes = self.state.repeat_interleave(9,dim=0)
 action_vectors = action_tensor.repeat(self.batch_size, 1)
 dt = 0.1*self.time_step
 outcomes[:,columns] += dt*action_vectors
+outcome_values = value_model(outcomes)
+gain = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
 
-print(outcomes.shape)
-print(action_vectors.shape)
 
 # consider 9 possible actions for the agent
 # each action corresponds to a small change in the agent's velocity
