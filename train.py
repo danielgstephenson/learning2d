@@ -33,15 +33,15 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.00001
+lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 for param_group in action_optimizer.param_groups:
     param_group['lr'] = lr
 
-horizon = 0
+# horizon = 0
 
-epoch_size = 10000000
+epoch_size = 100000000000
 batch_size = 8000 # Reduce to 1000 if GPU memory is limited
 generator = DataGenerator(batch_size, time_step = 0.1, step_count = 1)
 discount = 0.99
@@ -107,7 +107,7 @@ for epoch in range(10000000):
         message += f'RootValueLoss: {root_value_loss:.02f}, '
         message += f'MeanValueTarget: {torch.sum(weight*value_target).item():.02f}, '
         message += f'ActionValueRange: {action_value_range:.02f}, '
-        message += f'ActionGain: {torch.mean(action_loss - random_action_loss):.02f}, '
+        message += f'ActionGain: {torch.mean(random_action_loss - action_loss):.02f}, '
         print(message)
     horizon += 1
     old_value_model.load_state_dict(value_model.state_dict())
