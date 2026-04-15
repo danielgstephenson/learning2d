@@ -17,7 +17,6 @@ class DataGenerator:
         self.time_step = time_step
         self.noise = noise
         self.simulation = Simulation(batch_size, time_step)
-        self.outcome_simulation = Simulation(81 * batch_size, time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
@@ -47,8 +46,6 @@ class DataGenerator:
             point = torch.einsum('kij,kj->ki', self.rotation, point)
             boundary_points[i] = point
         self.simulation.boundary.setup(boundary_points)
-        outcome_boundary_points = [point.repeat_interleave(81, dim=0) for point in boundary_points]
-        self.outcome_simulation.boundary.setup(outcome_boundary_points)
     
     def reset(self):
         self.setup_boundary()
