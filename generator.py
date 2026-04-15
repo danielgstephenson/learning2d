@@ -77,7 +77,7 @@ class DataGenerator:
         if horizon==0: 
             self.agent0.action = torch.zeros(self.batch_size).int()
             self.agent0.action = torch.zeros(self.batch_size).int()
-            self.costate = 0*self.state.clone()
+            self.costate = 0*self.state
             self.vgrad0 = +self.costate[:,[8,9]]
             self.vgrad1 = -self.costate[:,[2,3]]
         else:

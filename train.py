@@ -71,7 +71,7 @@ for epoch in range(10000000):
         message += f'MeanValueTarget: {torch.sum(weight*value_target).item():.02f}, '
         if horizon > 0:
             action_output = action_model(state)
-            action_loss = torch.sum(weight * (velocity_gradient - action_output) ** 2)
+            action_loss = torch.mean((velocity_gradient - action_output) ** 2)
             root_action_loss = sqrt(value_loss.item())
             vgrad_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
             vgrad_sd = ((velocity_gradient - vgrad_mean)**2).sum(dim=1).sqrt().mean()
