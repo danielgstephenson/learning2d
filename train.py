@@ -33,13 +33,15 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.0001
+lr = 0.001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 for param_group in action_optimizer.param_groups:
     param_group['lr'] = lr
 
 # horizon = 0
+
+torch.autograd.set_detect_anomaly(True)
 
 epoch_size = 100000000000
 batch_size = 64000 # Reduce to 1000 if GPU memory is limited
@@ -54,16 +56,16 @@ for epoch in range(10000000):
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
         generator.reset()
-        state, reward, outcome, action_values = generator.generate()
+        state, reward, outcome = generator.generate(old_value_model)
         value_output = value_model(state)
-        with torch.no_grad():
-            value_target = reward 
-            if horizon > 0: value_target += discount_factor * old_value_model(outcome)
+        value_target = reward if horizon==0 else reward + discount_factor*old_value_model(outcome)
         weight = torch.softmax(-0.01*value_target,dim=0)
         value_loss = torch.sum(weight * (value_target - value_output) ** 2)
         root_value_loss = sqrt(value_loss.item())
         action_logits = action_model(state)
         action_probs = torch.softmax(action_logits,dim=1)
+        with torch.no_grad():
+            action_values = generator.get_action_values(0,value_model)
         action_value_max = torch.amax(action_values,dim=1,keepdim=True)
         disadvantage = action_value_max - action_values
         expected_disadvantage = torch.einsum('ij,ij->i',action_probs,disadvantage)
@@ -89,6 +91,7 @@ for epoch in range(10000000):
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {root_value_loss:.02f}, '
         message += f'MeanValueTarget: {torch.sum(weight*value_target).item():.02f}, '
+        message += f'RandomActionLoss: {random_action_loss:.04f}, '
         message += f'ActionGain: {action_gain:.04f}, '
         print(message)
     horizon += 1

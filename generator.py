@@ -72,7 +72,7 @@ class DataGenerator:
         reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
         return reward
     
-    def get_action_values(self, agent_index: int)->Tensor:
+    def get_action_values(self, agent_index: int, value_model: ValueModel)->Tensor:
         columns = [8,9] if agent_index == 0 else [2,3]
         start_values = value_model(self.state).repeat_interleave(9,dim=0)
         outcomes = self.state.repeat_interleave(9,dim=0)
@@ -84,28 +84,27 @@ class DataGenerator:
         sign = 1 if agent_index == 0 else -1
         return sign * gain0
     
-    def get_action(self, agent_index: int)->Tensor:
-        action_values = self.get_action_values(agent_index)
+    def get_action(self, agent_index: int, value_model: ValueModel)->Tensor:
+        action_values = self.get_action_values(agent_index, value_model)
         best_action = torch.argmax(action_values, dim=1)
         random_action = torch.randint(high=9,size=(self.batch_size,))
         runif = torch.rand(self.batch_size)
         action = torch.where(runif < self.noise, random_action, best_action)
         return action
 
-    def generate(self)->tuple[Tensor,...]:
+    def generate(self, value_model: ValueModel)->tuple[Tensor,...]:
         with torch.no_grad():
             self.reset()
             start = self.state
-            action_values = self.get_action_values(0)
             reward = self.get_reward()
             for t in range(self.step_count):
-                self.agent0.action = self.get_action(0)
-                self.agent1.action = self.get_action(1)
+                self.agent0.action = self.get_action(0,value_model)
+                self.agent1.action = self.get_action(1,value_model)
                 self.simulation.step()
                 discount_factor = self.discount ** (t+1)
                 reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
             outcome = get_simulation_state(self.simulation)
-            return start, reward, outcome, action_values
+            return start, reward, outcome
 
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
@@ -130,27 +129,3 @@ def get_random_vectors(count: int, max_scale=1) ->Tensor:
     scales = max_scale*torch.rand(count).unsqueeze(1)
     return scales*directions
 
-
-# Test
-
-generator = DataGenerator()
-state = get_simulation_state(generator.simulation)
-
-value_model = ValueModel()
-
-self = generator
-agent_index = 0
-columns = [8,9] if agent_index == 0 else [2,3]
-start_values = value_model(self.state).repeat_interleave(9,dim=0)
-outcomes = self.state.repeat_interleave(9,dim=0)
-action_vectors = action_tensor.repeat(self.batch_size, 1)
-dt = 0.1*self.time_step
-outcomes[:,columns] += dt*action_vectors
-outcome_values = value_model(outcomes)
-gain = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
-
-
-# consider 9 possible actions for the agent
-# each action corresponds to a small change in the agent's velocity
-# use the value_model to estimate the value under each change in velocity
-# return the estimated action values as a matrix (batch_size x 9)
