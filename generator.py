@@ -2,7 +2,9 @@ from math import cos, pi, sin
 import numpy as np
 import torch
 from torch import Tensor
+from torch.func import vmap, grad
 import torch.nn.functional as F
+
 
 from models import ValueModel
 from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
@@ -72,7 +74,7 @@ class DataGenerator:
         reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
         return reward
     
-    # It might be better to use torch.autograd.grad to get the gradient of the value function
+    # It might be better to use torch.func.grad to get the gradient of the value function
     def get_action_values(self, agent_index: int, value_model: ValueModel)->Tensor:
         columns = [8,9] if agent_index == 0 else [2,3]
         start_values = value_model(self.state).repeat_interleave(9,dim=0)
@@ -98,8 +100,15 @@ class DataGenerator:
         with torch.no_grad():
             self.reset()
             action_values = self.get_action_values(0,value_model)
-            start = self.state
+            start = self.state.clone()
             reward = self.get_reward()
+            
+            def single_sample_value(x):
+                return value_model(x).sum()
+            per_sample_grad = vmap(grad(single_sample_value))
+            gradient = per_sample_grad(start)
+            print('gradient.shape',gradient.shape)
+
             for t in range(self.step_count):
                 self.agent0.action = self.get_action(0,old_value_model,horizon)
                 self.agent1.action = self.get_action(1,old_value_model,horizon)
