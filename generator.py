@@ -4,29 +4,26 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from physics import Agent, Blade, Simulation, actions, physics_dtype, visionCast
+from models import ValueModel
+from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 1):
+    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99, noise = 0.1):
         self.batch_size = batch_size
         self.step_count = step_count
+        self.discount = discount
+        self.time_step = time_step
+        self.noise = noise
         self.simulation = Simulation(batch_size, time_step)
         self.outcome_simulation = Simulation(81 * batch_size, time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
-        self.outcome_agent0 = Agent(self.outcome_simulation, 0)
-        self.outcome_agent1 = Agent(self.outcome_simulation, 1)
-        self.outcome_blade1 = Blade(self.outcome_simulation, self.outcome_agent1)
-        self.outcome_agent0.action = actions.repeat_interleave(9, dim=0).repeat(self.batch_size)
-        self.outcome_agent1.action = actions.repeat(9).repeat(self.batch_size)
         self.boundary_radius: Tensor
         self.rotation: Tensor
         self.scale: Tensor
         self.state: Tensor
-        self.outcomes: Tensor
         self.reset()
-        self.generate_outcomes()
 
     def setup_boundary(self):
         angle = torch.rand(self.batch_size)*2*pi
@@ -69,25 +66,46 @@ class DataGenerator:
         self.blade1.velocity = get_random_vectors(self.batch_size,70)
         self.state = get_simulation_state(self.simulation)
 
-    def generate_outcomes(self):
-        self.outcome_agent0.position = self.agent0.position.repeat_interleave(81, dim=0)
-        self.outcome_agent0.velocity = self.agent0.velocity.repeat_interleave(81, dim=0)
-        self.outcome_agent1.position = self.agent1.position.repeat_interleave(81, dim=0)
-        self.outcome_agent1.velocity = self.agent1.velocity.repeat_interleave(81, dim=0)
-        self.outcome_blade1.position = self.blade1.position.repeat_interleave(81, dim=0)
-        self.outcome_agent1.velocity = self.blade1.velocity.repeat_interleave(81, dim=0)
-        for _ in range(self.step_count): self.outcome_simulation.step()
-        self.outcomes = get_simulation_state(self.outcome_simulation)
+    def get_reward(self)->Tensor:
+        blade_vector = self.blade1.position - self.agent0.position
+        blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
+        reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
+        return reward
+    
+    def get_action_values(self, agent_index: int)->Tensor:
+        columns = [8,9] if agent_index == 0 else [2,3]
+        start_values = value_model(self.state).repeat_interleave(9,dim=0)
+        outcomes = self.state.repeat_interleave(9,dim=0)
+        action_vectors = action_tensor.repeat(self.batch_size, 1)
+        dt = 0.1*self.time_step
+        outcomes[:,columns] += dt*action_vectors
+        outcome_values = value_model(outcomes)
+        gain0 = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
+        sign = 1 if agent_index == 0 else -1
+        return sign * gain0
+    
+    def get_action(self, agent_index: int)->Tensor:
+        action_values = self.get_action_values(agent_index)
+        best_action = torch.argmax(action_values, dim=1)
+        random_action = torch.randint(high=9,size=(self.batch_size,))
+        runif = torch.rand(self.batch_size)
+        action = torch.where(runif < self.noise, random_action, best_action)
+        return action
 
-def get_random_directions(count: int)->Tensor:
-    normals = torch.randn((count, 2))
-    unit = F.normalize(normals,p=2,dim=1)
-    return unit
-
-def get_random_vectors(count: int, max_scale=1) ->Tensor:
-    directions = get_random_directions(count)
-    scales = max_scale*torch.rand(count).unsqueeze(1)
-    return scales*directions
+    def generate(self)->tuple[Tensor,...]:
+        with torch.no_grad():
+            self.reset()
+            start = self.state
+            action_values = self.get_action_values(0)
+            reward = self.get_reward()
+            for t in range(self.step_count):
+                self.agent0.action = self.get_action(0)
+                self.agent1.action = self.get_action(1)
+                self.simulation.step()
+                discount_factor = self.discount ** (t+1)
+                reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
+            outcome = get_simulation_state(self.simulation)
+            return start, reward, outcome, action_values
 
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
@@ -101,3 +119,38 @@ def get_simulation_state(simulation: Simulation)->Tensor:
     ]
     simulation_state = torch.cat(stateTensors,dim=1)
     return simulation_state
+
+def get_random_directions(count: int)->Tensor:
+    normals = torch.randn((count, 2))
+    unit = F.normalize(normals,p=2,dim=1)
+    return unit
+
+def get_random_vectors(count: int, max_scale=1) ->Tensor:
+    directions = get_random_directions(count)
+    scales = max_scale*torch.rand(count).unsqueeze(1)
+    return scales*directions
+
+
+# Test
+
+generator = DataGenerator()
+state = get_simulation_state(generator.simulation)
+
+value_model = ValueModel()
+
+self = generator
+agent_index = 0
+columns = [8,9] if agent_index == 0 else [2,3]
+start_values = value_model(self.state).repeat_interleave(9,dim=0)
+outcomes = self.state.repeat_interleave(9,dim=0)
+action_vectors = action_tensor.repeat(self.batch_size, 1)
+dt = 0.1*self.time_step
+outcomes[:,columns] += dt*action_vectors
+outcome_values = value_model(outcomes)
+gain = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
+
+
+# consider 9 possible actions for the agent
+# each action corresponds to a small change in the agent's velocity
+# use the value_model to estimate the value under each change in velocity
+# return the estimated action values as a matrix (batch_size x 9)
