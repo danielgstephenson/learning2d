@@ -8,7 +8,6 @@ import os
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 from checkpoint import save_action_checkpoint, save_value_checkpoint
-from objective import get_life
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
@@ -56,16 +55,13 @@ for epoch in range(10000000):
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
         generator.reset()
-        state, reward, outcome = generator.generate(old_value_model)
+        state, value_target, action_values = generator.generate(horizon, old_value_model, value_model)
         value_output = value_model(state)
-        value_target = reward if horizon==0 else reward + discount_factor*old_value_model(outcome)
         weight = torch.softmax(-0.01*value_target,dim=0)
         value_loss = torch.sum(weight * (value_target - value_output) ** 2)
         root_value_loss = sqrt(value_loss.item())
         action_logits = action_model(state)
         action_probs = torch.softmax(action_logits,dim=1)
-        with torch.no_grad():
-            action_values = generator.get_action_values(0,value_model)
         action_value_max = torch.amax(action_values,dim=1,keepdim=True)
         disadvantage = action_value_max - action_values
         expected_disadvantage = torch.einsum('ij,ij->i',action_probs,disadvantage)

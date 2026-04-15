@@ -72,6 +72,7 @@ class DataGenerator:
         reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
         return reward
     
+    # It might be better to use torch.autograd.grad to get the gradient of the value function
     def get_action_values(self, agent_index: int, value_model: ValueModel)->Tensor:
         columns = [8,9] if agent_index == 0 else [2,3]
         start_values = value_model(self.state).repeat_interleave(9,dim=0)
@@ -84,27 +85,31 @@ class DataGenerator:
         sign = 1 if agent_index == 0 else -1
         return sign * gain0
     
-    def get_action(self, agent_index: int, value_model: ValueModel)->Tensor:
+    def get_action(self, agent_index: int, value_model: ValueModel, horizon: int)->Tensor:
+        random_action = torch.randint(high=9,size=(self.batch_size,))
+        if horizon==0: return random_action
         action_values = self.get_action_values(agent_index, value_model)
         best_action = torch.argmax(action_values, dim=1)
-        random_action = torch.randint(high=9,size=(self.batch_size,))
         runif = torch.rand(self.batch_size)
         action = torch.where(runif < self.noise, random_action, best_action)
         return action
 
-    def generate(self, value_model: ValueModel)->tuple[Tensor,...]:
+    def generate(self, horizon: int, old_value_model: ValueModel, value_model: ValueModel)->tuple[Tensor,...]:
         with torch.no_grad():
             self.reset()
+            action_values = self.get_action_values(0,value_model)
             start = self.state
             reward = self.get_reward()
             for t in range(self.step_count):
-                self.agent0.action = self.get_action(0,value_model)
-                self.agent1.action = self.get_action(1,value_model)
+                self.agent0.action = self.get_action(0,old_value_model,horizon)
+                self.agent1.action = self.get_action(1,old_value_model,horizon)
                 self.simulation.step()
                 discount_factor = self.discount ** (t+1)
                 reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
             outcome = get_simulation_state(self.simulation)
-            return start, reward, outcome
+            discount_factor = self.discount ** self.step_count
+            value_target = reward if horizon==0 else reward + discount_factor*old_value_model(outcome)
+            return start, value_target, action_values
 
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:

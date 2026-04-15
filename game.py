@@ -11,7 +11,6 @@ from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, action_tensor
-from objective import get_action_values
 SCALE = 10
 
 torch.set_default_device(physics.device)
