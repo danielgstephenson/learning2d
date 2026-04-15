@@ -116,8 +116,9 @@ class DataGenerator:
                 discount_factor = self.discount ** (t+1)
                 reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
             outcome = get_simulation_state(self.simulation)
-            discount_factor = self.discount ** self.step_count
-            value_target = reward if horizon==0 else reward + discount_factor*old_value_model(outcome)
+            discount_factor = self.discount ** (self.step_count+1)
+            continuation_value = torch.where(reward==0, old_value_model(outcome), 0)
+            value_target = reward if horizon==0 else reward + discount_factor*continuation_value
             return start, value_target, action_values
 
 vision_reach = 100
