@@ -8,6 +8,7 @@ import torch.nn.functional as F
 
 from models import ValueModel
 from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
+import physics
 
 class DataGenerator:
     def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99, noise = 0.1):
@@ -24,6 +25,10 @@ class DataGenerator:
         self.rotation: Tensor
         self.scale: Tensor
         self.state: Tensor
+        self.costate: Tensor
+        self.vgrad0: Tensor
+        self.vgrad1: Tensor
+        self.reward: Tensor
         self.reset()
 
     def setup_boundary(self):
@@ -63,60 +68,42 @@ class DataGenerator:
         self.agent0.velocity = get_random_vectors(self.batch_size,30)
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
         self.blade1.velocity = get_random_vectors(self.batch_size,70)
-        self.state = get_simulation_state(self.simulation)
 
-    def get_reward(self)->Tensor:
+    def update(self, value_model: ValueModel, horizon: int):
+        self.state = get_simulation_state(self.simulation)
+        get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
+        self.costate = get_per_sample_grad(self.state)
+        self.vgrad0 = +self.costate[:,[8,9]]
+        self.vgrad1 = -self.costate[:,[2,3]]
         blade_vector = self.blade1.position - self.agent0.position
         blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
-        reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
-        return reward
-    
-    # It might be better to use torch.func.grad to get the gradient of the value function
-    def get_action_values(self, agent_index: int, value_model: ValueModel)->Tensor:
-        columns = [8,9] if agent_index == 0 else [2,3]
-        start_values = value_model(self.state).repeat_interleave(9,dim=0)
-        outcomes = self.state.repeat_interleave(9,dim=0)
-        action_vectors = action_tensor.repeat(self.batch_size, 1)
-        dt = 0.1*self.time_step
-        outcomes[:,columns] += dt*action_vectors
-        outcome_values = value_model(outcomes)
-        gain0 = ((outcome_values - start_values) / dt).reshape(self.batch_size, 9)
-        sign = 1 if agent_index == 0 else -1
-        return sign * gain0
-    
-    def get_action(self, agent_index: int, value_model: ValueModel, horizon: int)->Tensor:
-        random_action = torch.randint(high=9,size=(self.batch_size,))
-        if horizon==0: return random_action
-        action_values = self.get_action_values(agent_index, value_model)
-        best_action = torch.argmax(action_values, dim=1)
-        runif = torch.rand(self.batch_size)
-        action = torch.where(runif < self.noise, random_action, best_action)
-        return action
+        self.reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
+        if horizon==0: 
+            self.agent0.action = torch.zeros(self.batch_size).int()
+            self.agent0.action = torch.zeros(self.batch_size).int()
+        else:
+            action_values0 = torch.einsum('ij,kj->ik',self.vgrad0, action_tensor)
+            action_values1 = torch.einsum('ij,kj->ik',self.vgrad1,action_tensor)
+            self.agent0.action = torch.argmax(action_values0, dim=1)
+            self.agent1.action = torch.argmax(action_values1, dim=1)
 
-    def generate(self, horizon: int, old_value_model: ValueModel, value_model: ValueModel)->tuple[Tensor,...]:
+    def generate(self, value_model: ValueModel, horizon: int)->tuple[Tensor,...]:
         with torch.no_grad():
             self.reset()
-            action_values = self.get_action_values(0,value_model)
-            start = self.state.clone()
-            reward = self.get_reward()
-            
-            def single_sample_value(x):
-                return value_model(x).sum()
-            per_sample_grad = vmap(grad(single_sample_value))
-            gradient = per_sample_grad(start)
-            print('gradient.shape',gradient.shape)
-
+            self.update(value_model, horizon)
+            state = self.state.clone()
+            velocity_gradient = self.vgrad0.clone()
+            interval_reward = self.reward.clone()
             for t in range(self.step_count):
-                self.agent0.action = self.get_action(0,old_value_model,horizon)
-                self.agent1.action = self.get_action(1,old_value_model,horizon)
                 self.simulation.step()
+                self.update(value_model, horizon)
                 discount_factor = self.discount ** (t+1)
-                reward += discount_factor * torch.where(reward == 0, self.get_reward(), 0)
-            outcome = get_simulation_state(self.simulation)
+                interval_reward += discount_factor * torch.where(interval_reward == 0, self.reward, 0)
+            outcome = self.state.clone()
             discount_factor = self.discount ** (self.step_count+1)
-            continuation_value = torch.where(reward==0, old_value_model(outcome), 0)
-            value_target = reward if horizon==0 else reward + discount_factor*continuation_value
-            return start, value_target, action_values
+            continuation_value = torch.where(interval_reward==0, value_model(outcome), 0)
+            value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
+            return state, velocity_gradient, value_target
 
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:

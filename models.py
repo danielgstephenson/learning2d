@@ -35,7 +35,7 @@ class ActionModel(nn.Module):
         self.hidden_layers = nn.ModuleList()
         for _ in range(self.hidden_count):
             self.hidden_layers.append(nn.Linear(k, k))
-        self.output_layer = nn.Linear(k, 9)
+        self.output_layer = nn.Linear(k, 2)
     def forward(self, x: Tensor)->Tensor:
         x = self.projection_layer(x)
         for i in range(self.hidden_count):
