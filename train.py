@@ -74,7 +74,9 @@ for epoch in range(10000000):
             action_loss = torch.mean((velocity_gradient - action_output) ** 2)
             root_action_loss = sqrt(value_loss.item())
             vgrad_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
-            vgrad_sd = ((velocity_gradient - vgrad_mean)**2).sum(dim=1).sqrt().mean()
+            vgrad_ss_total = ((velocity_gradient - vgrad_mean)**2).sum()
+            vgrad_ss_resid = ((velocity_gradient - action_output)**2).sum()
+            vgrad_R2 = 1 - vgrad_ss_resid/vgrad_ss_total
             action_loss.backward()
             if not np.isfinite(action_loss.item()): 
                 print('non-finite action loss')
@@ -82,8 +84,8 @@ for epoch in range(10000000):
             torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
             action_optimizer.step()
             save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
-            message += f'VelGradSD: {vgrad_sd:.04f}, '
             message += f'RootActionLoss: {root_action_loss:.04f}, '
+            message += f'VelGradR2: {vgrad_R2:.04f}, '
         print(message)
     horizon += 1
     old_value_model.load_state_dict(value_model.state_dict())
