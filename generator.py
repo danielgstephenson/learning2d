@@ -71,17 +71,20 @@ class DataGenerator:
 
     def update(self, value_model: ValueModel, horizon: int):
         self.state = get_simulation_state(self.simulation)
-        get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
-        self.costate = get_per_sample_grad(self.state)
-        self.vgrad0 = +self.costate[:,[8,9]]
-        self.vgrad1 = -self.costate[:,[2,3]]
         blade_vector = self.blade1.position - self.agent0.position
         blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
         self.reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
         if horizon==0: 
             self.agent0.action = torch.zeros(self.batch_size).int()
             self.agent0.action = torch.zeros(self.batch_size).int()
+            self.costate = 0*self.state.clone()
+            self.vgrad0 = +self.costate[:,[8,9]]
+            self.vgrad1 = -self.costate[:,[2,3]]
         else:
+            get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
+            self.costate = get_per_sample_grad(self.state)
+            self.vgrad0 = +self.costate[:,[8,9]]
+            self.vgrad1 = -self.costate[:,[2,3]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0, action_tensor)
             action_values1 = torch.einsum('ij,kj->ik',self.vgrad1,action_tensor)
             self.agent0.action = torch.argmax(action_values0, dim=1)
