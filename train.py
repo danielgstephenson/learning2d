@@ -52,6 +52,7 @@ print('Training...')
 for epoch in range(10000000):
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
+        action_optimizer.zero_grad()
         state, value_target = generator.generate(old_value_model, horizon)
         value_output = value_model(state)
         weight = torch.softmax(-0.01*value_target,dim=0)
