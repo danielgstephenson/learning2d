@@ -11,12 +11,11 @@ from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visi
 import physics
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99, noise = 0.1):
+    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
         self.batch_size = batch_size
         self.step_count = step_count
         self.discount = discount
         self.time_step = time_step
-        self.noise = noise
         self.simulation = Simulation(batch_size, time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
@@ -95,7 +94,6 @@ class DataGenerator:
             self.reset()
             self.update(value_model, horizon)
             state = self.state.clone()
-            velocity_gradient = self.vgrad0.clone()
             interval_reward = self.reward.clone()
             for t in range(self.step_count):
                 self.simulation.step()
@@ -106,7 +104,7 @@ class DataGenerator:
             discount_factor = self.discount ** (self.step_count+1)
             continuation_value = torch.where(interval_reward==0, value_model(outcome), 0)
             value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
-            return state, velocity_gradient, value_target
+            return state, value_target
 
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:

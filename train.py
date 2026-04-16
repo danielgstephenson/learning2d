@@ -1,7 +1,7 @@
 from math import sqrt
 import numpy as np
 import torch
-from torch import Tensor
+from torch.func import vmap, grad
 import torch.nn.functional as F
 import os
 
@@ -44,17 +44,18 @@ epoch_size = 100000000000
 batch_size = 64000 # Reduce to 1000 if GPU memory is limited
 time_step  = 0.1
 step_count = 20
-noise = 0.2
 discount = 0.99
 discount_factor = discount ** step_count
-generator = DataGenerator(batch_size,time_step,step_count,discount,noise)
+generator = DataGenerator(batch_size,time_step,step_count,discount)
+get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 print('Training...')
 for epoch in range(10000000):
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
-        state, velocity_gradient, value_target = generator.generate(old_value_model, horizon)
+        state, value_target = generator.generate(old_value_model, horizon)
         value_output = value_model(state)
         weight = torch.softmax(-0.01*value_target,dim=0)
+        mean_value_target = torch.sum(weight*value_target)
         value_loss = torch.sum(weight * (value_target - value_output) ** 2)
         root_value_loss = sqrt(value_loss.item())
         if not np.isfinite(value_loss.item()): 
@@ -64,28 +65,27 @@ for epoch in range(10000000):
         torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
         value_optimizer.step()
         save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, value_optimizer, horizon)
+        action_output = action_model(state)
+        costate = get_per_sample_grad(state)
+        velocity_gradient = costate[:,[8,9]]
+        action_loss = torch.mean((velocity_gradient - action_output) ** 2)
+        root_action_loss = torch.sqrt(action_loss)
+        vgrad_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
+        vgrad_rmsd = torch.sqrt(torch.mean((velocity_gradient - vgrad_mean) ** 2))
+        if not np.isfinite(action_loss.item()): 
+            print('non-finite action loss')
+            continue
+        action_loss.backward()
+        torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
+        action_optimizer.step()
+        save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {root_value_loss:.02f}, '
-        message += f'MeanValueTarget: {torch.sum(weight*value_target).item():.02f}, '
-        if horizon > 0:
-            action_output = action_model(state)
-            action_loss = torch.mean((velocity_gradient - action_output) ** 2)
-            root_action_loss = sqrt(value_loss.item())
-            vgrad_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
-            vgrad_ss_total = ((velocity_gradient - vgrad_mean)**2).sum()
-            vgrad_ss_resid = ((velocity_gradient - action_output)**2).sum()
-            vgrad_R2 = 1 - vgrad_ss_resid/vgrad_ss_total
-            action_loss.backward()
-            if not np.isfinite(action_loss.item()): 
-                print('non-finite action loss')
-                continue
-            torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
-            action_optimizer.step()
-            save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
-            message += f'RootActionLoss: {root_action_loss:.04f}, '
-            message += f'VelGradR2: {vgrad_R2:.04f}, '
+        message += f'MeanValueTarget: {mean_value_target:.02f}, '
+        message += f'ActionRMSD: {vgrad_rmsd:.04f}, '
+        message += f'RootActionLoss: {root_action_loss:.04f}, '
         print(message)
     horizon += 1
     old_value_model.load_state_dict(value_model.state_dict())
