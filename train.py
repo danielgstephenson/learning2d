@@ -4,6 +4,7 @@ import torch
 from torch.func import vmap, grad
 import torch.nn.functional as F
 import os
+import time
 
 from generator import DataGenerator
 from models import ActionModel, ValueModel
@@ -17,7 +18,7 @@ action_model = ActionModel()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3,weight_decay=1e-5)
 action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=1e-3,weight_decay=1e-5)
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    action_optimizer, 
+    value_optimizer, 
     max_lr=1e-3, 
     total_steps=100_000, 
     pct_start=0.1, # Spend 10% of time ramping up
@@ -46,16 +47,15 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.001
-for param_group in value_optimizer.param_groups:
-    param_group['lr'] = lr
-for param_group in action_optimizer.param_groups:
-    param_group['lr'] = lr
+for group in value_optimizer.param_groups:
+    group.setdefault('initial_lr', group['lr'])
+for group in action_optimizer.param_groups:
+    group.setdefault('initial_lr', group['lr'])
 
 # horizon = 0
 
 epoch_size = 100000000000
-batch_size = 1024 # Reduce to 1000 if GPU memory is limited
+batch_size = 4096
 time_step  = 0.1
 step_count = 20
 discount = 0.99
@@ -65,6 +65,7 @@ print('Training...')
 for epoch in range(10000000):
     generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
     for batch in range(epoch_size):
+        start_time = time.perf_counter()
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
         state, value_target = generator.generate(horizon)
@@ -102,6 +103,8 @@ for epoch in range(10000000):
         message += f'ActionRMSD: {action_rmsd:.04f}, '
         message += f'RootActionLoss: {root_action_loss:.04f}, '
         message += f'ActionRatio: {action_ratio:.04f}, '
+        end_time = time.perf_counter()
+        message += f'BatchTime: {end_time - start_time:.06f}, '
         print(message)
     horizon += 1
     old_value_model.load_state_dict(value_model.state_dict())

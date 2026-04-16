@@ -13,7 +13,7 @@ class ValueModel(nn.Module):
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
         self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 1)
-        nn.init.constant_(self.output_layer.bias, 50.0)
+        nn.init.constant_(self.output_layer.bias, -15.0)
     def forward(self, x: Tensor)->Tensor:
         x = self.input_norm(x)
         x = self.projection(x)
