@@ -32,7 +32,7 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.001
+lr = 0.0001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 for param_group in action_optimizer.param_groups:
@@ -70,8 +70,9 @@ for epoch in range(10000000):
         velocity_gradient = costate[:,[8,9]]
         action_loss = torch.mean((velocity_gradient - action_output) ** 2)
         root_action_loss = torch.sqrt(action_loss)
-        vgrad_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
-        vgrad_rmsd = torch.sqrt(torch.mean((velocity_gradient - vgrad_mean) ** 2))
+        action_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
+        action_rmsd = torch.sqrt(torch.mean((velocity_gradient - action_mean) ** 2))
+        action_ratio = root_action_loss / action_rmsd
         if not np.isfinite(action_loss.item()): 
             print('non-finite action loss')
             continue
@@ -84,8 +85,9 @@ for epoch in range(10000000):
         message += f'Batch: {batch+1}, '
         message += f'RootValueLoss: {root_value_loss:.02f}, '
         message += f'MeanValueTarget: {mean_value_target:.02f}, '
-        message += f'ActionRMSD: {vgrad_rmsd:.04f}, '
+        message += f'ActionRMSD: {action_rmsd:.04f}, '
         message += f'RootActionLoss: {root_action_loss:.04f}, '
+        message += f'ActionRatio: {action_ratio:.04f}, '
         print(message)
     horizon += 1
     old_value_model.load_state_dict(value_model.state_dict())
