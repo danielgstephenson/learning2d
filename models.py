@@ -7,42 +7,39 @@ class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = 18
-        k = 200
-        self.hidden_count = 4
-        self.scale_factor = 1 / sqrt(self.hidden_count)
-        self.projection_layer = nn.Linear(self.input_dim, k)
-        self.hidden_layers = nn.ModuleList()
-        for _ in range(self.hidden_count):
-            self.hidden_layers.append(nn.Linear(k, k))
+        k = 256
+        self.input_norm = nn.LayerNorm(self.input_dim)
+        self.projection = nn.Linear(self.input_dim, k)
+        self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
+        self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 1)
+        nn.init.constant_(self.output_layer.bias, 50.0)
     def forward(self, x: Tensor)->Tensor:
-        x = self.projection_layer(x)
-        for i in range(self.hidden_count):
-            h = self.hidden_layers[i]
-            x = x + F.silu(h(x)) * self.scale_factor
-        x = self.output_layer(x)
-        return x
+        x = self.input_norm(x)
+        x = self.projection(x)
+        for norm, layer in zip(self.layer_norms, self.hidden_layers):
+            x = x + layer(F.silu(norm(x)))
+        return self.output_layer(x)
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)
-
+    
 class ActionModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = 18
-        k = 50
-        self.hidden_count = 4
-        self.projection_layer = nn.Linear(self.input_dim, k)
-        self.hidden_layers = nn.ModuleList()
-        for _ in range(self.hidden_count):
-            self.hidden_layers.append(nn.Linear(k, k))
+        k = 128
+        self.input_norm = nn.LayerNorm(self.input_dim)
+        self.projection = nn.Linear(self.input_dim, k)
+        self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
+        self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 2)
+        nn.init.constant_(self.output_layer.bias, 0.0)
     def forward(self, x: Tensor)->Tensor:
-        x = self.projection_layer(x)
-        for i in range(self.hidden_count):
-            h = self.hidden_layers[i]
-            x = x + F.silu(h(x))
-        x = self.output_layer(x)
-        return x
+        x = self.input_norm(x)
+        x = self.projection(x)
+        for norm, layer in zip(self.layer_norms, self.hidden_layers):
+            x = x + layer(F.silu(norm(x)))
+        return self.output_layer(x)
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)
     

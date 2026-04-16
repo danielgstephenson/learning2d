@@ -14,8 +14,22 @@ action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
 action_model = ActionModel()
-value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=0.001)
-action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=0.001)
+value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3,weight_decay=1e-5)
+action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=1e-3,weight_decay=1e-5)
+value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    action_optimizer, 
+    max_lr=1e-3, 
+    total_steps=100_000, 
+    pct_start=0.1, # Spend 10% of time ramping up
+    anneal_strategy='cos'
+)
+action_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    action_optimizer, 
+    max_lr=1e-3, 
+    total_steps=100_000, 
+    pct_start=0.1, # Spend 10% of time ramping up
+    anneal_strategy='cos'
+)
 horizon = 0
 
 if os.path.exists(value_checkpoint_path):
@@ -32,7 +46,7 @@ if os.path.exists(action_checkpoint_path):
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-lr = 0.0001
+lr = 0.001
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = lr
 for param_group in action_optimizer.param_groups:
@@ -41,31 +55,35 @@ for param_group in action_optimizer.param_groups:
 # horizon = 0
 
 epoch_size = 100000000000
-batch_size = 64000 # Reduce to 1000 if GPU memory is limited
+batch_size = 1024 # Reduce to 1000 if GPU memory is limited
 time_step  = 0.1
 step_count = 20
 discount = 0.99
 discount_factor = discount ** step_count
-generator = DataGenerator(batch_size,time_step,step_count,discount)
 get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 print('Training...')
 for epoch in range(10000000):
+    generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
     for batch in range(epoch_size):
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
-        state, value_target = generator.generate(old_value_model, horizon)
+        state, value_target = generator.generate(horizon)
         value_output = value_model(state)
-        weight = torch.softmax(-0.01*value_target,dim=0)
-        mean_value_target = torch.sum(weight*value_target)
-        value_loss = torch.sum(weight * (value_target - value_output) ** 2)
+        mean_value_target = torch.mean(value_target)
+        value_loss = torch.mean((value_target - value_output) ** 2)
         root_value_loss = sqrt(value_loss.item())
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
         value_loss.backward()
-        torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
         value_optimizer.step()
+        value_scheduler.step()
         save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, value_optimizer, horizon)
+        message = ''
+        message += f'Horizon: {horizon}, '
+        message += f'Batch: {batch+1}, '
+        message += f'RootValueLoss: {root_value_loss:.02f}, '
+        message += f'MeanValueTarget: {mean_value_target:.02f}, '
         action_output = action_model(state)
         costate = get_per_sample_grad(state)
         velocity_gradient = costate[:,[8,9]]
@@ -78,14 +96,9 @@ for epoch in range(10000000):
             print('non-finite action loss')
             continue
         action_loss.backward()
-        torch.nn.utils.clip_grad_norm_(action_model.parameters(), max_norm=1.0)
         action_optimizer.step()
+        action_scheduler.step()
         save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
-        message = ''
-        message += f'Horizon: {horizon}, '
-        message += f'Batch: {batch+1}, '
-        message += f'RootValueLoss: {root_value_loss:.02f}, '
-        message += f'MeanValueTarget: {mean_value_target:.02f}, '
         message += f'ActionRMSD: {action_rmsd:.04f}, '
         message += f'RootActionLoss: {root_action_loss:.04f}, '
         message += f'ActionRatio: {action_ratio:.04f}, '

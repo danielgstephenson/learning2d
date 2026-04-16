@@ -1,22 +1,24 @@
-from math import cos, pi, sin
-import numpy as np
+from math import pi
 import torch
 from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
 
-
 from models import ValueModel
 from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
-import physics
 
 class DataGenerator:
-    def __init__(self, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
+    def __init__(self, value_model: ValueModel, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
+        self.value_model = value_model
         self.batch_size = batch_size
         self.step_count = step_count
         self.discount = discount
         self.time_step = time_step
         self.simulation = Simulation(batch_size, time_step)
+        vgrad = vmap(grad(lambda x : self.value_model(x).sum()))
+        def get_costate(state: Tensor)->Tensor: 
+            return vgrad(state)
+        self.get_costate = get_costate
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
@@ -68,7 +70,7 @@ class DataGenerator:
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
         self.blade1.velocity = get_random_vectors(self.batch_size,70)
 
-    def update(self, value_model: ValueModel, horizon: int):
+    def update(self, horizon: int):
         self.state = get_simulation_state(self.simulation)
         blade_vector = self.blade1.position - self.agent0.position
         blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
@@ -80,8 +82,7 @@ class DataGenerator:
             self.agent0.action = torch.zeros(self.batch_size).int()
             self.agent0.action = torch.zeros(self.batch_size).int()
         else:
-            get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
-            self.costate = get_per_sample_grad(self.state)
+            self.costate = self.get_costate(self.state)
             self.vgrad0 = +self.costate[:,[8,9]]
             self.vgrad1 = -self.costate[:,[2,3]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0,action_tensor)
@@ -89,20 +90,21 @@ class DataGenerator:
             self.agent0.action = torch.argmax(action_values0, dim=1)
             self.agent1.action = torch.argmax(action_values1, dim=1)
 
-    def generate(self, value_model: ValueModel, horizon: int)->tuple[Tensor,...]:
+    def generate(self, horizon: int)->tuple[Tensor,...]:
+        self.value_model.eval()
         with torch.no_grad():
             self.reset()
-            self.update(value_model, horizon)
+            self.update(horizon)
             state = self.state.clone()
             interval_reward = self.reward.clone()
             for t in range(self.step_count):
                 self.simulation.step()
-                self.update(value_model, horizon)
+                self.update(horizon)
                 discount_factor = self.discount ** (t+1)
                 interval_reward += discount_factor * torch.where(interval_reward == 0, self.reward, 0)
             outcome = self.state.clone()
             discount_factor = self.discount ** (self.step_count+1)
-            continuation_value = torch.where(interval_reward==0, value_model(outcome), 0)
+            continuation_value = torch.where(interval_reward==0, self.value_model(outcome), 0)
             value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
             return state, value_target
 
