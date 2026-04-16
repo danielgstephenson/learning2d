@@ -19,7 +19,7 @@ class ValueModel(nn.Module):
         x = self.projection_layer(x)
         for i in range(self.hidden_count):
             h = self.hidden_layers[i]
-            x = x + F.leaky_relu(h(x),negative_slope=0.01) * self.scale_factor
+            x = x + F.silu(h(x)) * self.scale_factor
         x = self.output_layer(x)
         return x
     def __call__(self, *args, **kwds)->Tensor:
@@ -40,7 +40,7 @@ class ActionModel(nn.Module):
         x = self.projection_layer(x)
         for i in range(self.hidden_count):
             h = self.hidden_layers[i]
-            x = x + F.leaky_relu(h(x),negative_slope=0.01)
+            x = x + F.silu(h(x))
         x = self.output_layer(x)
         return x
     def __call__(self, *args, **kwds)->Tensor:
