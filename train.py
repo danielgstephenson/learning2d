@@ -8,9 +8,10 @@ import time
 
 from generator import DataGenerator
 from models import ActionModel, ValueModel
-from checkpoint import save_action_checkpoint, save_value_checkpoint
+from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
+old_value_checkpoint_path = './checkpoints/old_value_checkpoint.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
@@ -20,26 +21,32 @@ action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=1e-3,weight_de
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
     max_lr=1e-3, 
-    total_steps=100_000, 
-    pct_start=0.1, # Spend 10% of time ramping up
+    total_steps=10_000, 
+    pct_start=0.1,
     anneal_strategy='cos'
 )
 action_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     action_optimizer, 
     max_lr=1e-3, 
-    total_steps=100_000, 
-    pct_start=0.1, # Spend 10% of time ramping up
+    total_steps=10_000, 
+    pct_start=0.1,
     anneal_strategy='cos'
 )
 horizon = 0
+batch = 0
 
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(checkpoint['model_state_dict'])
-    old_value_model.load_state_dict(checkpoint['old_model_state_dict'])
     value_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    batch = checkpoint['batch']
     horizon = checkpoint['horizon']
+
+if os.path.exists(old_value_checkpoint_path):
+    print('Loading Old Value Checkpoint...')
+    checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
+    old_value_model.load_state_dict(checkpoint['model_state_dict'])
 
 if os.path.exists(action_checkpoint_path):
     print('Loading Action Checkpoint...')
@@ -62,9 +69,9 @@ discount = 0.99
 discount_factor = discount ** step_count
 get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 print('Training...')
-for epoch in range(10000000):
+for _ in range(10000000):
     generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
-    for batch in range(epoch_size):
+    for _ in range(epoch_size):
         start_time = time.perf_counter()
         value_optimizer.zero_grad()
         action_optimizer.zero_grad()
@@ -79,7 +86,7 @@ for epoch in range(10000000):
         value_loss.backward()
         value_optimizer.step()
         value_scheduler.step()
-        save_value_checkpoint(value_checkpoint_path, value_model, old_value_model, value_optimizer, horizon)
+        save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
@@ -99,12 +106,14 @@ for epoch in range(10000000):
         action_loss.backward()
         action_optimizer.step()
         action_scheduler.step()
-        save_action_checkpoint(action_checkpoint_path, action_model, action_optimizer)
+        save_checkpoint(action_checkpoint_path,action_model,action_optimizer,action_scheduler,batch,horizon)
         message += f'ActionRMSD: {action_rmsd:.04f}, '
         message += f'RootActionLoss: {root_action_loss:.04f}, '
         message += f'ActionRatio: {action_ratio:.04f}, '
         end_time = time.perf_counter()
         message += f'BatchTime: {end_time - start_time:.06f}, '
         print(message)
+        batch += 1
     horizon += 1
+    batch = 0
     old_value_model.load_state_dict(value_model.state_dict())

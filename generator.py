@@ -122,7 +122,7 @@ def get_simulation_state(simulation: Simulation)->Tensor:
     return simulation_state
 
 def get_random_directions(count: int)->Tensor:
-    normals = torch.randn((count, 2))
+    normals = torch.randn(count, 2)
     unit = F.normalize(normals,p=2,dim=1)
     return unit
 
