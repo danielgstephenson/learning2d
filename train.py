@@ -21,14 +21,14 @@ action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=1e-3,weight_de
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
     max_lr=1e-3, 
-    total_steps=10_000, 
+    total_steps=100_000, 
     pct_start=0.1,
     anneal_strategy='cos'
 )
 action_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     action_optimizer, 
     max_lr=1e-3, 
-    total_steps=10_000, 
+    total_steps=100_000, 
     pct_start=0.1,
     anneal_strategy='cos'
 )
