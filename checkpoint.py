@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from typing import Any
 
-
 def save_checkpoint(
         path: str,
         model: nn.Module,

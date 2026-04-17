@@ -40,6 +40,7 @@ if os.path.exists(value_checkpoint_path):
     checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(checkpoint['model_state_dict'])
     value_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    value_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
     batch = checkpoint['batch']
     horizon = checkpoint['horizon']
 
@@ -53,6 +54,7 @@ if os.path.exists(action_checkpoint_path):
     checkpoint = torch.load(action_checkpoint_path, weights_only=False)
     action_model.load_state_dict(checkpoint['model_state_dict'])
     action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    action_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
 for group in value_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
