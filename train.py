@@ -1,5 +1,4 @@
 from math import sqrt
-from winreg import REG_CREATED_NEW_KEY
 import numpy as np
 import torch
 from torch.func import vmap, grad
@@ -44,11 +43,6 @@ if os.path.exists(value_checkpoint_path):
     batch = checkpoint['batch']
     horizon = checkpoint['horizon']
 
-if os.path.exists(old_value_checkpoint_path):
-    print('Loading Old Value Checkpoint...')
-    checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
-    old_value_model.load_state_dict(checkpoint['model_state_dict'])
-
 if os.path.exists(gradient_checkpoint_path):
     print('Loading Action Checkpoint...')
     checkpoint = torch.load(gradient_checkpoint_path, weights_only=False)
@@ -56,12 +50,19 @@ if os.path.exists(gradient_checkpoint_path):
     gradient_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     gradient_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
+if os.path.exists(old_value_checkpoint_path):
+    print('Loading Old Value Checkpoint...')
+    checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
+    old_value_model.load_state_dict(checkpoint['model_state_dict'])
+else: 
+    save_checkpoint(old_value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
+
 for group in value_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 for group in gradient_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 
-# horizon = 0
+horizon = 0
 batch = 0
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
@@ -119,15 +120,18 @@ for _ in range(epoch_size):
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
         root_value_loss = sqrt(raw_value_loss.item())
+        max_value_err = torch.max(torch.abs(value_target - value_output)).item()
         root_weighted_value_loss = sqrt(weighted_value_loss.item())
         value_ratio = root_value_loss / (torch.std(value_target) + 1e-8)
+        hit_percentage = (value_target < 0).float().mean() * 100
         root_gradient_loss = torch.sqrt(gradient_loss)
         gradient_ratio = root_gradient_loss / (torch.std(velocity_gradient) + 1e-8)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValLoss: {root_value_loss:.02f}, '
-        message += f'RootWeightedValLoss: {root_weighted_value_loss:.02f}, '
+        message += f'MaxValErr: {max_value_err:.02f}, '
+        message += f'RootWtValLoss: {root_weighted_value_loss:.02f}, '
         message += f'ValRatio: {value_ratio:.02f}, '
         message += f'RootGradientLoss: {root_gradient_loss:.04f}, '
         message += f'GradientRatio: {gradient_ratio:.04f}, '
