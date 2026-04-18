@@ -1,6 +1,7 @@
 from math import sqrt
 import numpy as np
 import torch
+from torch import Tensor
 from torch.func import vmap, grad
 import os
 import time
@@ -17,7 +18,7 @@ old_value_model = ValueModel().eval()
 gradient_model = GradientModel()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3,weight_decay=1e-5)
 gradient_optimizer = torch.optim.AdamW(gradient_model.parameters(),lr=1e-3,weight_decay=1e-5)
-max_learning_rate = 1e-05
+max_learning_rate = 1e-04
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
     max_lr=max_learning_rate, 
@@ -65,6 +66,7 @@ for group in gradient_optimizer.param_groups:
 
 # horizon = 0
 # batch = 0
+# max_learning_rate = 1e-04
 # value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
 #     value_optimizer, 
 #     max_lr=max_learning_rate, 
@@ -80,7 +82,9 @@ for group in gradient_optimizer.param_groups:
 #     anneal_strategy='cos'
 # )
 
-epoch_size = 100000000
+def error_norm(error: Tensor)->Tensor:
+    return torch.mean((error)**4) + torch.mean((error)**2) + 1e-8
+
 batch_size = 4096
 time_step  = 0.1
 step_count = 20
@@ -89,13 +93,14 @@ discount_factor = discount ** step_count
 get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
 print('Training...')
-for _ in range(epoch_size):
+for _ in range(100000000):
     start_time = time.perf_counter()
     value_optimizer.zero_grad()
     gradient_optimizer.zero_grad()
     state, value_target = generator.generate(horizon)
     value_output = value_model(state)
-    value_loss = torch.mean((value_target - value_output) ** 4)
+    value_error = value_target-value_output
+    value_loss = error_norm(value_error)
     if np.isfinite(value_loss.item()): 
         value_loss.backward()
         value_optimizer.step()
@@ -115,15 +120,15 @@ for _ in range(epoch_size):
         print('non-finite action loss')
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
-        root_value_loss = value_loss.item() ** 0.25
         max_value_err = torch.max(torch.abs(value_target - value_output)).item()
-        value_ratio = root_value_loss / (torch.std(value_target) + 1e-8)
+        target_diff = value_target - torch.mean(value_target)
+        value_ratio = value_loss / error_norm(target_diff)
         root_gradient_loss = torch.sqrt(gradient_loss)
         gradient_ratio = root_gradient_loss / (torch.std(velocity_gradient) + 1e-8)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'RootValLoss: {root_value_loss:.02f}, '
+        message += f'ValLoss: {value_loss:.02f}, '
         message += f'MaxValErr: {max_value_err:.02f}, '
         message += f'ValRatio: {value_ratio:.02f}, '
         message += f'RootGradientLoss: {root_gradient_loss:.04f}, '
