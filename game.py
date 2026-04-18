@@ -183,8 +183,8 @@ generator.reset()
 
 def action_callback():
     state = get_simulation_state(generator.simulation)
-    grad_estimate = gradient_model(state)
-    action_values = torch.einsum('ij,kj->ik',grad_estimate,action_tensor)
+    gradient_estimate = gradient_model(state)
+    action_values = torch.einsum('ij,kj->ik',gradient_estimate,action_tensor)
     generator.agent0.action = torch.argmax(action_values, dim=1)
 
 game = Game(generator,action_callback)
