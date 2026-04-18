@@ -17,16 +17,17 @@ old_value_model = ValueModel().eval()
 gradient_model = GradientModel()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3,weight_decay=1e-5)
 gradient_optimizer = torch.optim.AdamW(gradient_model.parameters(),lr=1e-3,weight_decay=1e-5)
+max_learning_rate = 1e-05
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
-    max_lr=1e-3, 
+    max_lr=max_learning_rate, 
     total_steps=100_000, 
     pct_start=0.1,
     anneal_strategy='cos'
 )
 gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     gradient_optimizer, 
-    max_lr=1e-3, 
+    max_lr=max_learning_rate, 
     total_steps=100_000, 
     pct_start=0.1,
     anneal_strategy='cos'
@@ -62,24 +63,24 @@ for group in value_optimizer.param_groups:
 for group in gradient_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 
-horizon = 0
-batch = 0
-value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    value_optimizer, 
-    max_lr=1e-3, 
-    total_steps=100_000, 
-    pct_start=0.1,
-    anneal_strategy='cos'
-)
-gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    gradient_optimizer, 
-    max_lr=1e-3, 
-    total_steps=100_000, 
-    pct_start=0.1,
-    anneal_strategy='cos'
-)
+# horizon = 0
+# batch = 0
+# value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+#     value_optimizer, 
+#     max_lr=max_learning_rate, 
+#     total_steps=100_000, 
+#     pct_start=0.1,
+#     anneal_strategy='cos'
+# )
+# gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+#     gradient_optimizer, 
+#     max_lr=max_learning_rate, 
+#     total_steps=100_000, 
+#     pct_start=0.1,
+#     anneal_strategy='cos'
+# )
 
-epoch_size = 100000000000
+epoch_size = 100000000
 batch_size = 4096
 time_step  = 0.1
 step_count = 20
@@ -94,14 +95,9 @@ for _ in range(epoch_size):
     gradient_optimizer.zero_grad()
     state, value_target = generator.generate(horizon)
     value_output = value_model(state)
-    value_squared_error = (value_target - value_output) ** 2
-    raw_value_loss = torch.mean(value_squared_error)
-    with torch.no_grad():
-        value_weights = 1 + torch.abs(value_target-value_output)
-        value_weights = value_weights / value_weights.sum()
-    weighted_value_loss = torch.sum(value_weights * value_squared_error)
-    if np.isfinite(raw_value_loss.item()): 
-        weighted_value_loss.backward()
+    value_loss = torch.mean((value_target - value_output) ** 4)
+    if np.isfinite(value_loss.item()): 
+        value_loss.backward()
         value_optimizer.step()
         value_scheduler.step()
     else:
@@ -119,11 +115,9 @@ for _ in range(epoch_size):
         print('non-finite action loss')
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
-        root_value_loss = sqrt(raw_value_loss.item())
+        root_value_loss = value_loss.item() ** 0.25
         max_value_err = torch.max(torch.abs(value_target - value_output)).item()
-        root_weighted_value_loss = sqrt(weighted_value_loss.item())
         value_ratio = root_value_loss / (torch.std(value_target) + 1e-8)
-        hit_percentage = (value_target < 0).float().mean() * 100
         root_gradient_loss = torch.sqrt(gradient_loss)
         gradient_ratio = root_gradient_loss / (torch.std(velocity_gradient) + 1e-8)
         message = ''
@@ -131,7 +125,6 @@ for _ in range(epoch_size):
         message += f'Batch: {batch+1}, '
         message += f'RootValLoss: {root_value_loss:.02f}, '
         message += f'MaxValErr: {max_value_err:.02f}, '
-        message += f'RootWtValLoss: {root_weighted_value_loss:.02f}, '
         message += f'ValRatio: {value_ratio:.02f}, '
         message += f'RootGradientLoss: {root_gradient_loss:.04f}, '
         message += f'GradientRatio: {gradient_ratio:.04f}, '
