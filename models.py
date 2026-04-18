@@ -9,8 +9,8 @@ class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = 26
-        k = 1024
-        k_band=256
+        k = 512
+        k_band = 128
         stds = [1.0, 5.0, 25.0, 100.0]
         weight_list = []
         for s in stds:

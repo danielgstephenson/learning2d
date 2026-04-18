@@ -74,7 +74,7 @@ class DataGenerator:
             self.vgrad0 = +self.costate[:,[8,9]]
             self.vgrad1 = -self.costate[:,[2,3]]
             self.agent0.action = torch.zeros(self.batch_size).int()
-            self.agent0.action = torch.zeros(self.batch_size).int()
+            self.agent1.action = torch.zeros(self.batch_size).int()
         else:
             self.costate = self.get_costate(self.state)
             self.vgrad0 = +self.costate[:,[8,9]]
@@ -102,9 +102,6 @@ class DataGenerator:
             value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
             return state, value_target
 
-# Vision Cast should return 8 vectors instead of 8 scalars
-# When a ray doesn't hit a wall, return the Max Reach Vector.
-# Use learnable fourier features on the state
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
     vision = vision_cast(simulation.agents[0].position, vision_reach, simulation.boundary)

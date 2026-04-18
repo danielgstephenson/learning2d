@@ -82,16 +82,20 @@ for group in gradient_optimizer.param_groups:
 #     anneal_strategy='cos'
 # )
 
-def error_norm(error: Tensor)->Tensor:
-    return torch.mean((error)**4) + torch.mean((error)**2) + 1e-8
-
 batch_size = 4096
+top_k_val = int(batch_size * 0.1)
 time_step  = 0.1
 step_count = 20
 discount = 0.99
 discount_factor = discount ** step_count
 get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
+
+def error_norm(error: Tensor)->Tensor:
+    losses = error**4 + error**2 + 1e-8
+    top_losses, _ = torch.topk(losses, top_k_val)
+    return torch.mean(top_losses) + 1e-8
+
 print('Training...')
 for _ in range(100000000):
     start_time = time.perf_counter()
@@ -99,7 +103,7 @@ for _ in range(100000000):
     gradient_optimizer.zero_grad()
     state, value_target = generator.generate(horizon)
     value_output = value_model(state)
-    value_error = value_target-value_output
+    value_error = torch.abs(value_target-value_output)
     value_loss = error_norm(value_error)
     if np.isfinite(value_loss.item()): 
         value_loss.backward()
@@ -120,21 +124,23 @@ for _ in range(100000000):
         print('non-finite action loss')
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
-        max_value_err = torch.max(torch.abs(value_target - value_output)).item()
+        max_value_err = torch.max(value_error).item()
         target_diff = value_target - torch.mean(value_target)
         value_ratio = value_loss / error_norm(target_diff)
-        root_gradient_loss = torch.sqrt(gradient_loss)
-        gradient_ratio = root_gradient_loss / (torch.std(velocity_gradient) + 1e-8)
+        gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
+        focus_condition = value_error > 0.9*max_value_err
+        focus_count = value_target[focus_condition].size()[0]
+        focus_target = torch.mean(value_target[focus_condition])
+        focus_output = torch.mean(value_output[focus_condition])
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'ValLoss: {value_loss:.02f}, '
         message += f'MaxValErr: {max_value_err:.02f}, '
         message += f'ValRatio: {value_ratio:.02f}, '
-        message += f'RootGradientLoss: {root_gradient_loss:.04f}, '
-        message += f'GradientRatio: {gradient_ratio:.04f}, '
-        end_time = time.perf_counter()
-        message += f'BatchTime: {end_time - start_time:.04f}, '
+        message += f'FocusCount: {focus_count:.02f}, '
+        message += f'FocusTarget: {focus_target:.02f}, '
+        message += f'FocusOutput: {focus_output:.02f}, '
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
