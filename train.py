@@ -87,11 +87,13 @@ for _ in range(10000000):
         value_loss.backward()
         value_optimizer.step()
         value_scheduler.step()
-        save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
+        if batch % 100 == 0:
+            save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'RootValLoss: {root_value_loss:.02f}, '
+        message += f'ValRatio: {value_ratio:.02f}, '
         gradient_output = gradient_model(state)
         costate = get_per_sample_grad(state)
         velocity_gradient = costate[:,[8,9]]
@@ -104,10 +106,12 @@ for _ in range(10000000):
         gradient_loss.backward()
         gradient_optimizer.step()
         gradient_scheduler.step()
-        save_checkpoint(gradient_checkpoint_path,gradient_model,gradient_optimizer,gradient_scheduler,batch,horizon)
-        message += f'RootActionLoss: {root_gradient_loss:.04f}, '
+        if batch % 100 == 0:
+            save_checkpoint(gradient_checkpoint_path,gradient_model,gradient_optimizer,gradient_scheduler,batch,horizon)
+        message += f'RootGradientLoss: {root_gradient_loss:.04f}, '
+        message += f'GradientRatio: {gradient_ratio:.04f}, '
         end_time = time.perf_counter()
-        message += f'BatchTime: {end_time - start_time:.06f}, '
+        message += f'BatchTime: {end_time - start_time:.04f}, '
         print(message)
         batch += 1
     horizon += 1
