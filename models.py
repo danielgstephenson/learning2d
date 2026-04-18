@@ -9,8 +9,10 @@ class ValueModel(nn.Module):
         self.input_dim = 26
         k = 256
         self.projection = nn.Linear(self.input_dim, k)
-        nn.init.normal_(self.projection.weight, mean=0.0, std=1.0)
+        nn.init.normal_(self.projection.weight, mean=0.0, std=2.0)
         nn.init.uniform_(self.projection.bias, 0, 2 * math.pi)
+        self.projection.weight.requires_grad = False
+        self.projection.bias.requires_grad = False
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
         self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 1)
@@ -29,8 +31,10 @@ class GradientModel(nn.Module):
         self.input_dim = 26
         k = 128
         self.projection = nn.Linear(self.input_dim, k)
-        nn.init.normal_(self.projection.weight, mean=0.0, std=0.05)
+        nn.init.normal_(self.projection.weight, mean=0.0, std=2.0)
         nn.init.uniform_(self.projection.bias, 0, 2 * math.pi)
+        self.projection.weight.requires_grad = False
+        self.projection.bias.requires_grad = False
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
         self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 2)
