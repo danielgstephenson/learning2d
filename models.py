@@ -7,7 +7,7 @@ class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = 26
-        k = 256
+        k = 1024
         self.projection = nn.Linear(self.input_dim, k)
         nn.init.normal_(self.projection.weight, mean=0.0, std=2.0)
         nn.init.uniform_(self.projection.bias, 0, 2 * math.pi)
