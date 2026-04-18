@@ -2,7 +2,6 @@ from math import sqrt
 import numpy as np
 import torch
 from torch.func import vmap, grad
-import torch.nn.functional as F
 import os
 import time
 

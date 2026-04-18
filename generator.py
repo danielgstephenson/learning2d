@@ -108,6 +108,9 @@ class DataGenerator:
             value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
             return state, value_target
 
+# Vision Cast should return 8 vectors instead of 8 scalars
+# When a ray doesn't hit a wall, return the Max Reach Vector.
+# Use learnable fourier features on the state
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
     stateTensors = [

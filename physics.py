@@ -212,3 +212,15 @@ def visionCast(origin: Tensor, reach: float, walls: list[list[Tensor]])->Tensor:
         ray_factor_columns.append(reach * ray_factors)
     ray_factor_matrix = torch.stack(ray_factor_columns,1)
     return ray_factor_matrix
+
+def newVisionCast(origin: Tensor, reach: float, walls: list[list[Tensor]])->Tensor:
+    relative_hitpoints: list[Tensor] = []
+    for look_dir in vision_dirs:
+        look_vector = reach*look_dir.unsqueeze(0)
+        ray_factors = rayCastSegments(origin, look_vector, walls)
+        ray_factors = torch.where(ray_factors < 1, ray_factors, 1)
+        ray_factors = ray_factors.unsqueeze(1)
+        relative_hitpoint = ray_factors * look_vector
+        relative_hitpoints.append(relative_hitpoint)
+    hitpoint_matrix = torch.cat(relative_hitpoints,dim=1)
+    return hitpoint_matrix
