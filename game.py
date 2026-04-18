@@ -8,9 +8,9 @@ from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
-from models import ActionModel, ValueModel
+from models import GradientModel, ValueModel
 import physics
-from physics import Agent, Blade, action_tensor, vision_dirs, newVisionCast
+from physics import Agent, Blade, action_tensor, vision_dirs, vision_cast
 SCALE = 10
 
 torch.set_default_device(physics.device)
@@ -63,8 +63,9 @@ class Game(arcade.Window):
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
-        corner_count = len(self.simulation.boundary.corners)
-        corners = [SCALE * self.simulation.boundary.corners[i][self.index,:] for i in range(corner_count)]
+        corner_count = self.simulation.boundary.num_walls
+        print('wall_starts.shape',self.simulation.boundary.wall_starts.shape)
+        corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
 
 
@@ -97,9 +98,9 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        corner_count = len(self.simulation.boundary.corners)
-        corners = [SCALE * self.simulation.boundary.corners[i][self.index,:] for i in range(corner_count)]
-        self.boundaryPolygon = tuple( (p[0].item(), p[1].item()) for p in corners)
+        corner_count = self.simulation.boundary.num_walls
+        corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
+        self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
@@ -113,15 +114,12 @@ class Game(arcade.Window):
         p0 = self.generator.agent0.position
         state = get_simulation_state(self.generator.simulation)
         vision = state[:,10:]
-        hitpoints = newVisionCast(p0,100,self.generator.simulation.boundary.walls)
-        hitpoints = hitpoints.reshape(self.generator.batch_size,8,2)
+        relative_hitpoints = vision.reshape(self.generator.batch_size,8,2)
         for i in range(8):
-            vision_dir = vision_dirs[i].unsqueeze(0)
-            vision_length = vision[:,i].unsqueeze(1)
-            z = p0 + vision_length*vision_dir
-            self.draw_line(p0,z,csscolor.GRAY,5)
-            relative_hitpoint = hitpoints[:,i,:]
-            self.draw_point(p0 + relative_hitpoint,10,csscolor.RED)
+            relative_hitpoint = relative_hitpoints[:,i,:]
+            hitpoint = p0 + relative_hitpoint
+            self.draw_line(p0,hitpoint,csscolor.GRAY,5)
+            self.draw_point(hitpoint,10,csscolor.RED)
 
         # for circle in self.bladeCircles:
         #     b = circle.blade
@@ -166,35 +164,28 @@ class Game(arcade.Window):
         
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-action_checkpoint_path = './checkpoints/action_checkpoint.pt'
+gradient_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
 value_model = ValueModel()
-action_model = ActionModel()
+gradient_model = GradientModel()
 
-if os.path.exists(action_checkpoint_path):
+if os.path.exists(gradient_checkpoint_path):
     print('Loading Action 0 Checkpoint...')
-    checkpoint = torch.load(action_checkpoint_path, weights_only=False)
-    action_model.load_state_dict(checkpoint['model_state_dict'])
+    checkpoint = torch.load(gradient_checkpoint_path, weights_only=False)
+    gradient_model.load_state_dict(checkpoint['model_state_dict'])
 
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=3,time_step=0.1)
+generator = DataGenerator(value_model,batch_size=10,time_step=0.1)
 generator.reset()
-
-# TO DO:
-# Setup the physics engine to let the boundary vary across batches.
-# reward = change in objective
 
 def action_callback():
     state = get_simulation_state(generator.simulation)
-    # value = value_model(state)
-    # print('value',value[game.index].item())
-    vgrad_estimate = action_model(state)
-    action_values = torch.einsum('ij,kj->ik',vgrad_estimate,action_tensor)
+    grad_estimate = gradient_model(state)
+    action_values = torch.einsum('ij,kj->ik',grad_estimate,action_tensor)
     generator.agent0.action = torch.argmax(action_values, dim=1)
-
 
 game = Game(generator,action_callback)
 arcade.enable_timings()

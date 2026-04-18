@@ -6,17 +6,17 @@ import os
 import time
 
 from generator import DataGenerator
-from models import ActionModel, ValueModel
+from models import GradientModel, ValueModel
 from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 old_value_checkpoint_path = './checkpoints/old_value_checkpoint.pt'
-action_checkpoint_path = './checkpoints/action_checkpoint.pt'
+gradient_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
-action_model = ActionModel()
+gradient_model = GradientModel()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3,weight_decay=1e-5)
-action_optimizer = torch.optim.AdamW(action_model.parameters(),lr=1e-3,weight_decay=1e-5)
+gradient_optimizer = torch.optim.AdamW(gradient_model.parameters(),lr=1e-3,weight_decay=1e-5)
 value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     value_optimizer, 
     max_lr=1e-3, 
@@ -24,8 +24,8 @@ value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     pct_start=0.1,
     anneal_strategy='cos'
 )
-action_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    action_optimizer, 
+gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    gradient_optimizer, 
     max_lr=1e-3, 
     total_steps=100_000, 
     pct_start=0.1,
@@ -48,16 +48,16 @@ if os.path.exists(old_value_checkpoint_path):
     checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
     old_value_model.load_state_dict(checkpoint['model_state_dict'])
 
-if os.path.exists(action_checkpoint_path):
+if os.path.exists(gradient_checkpoint_path):
     print('Loading Action Checkpoint...')
-    checkpoint = torch.load(action_checkpoint_path, weights_only=False)
-    action_model.load_state_dict(checkpoint['model_state_dict'])
-    action_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    action_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    checkpoint = torch.load(gradient_checkpoint_path, weights_only=False)
+    gradient_model.load_state_dict(checkpoint['model_state_dict'])
+    gradient_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    gradient_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
 for group in value_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
-for group in action_optimizer.param_groups:
+for group in gradient_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 
 # horizon = 0
@@ -75,12 +75,12 @@ for _ in range(10000000):
     for _ in range(epoch_size):
         start_time = time.perf_counter()
         value_optimizer.zero_grad()
-        action_optimizer.zero_grad()
+        gradient_optimizer.zero_grad()
         state, value_target = generator.generate(horizon)
         value_output = value_model(state)
-        mean_value_target = torch.mean(value_target)
         value_loss = torch.mean((value_target - value_output) ** 2)
         root_value_loss = sqrt(value_loss.item())
+        value_ratio = root_value_loss / torch.std(value_target)
         if not np.isfinite(value_loss.item()): 
             print('non-finite value loss')
             continue
@@ -91,26 +91,21 @@ for _ in range(10000000):
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'RootValueLoss: {root_value_loss:.02f}, '
-        message += f'MeanValueTarget: {mean_value_target:.02f}, '
-        action_output = action_model(state)
+        message += f'RootValLoss: {root_value_loss:.02f}, '
+        gradient_output = gradient_model(state)
         costate = get_per_sample_grad(state)
         velocity_gradient = costate[:,[8,9]]
-        action_loss = torch.mean((velocity_gradient - action_output) ** 2)
-        root_action_loss = torch.sqrt(action_loss)
-        action_mean = torch.mean(velocity_gradient, dim=0, keepdim=True)
-        action_rmsd = torch.sqrt(torch.mean((velocity_gradient - action_mean) ** 2))
-        action_ratio = root_action_loss / action_rmsd
-        if not np.isfinite(action_loss.item()): 
+        gradient_loss = torch.mean((velocity_gradient - gradient_output) ** 2)
+        root_gradient_loss = torch.sqrt(gradient_loss)
+        gradient_ratio = root_gradient_loss / torch.std(velocity_gradient)
+        if not np.isfinite(gradient_loss.item()): 
             print('non-finite action loss')
             continue
-        action_loss.backward()
-        action_optimizer.step()
-        action_scheduler.step()
-        save_checkpoint(action_checkpoint_path,action_model,action_optimizer,action_scheduler,batch,horizon)
-        message += f'ActionRMSD: {action_rmsd:.04f}, '
-        message += f'RootActionLoss: {root_action_loss:.04f}, '
-        message += f'ActionRatio: {action_ratio:.04f}, '
+        gradient_loss.backward()
+        gradient_optimizer.step()
+        gradient_scheduler.step()
+        save_checkpoint(gradient_checkpoint_path,gradient_model,gradient_optimizer,gradient_scheduler,batch,horizon)
+        message += f'RootActionLoss: {root_gradient_loss:.04f}, '
         end_time = time.perf_counter()
         message += f'BatchTime: {end_time - start_time:.06f}, '
         print(message)

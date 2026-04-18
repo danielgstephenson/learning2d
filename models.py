@@ -6,26 +6,6 @@ import torch.nn.functional as F
 class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.input_dim = 18
-        k = 256
-        self.input_norm = nn.LayerNorm(self.input_dim)
-        self.projection = nn.Linear(self.input_dim, k)
-        self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
-        self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
-        self.output_layer = nn.Linear(k, 1)
-        nn.init.constant_(self.output_layer.bias, -15.0)
-    def forward(self, x: Tensor)->Tensor:
-        x = self.input_norm(x)
-        x = self.projection(x)
-        for norm, layer in zip(self.layer_norms, self.hidden_layers):
-            x = x + layer(F.silu(norm(x)))
-        return self.output_layer(x)
-    def __call__(self, *args, **kwds)->Tensor:
-        return super().__call__(*args, **kwds)
-
-class NewValueModel(nn.Module):
-    def __init__(self):
-        super().__init__()
         self.input_dim = 26
         k = 256
         self.projection = nn.Linear(self.input_dim, k)
@@ -43,20 +23,20 @@ class NewValueModel(nn.Module):
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)
     
-class ActionModel(nn.Module):
+class GradientModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.input_dim = 18
+        self.input_dim = 26
         k = 128
-        self.input_norm = nn.LayerNorm(self.input_dim)
         self.projection = nn.Linear(self.input_dim, k)
+        nn.init.normal_(self.projection.weight, mean=0.0, std=0.05)
+        nn.init.uniform_(self.projection.bias, 0, 2 * math.pi)
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
         self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
         self.output_layer = nn.Linear(k, 2)
-        nn.init.constant_(self.output_layer.bias, 0.0)
+        nn.init.constant_(self.output_layer.bias, -0.0)
     def forward(self, x: Tensor)->Tensor:
-        x = self.input_norm(x)
-        x = self.projection(x)
+        x = torch.sin(self.projection(x))
         for norm, layer in zip(self.layer_norms, self.hidden_layers):
             x = x + layer(F.silu(norm(x)))
         return self.output_layer(x)

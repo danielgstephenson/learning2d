@@ -5,7 +5,9 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 
 from models import ValueModel
-from physics import Agent, Blade, Simulation, action_tensor, physics_dtype, visionCast
+from physics import Agent, Blade, Simulation, action_tensor, vision_cast, physics_dtype
+
+unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 
 class DataGenerator:
     def __init__(self, value_model: ValueModel, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
@@ -22,7 +24,7 @@ class DataGenerator:
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
-        self.boundary_radius: Tensor
+        self.radius: Tensor
         self.rotation: Tensor
         self.scale: Tensor
         self.state: Tensor
@@ -36,36 +38,28 @@ class DataGenerator:
         angle = torch.rand(self.batch_size)*2*pi
         cosAngle = torch.cos(angle)
         sinAngle = torch.sin(angle)
-        self.rotation = torch.stack((
-            torch.stack((cosAngle, -sinAngle)),
-            torch.stack((sinAngle, +cosAngle))
-        )).permute(2,0,1).to(physics_dtype)
-        self.boundary_radius = 50*(1+1*torch.rand(self.batch_size,1))
-        boundary_points = [
-            self.boundary_radius*torch.tensor([[-1,-1]]).repeat(self.batch_size,1),
-            self.boundary_radius*torch.tensor([[+1,-1]]).repeat(self.batch_size,1),
-            self.boundary_radius*torch.tensor([[+1,+1]]).repeat(self.batch_size,1),
-            self.boundary_radius*torch.tensor([[-1,+1]]).repeat(self.batch_size,1)
-        ]
-        for i in range(len(boundary_points)):
-            point = boundary_points[i].to(physics_dtype)
-            point = torch.einsum('kij,kj->ki', self.rotation, point)
-            boundary_points[i] = point
-        self.simulation.boundary.setup(boundary_points)
+        x_row = torch.stack((cosAngle, -sinAngle), dim=-1)
+        y_row = torch.stack((sinAngle, cosAngle), dim=-1)
+        self.rotation = torch.stack((x_row, y_row), dim=1).to(physics_dtype)
+        self.radius = 50*(1+1*torch.rand(self.batch_size,1,1))
+        corners = unit_square.unsqueeze(0) * self.radius
+        rotated_corners = torch.einsum('bij,bkj->bki', self.rotation, corners)
+        self.simulation.boundary.setup(rotated_corners)
     
     def reset(self):
         self.setup_boundary()
-        agentBound = self.boundary_radius - self.agent0.radius
+        radius2d = self.radius.squeeze(-1)
+        agentBound = radius2d - self.agent0.radius
         agentPosition0 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
         agentPosition1 = agentBound * (1 - 2 * torch.rand(self.batch_size,2))
-        bladeBound = torch.zeros(self.batch_size, 2) + self.boundary_radius - self.blade1.radius
+        bladeBound = torch.zeros(self.batch_size, 2) + radius2d - self.blade1.radius
         bladeMax1 = torch.min(agentPosition1 + 100, +bladeBound)
         bladeMin1 = torch.max(agentPosition1 - 100, -bladeBound)
         bladeRange1 = bladeMax1 - bladeMin1
         bladePosition1 = bladeMin1 + bladeRange1 * torch.rand(self.batch_size,2)
-        self.agent0.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition0)
-        self.agent1.position = torch.einsum('kij,kj->ki', self.rotation, agentPosition1)
-        self.blade1.position = torch.einsum('kij,kj->ki', self.rotation, bladePosition1)
+        self.agent0.position = torch.einsum('bij,bj->bi', self.rotation, agentPosition0)
+        self.agent1.position = torch.einsum('bij,bj->bi', self.rotation, agentPosition1)
+        self.blade1.position = torch.einsum('bij,bj->bi', self.rotation, bladePosition1)
         self.agent0.velocity = get_random_vectors(self.batch_size,30)
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
         self.blade1.velocity = get_random_vectors(self.batch_size,70)
@@ -113,13 +107,14 @@ class DataGenerator:
 # Use learnable fourier features on the state
 vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
+    vision = vision_cast(simulation.agents[0].position, vision_reach, simulation.boundary)
     stateTensors = [
         simulation.agents[1].position - simulation.agents[0].position,
         simulation.agents[1].velocity,
         simulation.blades[0].position - simulation.agents[0].position,
         simulation.blades[0].velocity,
         simulation.agents[0].velocity,
-        visionCast(simulation.agents[0].position, vision_reach, simulation.boundary.walls),
+        vision.reshape(-1,16),
     ]
     simulation_state = torch.cat(stateTensors,dim=1)
     return simulation_state
