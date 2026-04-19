@@ -17,7 +17,7 @@ class DataGenerator:
         self.discount = discount
         self.time_step = time_step
         self.simulation = Simulation(batch_size, time_step)
-        vgrad = vmap(grad(lambda x: self.value_model.get_expected_value(x).sum()))
+        vgrad = vmap(grad(lambda x: self.value_model(x).sum()))
         def get_costate(state: Tensor)->Tensor: 
             return vgrad(state)
         self.get_costate = get_costate
@@ -98,7 +98,7 @@ class DataGenerator:
                 interval_reward += discount_factor * torch.where(interval_reward == 0, self.reward, 0)
             outcome = self.state.clone()
             discount_factor = self.discount ** (self.step_count+1)
-            expected_future_value = self.value_model.get_expected_value(outcome)
+            expected_future_value = self.value_model(outcome)
             continuation_value = torch.where(interval_reward==0, expected_future_value, 0)
             smooth_value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
             value_target = discretize(smooth_value_target)

@@ -61,12 +61,6 @@ class OldValueModel(nn.Module):
         logits = self.forward(state)
         probs = torch.softmax(logits, dim=-1)
         return torch.sum(probs * self.midpoints, dim=-1)
-        
-value_logit_model = ValueModel()
-g = torch.func.vmap(torch.func.grad(value_logit_model.get_expected_value))
-state = 10*torch.rand(1,26)
-expected_value = value_logit_model.get_expected_value(state)
-g(state)
     
 class GradientModel(nn.Module):
     def __init__(self):

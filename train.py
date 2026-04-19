@@ -89,7 +89,7 @@ time_step  = 0.1
 step_count = 20
 discount = 0.99
 discount_factor = discount ** step_count
-get_per_sample_grad = vmap(grad(lambda x: value_model.get_expected_value(x).sum()))
+get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
 
 print('Training...')
@@ -125,19 +125,12 @@ for _ in range(100000000):
             probs = torch.softmax(value_logits, dim=1)
             target_probs = torch.gather(probs, 1, value_target.unsqueeze(1))
             value_accuracy = target_probs.mean().item()
-            mean_value_output = value_model.get_expected_value(state)
-            smooth_value_target = value_model.midpoints[value_target]
-            value_mae = torch.mean(torch.abs(smooth_value_target - mean_value_output)).item()
-            quantiles = torch.quantile(smooth_value_target, q=torch.tensor([0.01,0.05,0.1,0.15,0.2])).tolist()
-            quantile_string = ','.join([f'{x:+00.1f}' for x in quantiles])
-            entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=1).mean().item()
+            mean_value_output = value_model(state)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'ValLoss: {value_loss:.02f}, '
         message += f'ValAcc: {value_accuracy:.02f}, '
-        message += f'ValMAE: {value_mae:.02f}, '
-        message += f'Entropy: {entropy:.03f}, '
         message += f'GradRatio: {gradient_ratio:.02f}, '
         stop_time = time.perf_counter()
         message += f'Time: {stop_time-start_time:.02f}, '
