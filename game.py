@@ -165,7 +165,7 @@ class Game(arcade.Window):
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 gradient_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
-value_model = ValueModel()
+value_logit_model = ValueModel()
 gradient_model = GradientModel()
 
 if os.path.exists(gradient_checkpoint_path):
@@ -176,9 +176,9 @@ if os.path.exists(gradient_checkpoint_path):
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
-    value_model.load_state_dict(value_checkpoint['model_state_dict'])
+    value_logit_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=10,time_step=0.1)
+generator = DataGenerator(value_logit_model,batch_size=10,time_step=0.1)
 generator.reset()
 
 def action_callback():

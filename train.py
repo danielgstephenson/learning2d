@@ -2,12 +2,13 @@ from math import sqrt
 import numpy as np
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 from torch.func import vmap, grad
 import os
 import time
 
 from generator import DataGenerator
-from models import GradientModel, ValueModel
+from models import GradientModel, ValueModel, discretize
 from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
@@ -88,14 +89,8 @@ time_step  = 0.1
 step_count = 20
 discount = 0.99
 discount_factor = discount ** step_count
-get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
+get_per_sample_grad = vmap(grad(lambda x: value_model.get_expected_value(x).sum()))
 generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
-
-def error_norm(error: Tensor)->Tensor:
-    error = error.flatten()
-    losses = torch.abs(error)**3 + 1e-8
-    top_losses, _ = torch.topk(losses, top_k_val)
-    return torch.mean(top_losses) + 1e-8
 
 print('Training...')
 for _ in range(100000000):
@@ -103,9 +98,8 @@ for _ in range(100000000):
     value_optimizer.zero_grad()
     gradient_optimizer.zero_grad()
     state, value_target = generator.generate(horizon)
-    value_output = value_model(state)
-    value_error = torch.abs(value_target-value_output)
-    value_loss = error_norm(value_error)
+    value_logits = value_model(state)
+    value_loss = F.cross_entropy(value_logits, value_target)
     if np.isfinite(value_loss.item()): 
         value_loss.backward()
         value_optimizer.step()
@@ -125,27 +119,21 @@ for _ in range(100000000):
         print('non-finite action loss')
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
-        max_value_err = torch.max(value_error).item()
-        target_diff = value_target - torch.mean(value_target)
-        value_ratio = value_loss / error_norm(target_diff)
-        gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
-        focus_condition = value_error > 0.99*max_value_err
-        focus_count = value_target[focus_condition].size()[0]
-        focus_target = torch.mean(value_target[focus_condition])
-        focus_output = torch.mean(value_output[focus_condition])
-        safe_condition = value_target > -1
-        safe_count = value_output[safe_condition].size()[0]
-        safe_output = torch.mean(value_output[safe_condition])
+        with torch.no_grad():
+            probs = torch.softmax(value_logits, dim=1)
+            target_probs = torch.gather(probs, 1, value_target.unsqueeze(1))
+            value_accuracy = target_probs.mean().item()
+            mean_value_output = value_model.get_expected_value(state)
+            mean_value_target = value_model.midpoints[value_target]
+            value_mae = torch.mean(torch.abs(mean_value_target - mean_value_output)).item()
+            gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'ValLoss: {value_loss:.02f}, '
-        message += f'MaxValErr: {max_value_err:.02f}, '
-        message += f'ValRatio: {value_ratio:.02f}, '
-        message += f'FocusCount: {focus_count:.02f}, '
-        message += f'FocusTarget: {focus_target:.02f}, '
-        message += f'SafeCount: {safe_count:.02f}, '
-        message += f'SafeOutput: {safe_output:.02f}, '
+        message += f'ValAcc: {value_accuracy:.02f}, '
+        message += f'ValMAE: {value_mae:.02f}, '
+        message += f'GradRatio: {gradient_ratio:.02f}, '
         stop_time = time.perf_counter()
         message += f'Time: {stop_time-start_time:.02f}, '
         print(message)
