@@ -65,23 +65,23 @@ for group in value_optimizer.param_groups:
 for group in gradient_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 
-horizon = 0
-batch = 0
-max_learning_rate = 1e-04
-value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    value_optimizer, 
-    max_lr=max_learning_rate, 
-    total_steps=100_000, 
-    pct_start=0.1,
-    anneal_strategy='cos'
-)
-gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    gradient_optimizer, 
-    max_lr=max_learning_rate, 
-    total_steps=100_000, 
-    pct_start=0.1,
-    anneal_strategy='cos'
-)
+# horizon = 0
+# batch = 0
+# max_learning_rate = 1e-04
+# value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+#     value_optimizer, 
+#     max_lr=max_learning_rate, 
+#     total_steps=100_000, 
+#     pct_start=0.1,
+#     anneal_strategy='cos'
+# )
+# gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+#     gradient_optimizer, 
+#     max_lr=max_learning_rate, 
+#     total_steps=100_000, 
+#     pct_start=0.1,
+#     anneal_strategy='cos'
+# )
 
 batch_size = 4096
 top_k_val = int(batch_size * 0.1)
@@ -111,6 +111,7 @@ for _ in range(100000000):
     costate = get_per_sample_grad(state)
     velocity_gradient = costate[:,[8,9]]
     gradient_loss = torch.mean((velocity_gradient - gradient_output) ** 2)
+    # gradient_loss = 1-torch.sum(F.normalize(velocity_gradient)*F.normalize(gradient_output),dim=1).mean()
     if np.isfinite(gradient_loss.item()): 
         gradient_loss.backward()
         gradient_optimizer.step()
@@ -129,16 +130,17 @@ for _ in range(100000000):
             value_mae = torch.mean(torch.abs(smooth_value_target - mean_value_output)).item()
             quantiles = torch.quantile(smooth_value_target, q=torch.tensor([0.01,0.05,0.1,0.15,0.2])).tolist()
             quantile_string = ','.join([f'{x:+00.1f}' for x in quantiles])
+            entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=1).mean().item()
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
         message += f'ValLoss: {value_loss:.02f}, '
         message += f'ValAcc: {value_accuracy:.02f}, '
         message += f'ValMAE: {value_mae:.02f}, '
+        message += f'Entropy: {entropy:.03f}, '
         message += f'GradRatio: {gradient_ratio:.02f}, '
         stop_time = time.perf_counter()
         message += f'Time: {stop_time-start_time:.02f}, '
-        message += f'ValueTargetQuantiles: {quantile_string}, '
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
