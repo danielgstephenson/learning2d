@@ -120,13 +120,15 @@ for _ in range(100000000):
         continue
     if (batch + 1) % 10 == 0 or batch == 0:
         with torch.no_grad():
+            gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
             probs = torch.softmax(value_logits, dim=1)
             target_probs = torch.gather(probs, 1, value_target.unsqueeze(1))
             value_accuracy = target_probs.mean().item()
             mean_value_output = value_model.get_expected_value(state)
-            mean_value_target = value_model.midpoints[value_target]
-            value_mae = torch.mean(torch.abs(mean_value_target - mean_value_output)).item()
-            gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
+            smooth_value_target = value_model.midpoints[value_target]
+            value_mae = torch.mean(torch.abs(smooth_value_target - mean_value_output)).item()
+            quantiles = torch.quantile(smooth_value_target, q=torch.tensor([0.01,0.05,0.1,0.15,0.2])).tolist()
+            quantile_string = ','.join([f'{x:+00.1f}' for x in quantiles])
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
@@ -136,6 +138,7 @@ for _ in range(100000000):
         message += f'GradRatio: {gradient_ratio:.02f}, '
         stop_time = time.perf_counter()
         message += f'Time: {stop_time-start_time:.02f}, '
+        message += f'ValueTargetQuantiles: {quantile_string}, '
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
