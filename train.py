@@ -64,23 +64,23 @@ for group in value_optimizer.param_groups:
 for group in gradient_optimizer.param_groups:
     group.setdefault('initial_lr', group['lr'])
 
-# horizon = 0
-# batch = 0
-# max_learning_rate = 1e-04
-# value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-#     value_optimizer, 
-#     max_lr=max_learning_rate, 
-#     total_steps=100_000, 
-#     pct_start=0.1,
-#     anneal_strategy='cos'
-# )
-# gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-#     gradient_optimizer, 
-#     max_lr=max_learning_rate, 
-#     total_steps=100_000, 
-#     pct_start=0.1,
-#     anneal_strategy='cos'
-# )
+horizon = 0
+batch = 0
+max_learning_rate = 1e-04
+value_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    value_optimizer, 
+    max_lr=max_learning_rate, 
+    total_steps=100_000, 
+    pct_start=0.1,
+    anneal_strategy='cos'
+)
+gradient_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    gradient_optimizer, 
+    max_lr=max_learning_rate, 
+    total_steps=100_000, 
+    pct_start=0.1,
+    anneal_strategy='cos'
+)
 
 batch_size = 4096
 top_k_val = int(batch_size * 0.1)
@@ -92,7 +92,8 @@ get_per_sample_grad = vmap(grad(lambda x: value_model(x).sum()))
 generator = DataGenerator(old_value_model, batch_size,time_step,step_count,discount)
 
 def error_norm(error: Tensor)->Tensor:
-    losses = error**4 + error**2 + 1e-8
+    error = error.flatten()
+    losses = torch.abs(error)**3 + 1e-8
     top_losses, _ = torch.topk(losses, top_k_val)
     return torch.mean(top_losses) + 1e-8
 
@@ -128,10 +129,13 @@ for _ in range(100000000):
         target_diff = value_target - torch.mean(value_target)
         value_ratio = value_loss / error_norm(target_diff)
         gradient_ratio = gradient_loss / (torch.var(velocity_gradient) + 1e-8)
-        focus_condition = value_error > 0.9*max_value_err
+        focus_condition = value_error > 0.99*max_value_err
         focus_count = value_target[focus_condition].size()[0]
         focus_target = torch.mean(value_target[focus_condition])
         focus_output = torch.mean(value_output[focus_condition])
+        safe_condition = value_target > -1
+        safe_count = value_output[safe_condition].size()[0]
+        safe_output = torch.mean(value_output[safe_condition])
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
@@ -140,7 +144,10 @@ for _ in range(100000000):
         message += f'ValRatio: {value_ratio:.02f}, '
         message += f'FocusCount: {focus_count:.02f}, '
         message += f'FocusTarget: {focus_target:.02f}, '
-        message += f'FocusOutput: {focus_output:.02f}, '
+        message += f'SafeCount: {safe_count:.02f}, '
+        message += f'SafeOutput: {safe_output:.02f}, '
+        stop_time = time.perf_counter()
+        message += f'Time: {stop_time-start_time:.02f}, '
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,value_scheduler,batch,horizon)
