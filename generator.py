@@ -67,7 +67,7 @@ class DataGenerator:
     def update(self, horizon: int):
         self.state = get_simulation_state(self.simulation)
         blade_vector = self.blade1.position - self.agent0.position
-        blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
+        blade_distance = torch.norm(blade_vector,p=2,dim=1)
         self.reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
         if horizon==0:
             self.costate = 0*self.state
@@ -90,7 +90,7 @@ class DataGenerator:
             self.reset()
             self.update(horizon)
             state = self.state.clone()
-            interval_reward = self.reward.clone().view(-1)
+            interval_reward = self.reward.clone()
             for t in range(self.step_count):
                 self.simulation.step()
                 self.update(horizon)
