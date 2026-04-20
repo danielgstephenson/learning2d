@@ -1,5 +1,5 @@
 from __future__ import annotations
-from numpy import dtype, number, where
+from numpy import dtype
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -67,8 +67,9 @@ for i in range(8):
     angle = 2 * pi * i / 8
     vision_dir = [cos(angle), sin(angle)]
     action_vector_list.append(vision_dir)
-action_tensor = torch.tensor(action_vector_list,dtype=physics_dtype).to(device)
-actions = torch.tensor([i for i in range(9)]).to(device)
+action_tensor = torch.tensor(action_vector_list,dtype=physics_dtype)
+actions = torch.tensor([i for i in range(9)])
+active_action_tensor = action_tensor[1:,:]
 
 vision_dir_list: list[list[float]] = []
 for i in range(8):

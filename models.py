@@ -27,11 +27,9 @@ class ActionModel(nn.Module):
         self.input_dim = 26
         k = 128
         self.projection = nn.Linear(self.input_dim, k)
-        self.projection.weight.requires_grad = False
-        self.projection.bias.requires_grad = False
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
         self.hidden_layers = nn.ModuleList([nn.Linear(k, k) for _ in range(4)])
-        self.output_layer = nn.Linear(k, 9)
+        self.output_layer = nn.Linear(k, 8)
         nn.init.constant_(self.output_layer.bias, -0.0)
     def forward(self, x: Tensor)->Tensor:
         x = self.projection(x)

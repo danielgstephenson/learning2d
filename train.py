@@ -7,13 +7,13 @@ from torch.func import vmap, grad
 import os
 import time
 
-from physics import action_tensor
+from physics import active_action_tensor
 from generator import DataGenerator
 from models import ActionModel, ValueModel
 from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-old_value_checkpoint_path = './checkpoints/old_value_checkpoint.pt'
+old_value_checkpoint_path = './checkpoints/value_checkpoint0.pt'
 action_checkpoint_path = './checkpoints/action_checkpoint.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
@@ -44,8 +44,8 @@ if os.path.exists(old_value_checkpoint_path):
 else: 
     save_checkpoint(old_value_checkpoint_path,value_model,value_optimizer,batch,horizon)
 
-# horizon = 0
-# batch = 0
+horizon = 1
+batch = 0
 
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
@@ -73,9 +73,9 @@ for _ in range(100000000):
     action_logits = action_model(state)
     costate = get_costate(state)
     velocity_gradient = costate[:,[8,9]]
-    action_values = torch.einsum('ij,kj->ik',velocity_gradient,action_tensor)
-    action_targets = torch.argmax(action_values, dim=1)
-    action_loss = F.cross_entropy(action_logits,action_targets)
+    action_values = torch.einsum('ij,kj->ik',velocity_gradient,active_action_tensor)
+    action_target = torch.argmax(action_values, dim=1)
+    action_loss = F.cross_entropy(action_logits,action_target)
     if np.isfinite(action_loss.item()): 
         action_loss.backward()
         action_optimizer.step()
@@ -88,19 +88,19 @@ for _ in range(100000000):
             null_value_probs = 0*value_target + value_target.mean()
             null_value_loss = F.binary_cross_entropy(null_value_probs, value_target)
             value_R2 = 1 - value_loss/null_value_loss
-            action_counts = torch.bincount(action_targets, minlength=9).float()
+            action_counts = torch.bincount(action_target, minlength=8).float()
             null_action_probs = action_counts / action_counts.sum()
             null_action_logits = torch.log(null_action_probs + 1e-12)
             null_action_batch = null_action_logits.unsqueeze(0).expand(batch_size, -1)
-            null_action_loss = F.cross_entropy(null_action_batch, action_targets)
+            null_action_loss = F.cross_entropy(null_action_batch, action_target)
             action_R2 = 1 - action_loss/null_action_loss
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'ValR2: {value_R2:.04f}, '
-        message += f'ActR2: {action_R2:.04f}, '
+        message += f'ValR2: {value_R2:.03f}, '
+        message += f'ActR2: {action_R2:.03f}, '
         stop_time = time.perf_counter()
-        message += f'Time: {stop_time-start_time:.04f}, '
+        message += f'Time: {stop_time-start_time:.03f}, '
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,batch,horizon)

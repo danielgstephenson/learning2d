@@ -10,7 +10,8 @@ from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from models import ActionModel, ValueModel
 import physics
-from physics import Agent, Blade, action_tensor, vision_dirs, vision_cast
+from torch.func import vmap, grad
+from physics import Agent, Blade, action_tensor, active_action_tensor
 SCALE = 10
 
 torch.set_default_device(physics.device)
@@ -119,20 +120,8 @@ class Game(arcade.Window):
             relative_hitpoint = relative_hitpoints[:,i,:]
             hitpoint = p0 + relative_hitpoint
             self.draw_line(p0,hitpoint,csscolor.GRAY,5)
-            self.draw_point(hitpoint,10,csscolor.RED)
-
-        # for circle in self.bladeCircles:
-        #     b = circle.blade
-        #     self.draw_line(b.position,b.position+b.velocity,csscolor.ORANGE,5)
-        # for circle in self.agentCircles:
-        #     a = circle.agent
-        #     self.draw_line(a.position,a.position+a.velocity,csscolor.ORANGE,5)
-        # b = p0 + 6*action_tensor[self.generator.agent0.action]
-        # self.draw_line(p0,b,csscolor.RED,10)
-        # costate = self.generator.get_costate(state)
-        # vgrad = costate[:,[8,9]]
-        # c = p0 + 2*vgrad
-        # self.draw_line(p0,c,csscolor.MAGENTA,5)
+        b = p0 + 6*action_tensor[self.generator.agent0.action]
+        self.draw_line(p0,b,csscolor.RED,10)
 
     def on_update(self, delta_time: float) -> bool | None:
         if self.paused: return
@@ -164,28 +153,33 @@ class Game(arcade.Window):
         
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-gradient_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
-value_logit_model = ValueModel()
-gradient_model = ActionModel()
+action_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
+value_model = ValueModel()
+action_model = ActionModel()
 
-if os.path.exists(gradient_checkpoint_path):
+if os.path.exists(action_checkpoint_path):
     print('Loading Action 0 Checkpoint...')
-    checkpoint = torch.load(gradient_checkpoint_path, weights_only=False)
-    gradient_model.load_state_dict(checkpoint['model_state_dict'])
+    checkpoint = torch.load(action_checkpoint_path, weights_only=False)
+    action_model.load_state_dict(checkpoint['model_state_dict'])
 
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
-    value_logit_model.load_state_dict(value_checkpoint['model_state_dict'])
+    value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_logit_model,batch_size=10,time_step=0.1)
+generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale=3)
 generator.reset()
+
+get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
 def action_callback():
     state = get_simulation_state(generator.simulation)
-    gradient_estimate = gradient_model(state)
-    action_values = torch.einsum('ij,kj->ik',gradient_estimate,action_tensor)
-    generator.agent0.action = torch.argmax(action_values, dim=1)
+    # action_logits = action_model(state)
+    costate = get_costate(state)
+    velocity_gradient = costate[:,[8,9]]
+    action_values = torch.einsum('ij,kj->ik',velocity_gradient,active_action_tensor)
+    generator.agent0.action = torch.argmax(action_values, dim=1) + 1
+    
 
 game = Game(generator,action_callback)
 arcade.enable_timings()
