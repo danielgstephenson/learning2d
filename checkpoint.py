@@ -6,14 +6,12 @@ def save_checkpoint(
         path: str,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scheduler: torch.optim.lr_scheduler.LRScheduler,
         batch: int,
         horizon: int,
     ):
     checkpoint: dict[str, Any] = { 
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
         'batch': batch,
         'horizon': horizon,
     }

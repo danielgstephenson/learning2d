@@ -1,26 +1,22 @@
 from math import pi
 import torch
 from torch import Tensor
-from torch.func import functional_call, vmap, grad
+from torch.func import vmap, grad
 import torch.nn.functional as F
 
-from models import ValueModel, discretize
+from models import ValueModel
 from physics import Agent, Blade, Simulation, action_tensor, vision_cast, physics_dtype
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, batch_size = 3, time_step = 0.1, step_count = 20, discount = 0.99):
+    def __init__(self, value_model: ValueModel, batch_size = 3, time_step = 0.1, step_count = 20):
         self.value_model = value_model
         self.batch_size = batch_size
         self.step_count = step_count
-        self.discount = discount
         self.time_step = time_step
         self.simulation = Simulation(batch_size, time_step)
-        vgrad = vmap(grad(lambda x: self.value_model(x).sum()))
-        def get_costate(state: Tensor)->Tensor: 
-            return vgrad(state)
-        self.get_costate = get_costate
+        self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
@@ -31,7 +27,7 @@ class DataGenerator:
         self.costate: Tensor
         self.vgrad0: Tensor
         self.vgrad1: Tensor
-        self.reward: Tensor
+        self.life: Tensor
         self.reset()
 
     def setup_boundary(self):
@@ -67,8 +63,8 @@ class DataGenerator:
     def update(self, horizon: int):
         self.state = get_simulation_state(self.simulation)
         blade_vector = self.blade1.position - self.agent0.position
-        blade_distance = torch.norm(blade_vector,p=2,dim=1)
-        self.reward = torch.where(blade_distance > 15, 0, -100).to(physics_dtype)
+        blade_distance = torch.norm(blade_vector,p=2,dim=1,keepdim=True)
+        self.life = torch.where(blade_distance > 15, 1, 0).to(physics_dtype)
         if horizon==0:
             self.costate = 0*self.state
             self.vgrad0 = +self.costate[:,[8,9]]
@@ -86,22 +82,21 @@ class DataGenerator:
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
+        p = 0.01 # Ending Probability
         with torch.no_grad():
             self.reset()
             self.update(horizon)
             state = self.state.clone()
-            interval_reward = self.reward.clone()
+            life = self.life.clone()
+            value_target = self.life * p
             for t in range(self.step_count):
                 self.simulation.step()
                 self.update(horizon)
-                discount_factor = self.discount ** (t+1)
-                interval_reward += discount_factor * torch.where(interval_reward == 0, self.reward, 0)
+                life *= self.life
+                value_target += life * p * (1-p) ** (t+1)
             outcome = self.state.clone()
-            discount_factor = self.discount ** (self.step_count+1)
-            expected_future_value = self.value_model(outcome)
-            continuation_value = torch.where(interval_reward==0, expected_future_value, 0)
-            smooth_value_target = interval_reward if horizon==0 else interval_reward + discount_factor*continuation_value
-            value_target = discretize(smooth_value_target)
+            continuation_value = 1 if horizon == 0 else F.sigmoid(self.value_model(outcome))
+            value_target += continuation_value * (1-p) ** (self.step_count+1)
             return state, value_target
 
 vision_reach = 100

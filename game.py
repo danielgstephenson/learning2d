@@ -8,7 +8,7 @@ from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
-from models import GradientModel, ValueModel
+from models import ActionModel, ValueModel
 import physics
 from physics import Agent, Blade, action_tensor, vision_dirs, vision_cast
 SCALE = 10
@@ -166,7 +166,7 @@ class Game(arcade.Window):
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 gradient_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
 value_logit_model = ValueModel()
-gradient_model = GradientModel()
+gradient_model = ActionModel()
 
 if os.path.exists(gradient_checkpoint_path):
     print('Loading Action 0 Checkpoint...')
