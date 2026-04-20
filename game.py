@@ -153,28 +153,20 @@ class Game(arcade.Window):
         
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-action_checkpoint_path = './checkpoints/gradient_checkpoint.pt'
 value_model = ValueModel()
-action_model = ActionModel()
-
-if os.path.exists(action_checkpoint_path):
-    print('Loading Action 0 Checkpoint...')
-    checkpoint = torch.load(action_checkpoint_path, weights_only=False)
-    action_model.load_state_dict(checkpoint['model_state_dict'])
 
 if os.path.exists(value_checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale=3)
+generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale=1)
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
 def action_callback():
     state = get_simulation_state(generator.simulation)
-    # action_logits = action_model(state)
     costate = get_costate(state)
     velocity_gradient = costate[:,[8,9]]
     action_values = torch.einsum('ij,kj->ik',velocity_gradient,active_action_tensor)
