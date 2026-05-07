@@ -1,7 +1,6 @@
 from math import sqrt
 import numpy as np
 import torch
-from torch import Tensor
 import torch.nn.functional as F
 from torch.func import vmap, grad
 import os
@@ -9,7 +8,7 @@ import time
 
 from physics import active_action_tensor
 from generator import DataGenerator
-from models import ActionModel, ValueModel
+from value import ValueModel
 from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'

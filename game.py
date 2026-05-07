@@ -1,6 +1,4 @@
 import os
-from matplotlib.backend_bases import key_press_handler
-import numpy as np
 import torch
 import torch.nn.functional as F
 import arcade
@@ -8,7 +6,7 @@ from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
-from models import ActionModel, ValueModel
+from value import ValueModel
 import physics
 from torch.func import vmap, grad
 from physics import Agent, Blade, action_tensor, active_action_tensor
@@ -112,16 +110,16 @@ class Game(arcade.Window):
         for circle in self.bladeCircles:
             self.draw_line(circle.blade.position, circle.blade.agent.position, circle._color,10)
         self.sprites.draw()
-        p0 = self.generator.agent0.position
-        state = get_simulation_state(self.generator.simulation)
-        vision = state[:,10:]
-        relative_hitpoints = vision.reshape(self.generator.batch_size,8,2)
-        for i in range(8):
-            relative_hitpoint = relative_hitpoints[:,i,:]
-            hitpoint = p0 + relative_hitpoint
-            self.draw_line(p0,hitpoint,csscolor.GRAY,5)
-        b = p0 + 6*action_tensor[self.generator.agent0.action]
-        self.draw_line(p0,b,csscolor.RED,10)
+        # p0 = self.generator.agent0.position
+        # state = get_simulation_state(self.generator.simulation)
+        # vision = state[:,10:]
+        # relative_hitpoints = vision.reshape(self.generator.batch_size,8,2)
+        # for i in range(8):
+        #     relative_hitpoint = relative_hitpoints[:,i,:]
+        #     hitpoint = p0 + relative_hitpoint
+        #     self.draw_line(p0,hitpoint,csscolor.GRAY,5)
+        # b = p0 + 6*action_tensor[self.generator.agent0.action]
+        # self.draw_line(p0,b,csscolor.RED,10)
 
     def on_update(self, delta_time: float) -> bool | None:
         if self.paused: return

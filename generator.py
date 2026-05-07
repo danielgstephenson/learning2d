@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
 
-from models import ValueModel
+from value import ValueModel
 from physics import Agent, Blade, Simulation, active_action_tensor, vision_cast, physics_dtype
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
