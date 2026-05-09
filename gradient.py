@@ -4,6 +4,7 @@ from torch import Tensor
 from torch.fx.experimental.proxy_tensor import make_fx
 import torch.nn.functional as F
 import torch.onnx
+from onnxruntime.quantization import quantize_dynamic, QuantType
 import os
 from value import ValueModel
 
@@ -40,6 +41,9 @@ print('test_grad:',test_grad)
 dummy_input = torch.randn(1, 26).cpu()
 traced_graph = make_fx(compute_grad)(dummy_input)
 
+base_path = 'onnx/grad_model.onnx'
+quant_path = 'onnx/grad_model_quant.onnx'
+
 print("Starting ONNX Export...")
 try:
     batch_dim = torch.export.Dim("batch_size", min=1)
@@ -47,10 +51,18 @@ try:
         traced_graph,      
         (dummy_input,),     
         dynamo=True,
-        dynamic_shapes=({0: batch_dim},)
+        dynamic_shapes=({0: batch_dim},),
+        input_names=['state'],
+        output_names=['grad']
     )
-    onnx_program.save("onnx/grad_model.onnx")
-    print("Export successful: grad_model.onnx")
+    print(f"Export successful: {base_path}")
+    onnx_program.save(base_path)
+    quantize_dynamic(
+        model_input=base_path,
+        model_output=quant_path,
+        weight_type=QuantType.QInt8
+    )
+    print(f"Quantization successful: {quant_path}")
 except Exception as e:
     import traceback
     traceback.print_exc()

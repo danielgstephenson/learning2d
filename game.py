@@ -1,6 +1,8 @@
 import os
 import torch
 import torch.nn.functional as F
+import onnxruntime as ort
+import numpy as np
 import arcade
 from arcade import csscolor
 from arcade.types import Point2List, Color
@@ -9,7 +11,7 @@ from generator import DataGenerator, get_simulation_state
 from value import ValueModel
 import physics
 from torch.func import vmap, grad
-from physics import Agent, Blade, action_tensor, active_action_tensor
+from physics import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
 
 torch.set_default_device(physics.device)
@@ -63,7 +65,6 @@ class Game(arcade.Window):
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
         corner_count = self.simulation.boundary.num_walls
-        print('wall_starts.shape',self.simulation.boundary.wall_starts.shape)
         corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
 
@@ -162,13 +163,21 @@ generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
+onnx_path = 'onnx/grad_model_quant.onnx'
+ort_session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+input_name = ort_session.get_inputs()[0].name
+output_name = ort_session.get_outputs()[0].name
+print('input_name:',input_name)
+print('output_name:',output_name)
+
 
 def action_callback():
-    state = get_simulation_state(generator.simulation)
-    costate = get_costate(state)
-    velocity_gradient = costate[:,[8,9]]
-    action_values = torch.einsum('ij,kj->ik',velocity_gradient,active_action_tensor)
+    state = get_simulation_state(generator.simulation).detach().cpu().numpy()
+    grad_array = np.array(ort_session.run([output_name],{input_name: state})[0])
+    grad_tensor = torch.from_numpy(grad_array).to(device)
+    action_values = torch.einsum('ij,kj->ik',grad_tensor,active_action_tensor)
     generator.agent0.action = torch.argmax(action_values, dim=1) + 1
+    return
     
 
 game = Game(generator,action_callback)
