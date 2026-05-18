@@ -95,7 +95,7 @@ class DataGenerator:
             state = self.state.clone()
             life0 = self.life0.clone()
             life1 = self.life1.clone()
-            reward = 0.5 * (1 + life0 - life1)
+            reward = life0 * (1 - life1)
             value_target = reward * p
             for t in range(self.step_count):
                 self.simulation.step()
@@ -103,12 +103,13 @@ class DataGenerator:
                 life0 *= self.life0
                 life1 *= self.life1
                 end_prob = p * (1-p) ** (t+1)    
-                reward = 0.5 * (1 + life0 - life1)
+                reward = life0 * (1 - life1)
                 value_target += reward * end_prob
             outcome = self.state.clone()
-            reward = 0.5 * (1 + life0 - life1)
+            reward = life0 * (1 - life1)
+            continuation_prob = (1-p) ** (self.step_count+1)
             continuation_value = reward if horizon == 0 else F.sigmoid(self.value_model(outcome))
-            value_target += continuation_value * (1-p) ** (self.step_count+1)
+            value_target += continuation_value * continuation_prob
             return state, value_target
 
 vision_reach = 100

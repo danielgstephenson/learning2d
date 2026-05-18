@@ -156,18 +156,18 @@ generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
-# onnx_path = 'onnx/grad_model_quant.onnx'
-# ort_session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
-# input_name = ort_session.get_inputs()[0].name
-# output_name = ort_session.get_outputs()[0].name
+onnx_path = 'onnx/grad_model_quant.onnx'
+ort_session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+input_name = ort_session.get_inputs()[0].name
+output_name = ort_session.get_outputs()[0].name
 
 
 def action_callback():
-    # state = get_simulation_state(generator.simulation).detach().cpu().numpy()
-    # grad_array = np.array(ort_session.run([output_name],{input_name: state})[0])
-    # velocity_grad = torch.from_numpy(grad_array).to(device)
-    # action_values = torch.einsum('ij,kj->ik',velocity_grad,active_action_tensor)
-    # generator.agent0.action = torch.argmax(action_values, dim=1) + 1
+    state = get_simulation_state(generator.simulation).detach().cpu().numpy()
+    grad_array = np.array(ort_session.run([output_name],{input_name: state})[0])
+    velocity_grad = torch.from_numpy(grad_array).to(device)
+    action_values = torch.einsum('ij,kj->ik',velocity_grad,active_action_tensor)
+    generator.agent0.action = torch.argmax(action_values, dim=1) + 1
     return
     
 

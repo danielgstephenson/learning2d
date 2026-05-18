@@ -30,15 +30,14 @@ def value_sum(state: Tensor)->Tensor:
     return value_model(state).sum()
 
 def compute_grad(state: Tensor) -> Tensor:
-    return torch.func.grad(value_sum)(state)[:,8:10]
+    return torch.func.grad(value_sum)(state)[:,0:1]
 
-test_input = torch.randn(1, 26).cpu()
+test_input = torch.randn(1, 30).cpu()
 test_grad = compute_grad(test_input)
-
 print('test_input:',test_input)
 print('test_grad:',test_grad)
 
-dummy_input = torch.randn(1, 26).cpu()
+dummy_input = torch.randn(1, 30).cpu()
 traced_graph = make_fx(compute_grad)(dummy_input)
 
 base_path = 'onnx/grad_model.onnx'
