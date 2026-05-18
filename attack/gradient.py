@@ -30,7 +30,7 @@ def value_sum(state: Tensor)->Tensor:
     return value_model(state).sum()
 
 def compute_grad(state: Tensor) -> Tensor:
-    return torch.func.grad(value_sum)(state)[:,0:1]
+    return torch.func.grad(value_sum)(state)[:,0:2]
 
 test_input = torch.randn(1, 30).cpu()
 test_grad = compute_grad(test_input)
