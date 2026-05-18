@@ -55,7 +55,7 @@ class Game(arcade.Window):
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
         self.sprites = arcade.SpriteList()
-        self.paused = False
+        self.paused = True
         for blade in self.simulation.blades:
             blade_circle = BladeCircle(self.index, blade)
             self.bladeCircles.append(blade_circle)
