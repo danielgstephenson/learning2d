@@ -9,7 +9,7 @@ from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from value import ValueModel
-import physics
+import physics as physics
 from torch.func import vmap, grad
 from physics import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
@@ -174,8 +174,8 @@ print('output_name:',output_name)
 def action_callback():
     state = get_simulation_state(generator.simulation).detach().cpu().numpy()
     grad_array = np.array(ort_session.run([output_name],{input_name: state})[0])
-    grad_tensor = torch.from_numpy(grad_array).to(device)
-    action_values = torch.einsum('ij,kj->ik',grad_tensor,active_action_tensor)
+    velocity_grad = torch.from_numpy(grad_array).to(device)
+    action_values = torch.einsum('ij,kj->ik',velocity_grad,active_action_tensor)
     generator.agent0.action = torch.argmax(action_values, dim=1) + 1
     return
     
