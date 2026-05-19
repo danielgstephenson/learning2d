@@ -94,7 +94,7 @@ class DataGenerator:
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
         p = 0.001 # Discount Rate
-        c = 0.01 # Caution
+        c = 0.00 # Caution
         with torch.no_grad():
             self.reset()
             self.update(horizon)
