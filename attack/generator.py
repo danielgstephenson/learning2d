@@ -126,11 +126,11 @@ def get_simulation_state(simulation: Simulation)->Tensor:
     vision = vision_cast(simulation.agents[0].position, vision_reach, simulation.boundary)
     stateTensors = [
         simulation.agents[0].velocity,
-        simulation.blades[0].position - simulation.agents[0].position,
+        simulation.blades[0].position - simulation.agents[1].position,
         simulation.blades[0].velocity,
-        simulation.agents[1].position - simulation.agents[0].position,
+        simulation.agents[1].position - simulation.agents[1].position,
         simulation.agents[1].velocity,
-        simulation.blades[1].position - simulation.agents[0].position,
+        simulation.blades[1].position - simulation.agents[1].position,
         simulation.blades[1].velocity,
         vision.reshape(-1,16),
     ]
