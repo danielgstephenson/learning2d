@@ -26,7 +26,7 @@ if os.path.exists(value_checkpoint_path):
     horizon = checkpoint['horizon']
 
 if (horizon > 0):
-    old_value_checkpoint_path = f'./checkpoints/value_checkpoint{horizon-1}.pt'
+    old_value_checkpoint_path = f'./checkpoints/old_value_checkpoint.pt'
     if os.path.exists(old_value_checkpoint_path):
         print(f'Loading Old Value Checkpoint from {old_value_checkpoint_path}...')
         checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
@@ -37,7 +37,7 @@ if (horizon > 0):
         old_value_model.load_state_dict(value_model.state_dict())
         save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,0,horizon-1)
 else:
-    old_value_checkpoint_path = './checkpoints/value_checkpoint0.pt'
+    old_value_checkpoint_path = './checkpoints/old_value_checkpoint0.pt'
     old_value_model.load_state_dict(value_model.state_dict())
     save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,batch,horizon)
 
@@ -45,8 +45,11 @@ for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
 batch_size = 4096
-batch_count = 1000
+batch_count = 200
 generator = DataGenerator(old_value_model, batch_size)
+
+# horizon = 0
+# batch = 0
 
 print('Training...')
 for _ in range(100000000):
@@ -78,9 +81,8 @@ for _ in range(100000000):
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,batch,horizon)
     if batch > batch_count:
         print(f'Horizon {horizon} Complete.')
-        horizon_backup_path = f'./checkpoints/value_checkpoint{horizon}.pt'
-        save_checkpoint(horizon_backup_path, value_model, value_optimizer, batch, horizon)
-        print(f'Horizon backup saved to: {horizon_backup_path}')
+        save_checkpoint(old_value_checkpoint_path, value_model, value_optimizer, batch, horizon)
+        print(f'Horizon backup saved to: {old_value_checkpoint_path}')
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1
         batch = 0

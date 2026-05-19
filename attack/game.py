@@ -152,7 +152,7 @@ class Game(arcade.Window):
         self.life1 = 1 if gap1 > 15 else 0
         print('life', self.frame_counter,self.life0,self.life1)
         state = get_simulation_state(generator.simulation)
-        value_estimate = value_model(state)
+        value_estimate = F.sigmoid(value_model(state))
         velocity_grad = get_costate(state)[:,0:2]
         action_values = torch.einsum('ij,kj->ik',velocity_grad,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values, dim=1) + 1
