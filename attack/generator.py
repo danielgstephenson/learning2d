@@ -1,4 +1,5 @@
 from math import pi
+from numpy import where
 import torch
 from torch import Tensor
 from torch.func import vmap, grad
@@ -109,8 +110,10 @@ class DataGenerator:
                 value_target += reward * end_prob
             outcome = self.state.clone()
             reward = c * life0 + (1-c) * life0 * (1 - life1)
-            continuation_prob = (1-p) ** (self.step_count+1)
-            continuation_value = reward if horizon == 0 else F.sigmoid(self.value_model(outcome))
+            complete = (life0*life1 == 0)
+            current_value = F.sigmoid(self.value_model(outcome))
+            continuation_value = reward if horizon == 0 else torch.where(complete, reward, current_value)
+            continuation_prob = (1-p) ** (self.step_count+1) 
             value_target += continuation_value * continuation_prob
             return state, value_target
 
