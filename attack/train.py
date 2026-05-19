@@ -6,13 +6,11 @@ from torch.func import vmap, grad
 import os
 import time
 
-from physics import active_action_tensor
 from generator import DataGenerator
 from value import ValueModel
 from checkpoint import save_checkpoint
 
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-old_value_checkpoint_path = './checkpoints/value_checkpoint0.pt'
 value_model = ValueModel()
 old_value_model = ValueModel().eval()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-3)
@@ -20,28 +18,34 @@ horizon = 0
 batch = 0
 
 if os.path.exists(value_checkpoint_path):
-    print('Loading Value Checkpoint...')
+    print(f'Loading Value Checkpoint from {value_checkpoint_path}...')
     checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(checkpoint['model_state_dict'])
     value_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     batch = checkpoint['batch']
     horizon = checkpoint['horizon']
 
-if os.path.exists(old_value_checkpoint_path):
-    print('Loading Old Value Checkpoint...')
-    checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
-    old_value_model.load_state_dict(checkpoint['model_state_dict'])
-else: 
-    save_checkpoint(old_value_checkpoint_path,value_model,value_optimizer,batch,horizon)
-
-# horizon = 1
-# batch = 0
+if (horizon > 0):
+    old_value_checkpoint_path = f'./checkpoints/value_checkpoint{horizon-1}.pt'
+    if os.path.exists(old_value_checkpoint_path):
+        print(f'Loading Old Value Checkpoint from {old_value_checkpoint_path}...')
+        checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
+        old_value_model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        print(f'Warning: {old_value_checkpoint_path} was not found!')
+        print('Bootstrapping old_value_model using current live model weights instead.')
+        old_value_model.load_state_dict(value_model.state_dict())
+        save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,0,horizon-1)
+else:
+    old_value_checkpoint_path = f'./checkpoints/value_checkpoint0.pt'
+    old_value_model.load_state_dict(value_model.state_dict())
+    save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,batch,horizon)
 
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
 batch_size = 4096
-get_costate = vmap(grad(lambda x: value_model(x).sum()))
+batch_count = 1000
 generator = DataGenerator(old_value_model, batch_size)
 
 print('Training...')
@@ -72,4 +76,15 @@ for _ in range(100000000):
         print(message)
     if batch % 100 == 0:
         save_checkpoint(value_checkpoint_path,value_model,value_optimizer,batch,horizon)
+    if batch > batch_count:
+        print(f'Horizon {horizon} Complete.')
+        horizon_backup_path = f'./checkpoints/value_checkpoint{horizon}.pt'
+        save_checkpoint(horizon_backup_path, value_model, value_optimizer, batch, horizon)
+        print(f'Horizon backup saved to: {horizon_backup_path}')
+        old_value_model.load_state_dict(value_model.state_dict())
+        horizon += 1
+        batch = 0
+        save_checkpoint(value_checkpoint_path, value_model, value_optimizer, batch, horizon)
+        print(f'Beginning Horizon {horizon}...')
+        continue
     batch += 1

@@ -66,6 +66,7 @@ class DataGenerator:
         self.blade1.position = torch.einsum('bij,bj->bi', self.rotation, bladePosition1)
         self.agent0.velocity = get_random_vectors(self.batch_size,30)
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
+        self.blade0.velocity = get_random_vectors(self.batch_size,70)
         self.blade1.velocity = get_random_vectors(self.batch_size,70)
 
     def update(self, horizon: int):
