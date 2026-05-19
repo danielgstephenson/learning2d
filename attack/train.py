@@ -37,7 +37,7 @@ if (horizon > 0):
         old_value_model.load_state_dict(value_model.state_dict())
         save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,0,horizon-1)
 else:
-    old_value_checkpoint_path = f'./checkpoints/value_checkpoint0.pt'
+    old_value_checkpoint_path = './checkpoints/value_checkpoint0.pt'
     old_value_model.load_state_dict(value_model.state_dict())
     save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,batch,horizon)
 
