@@ -74,6 +74,9 @@ class DataGenerator:
         self.state = get_simulation_state(self.simulation)
         gap0 = torch.norm(self.agent0.position - self.blade1.position,p=2,dim=1,keepdim=True)
         gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
+        charge_vector = F.normalize(self.agent1.position - self.agent0.position, dim=1)
+        safety_factor = 0.1 * torch.clamp((gap0 - 35) / 35, 0.0, 1.0)
+        bias_values = torch.einsum('ij,kj->ik', charge_vector * safety_factor, active_action_tensor)
         self.life0 = torch.where(gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(gap1 > 15, 1, 0).to(physics_dtype)
         if horizon==0:
@@ -85,13 +88,13 @@ class DataGenerator:
             self.costate = self.get_costate(self.state)
             self.vgrad0 = +self.costate[:,[0,1]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0,active_action_tensor)
-            self.agent0.action = torch.argmax(action_values0, dim=1)+1
+            self.agent0.action = torch.argmax(action_values0 + bias_values, dim=1)+1
             self.agent1.action = torch.zeros(self.batch_size).int()
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
         p = 0.001 # Discount Rate
-        c = 0.1 # Caution
+        c = 0.02 # Caution
         with torch.no_grad():
             self.reset()
             self.update(horizon)
@@ -103,8 +106,9 @@ class DataGenerator:
             for t in range(self.step_count):
                 self.simulation.step()
                 self.update(horizon)
-                life0 *= self.life0
-                life1 *= self.life1
+                complete = (life0 * life1 == 0)
+                life0 = torch.where(complete, life0, life0*self.life0)
+                life1 = torch.where(complete, life1, life1*self.life1)
                 end_prob = p * (1-p) ** (t+1)    
                 reward = c * life0 + (1-c) * life0 * (1 - life1)
                 value_target += reward * end_prob
