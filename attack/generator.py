@@ -32,14 +32,33 @@ class DataGenerator:
         self.reset()
     
     def reset(self):
-        self.agent0.position = get_random_vectors(self.batch_size, 100)
-        self.blade0.position = self.agent0.position + get_random_vectors(self.batch_size, 50)
-        self.agent1.position = get_random_vectors(self.batch_size, 100)
-        self.blade1.position = self.agent1.position + get_random_vectors(self.batch_size, 50)
-        self.agent0.velocity = get_random_vectors(self.batch_size,30)
-        self.agent1.velocity = get_random_vectors(self.batch_size,30)
-        self.blade0.velocity = get_random_vectors(self.batch_size,30)
-        self.blade1.velocity = get_random_vectors(self.batch_size,30)
+        staticDistance = (20 + 10*torch.rand(self.batch_size).unsqueeze(1))
+        staticAgent0Position = get_random_vectors(self.batch_size, 0)
+        staticBlade0Position = staticAgent0Position + get_random_vectors(self.batch_size, 0)
+        staticAgent1Position = staticDistance*get_random_directions(self.batch_size)
+        staticBlade1Position = staticAgent1Position + get_random_vectors(self.batch_size, 0)
+        staticAgent0Velocity = get_random_vectors(self.batch_size,0)
+        staticBlade0Velocity = get_random_vectors(self.batch_size,0)
+        staticAgent1Velocity = get_random_vectors(self.batch_size,0)
+        staticBlade1Velocity = get_random_vectors(self.batch_size,0)
+        dynamicAgent0Position = get_random_vectors(self.batch_size, 100)
+        dynamicBlade0Position = dynamicAgent0Position + get_random_vectors(self.batch_size, 80)
+        dynamicAgent1Position = get_random_vectors(self.batch_size, 100)
+        dynamicBlade1Position = dynamicAgent1Position + get_random_vectors(self.batch_size, 80)
+        dynamicAgent0Velocity = get_random_vectors(self.batch_size,30)
+        dynamicBlade0Velocity = get_random_vectors(self.batch_size,70)
+        dynamicAgent1Velocity = get_random_vectors(self.batch_size,30)
+        dynamicBlade1Velocity = get_random_vectors(self.batch_size,70)
+        static = torch.rand(self.batch_size) < 0.5
+        static = torch.stack((static,static),dim=1)
+        self.agent0.position = torch.where(static, staticAgent0Position, dynamicAgent0Position)
+        self.blade0.position = torch.where(static, staticBlade0Position, dynamicBlade0Position)
+        self.agent1.position = torch.where(static, staticAgent1Position, dynamicAgent1Position)
+        self.blade1.position = torch.where(static, staticBlade1Position, dynamicBlade1Position)
+        self.agent0.velocity = torch.where(static, staticAgent0Velocity, dynamicAgent0Velocity)
+        self.blade0.velocity = torch.where(static, staticBlade0Velocity, dynamicBlade0Velocity)
+        self.agent1.velocity = torch.where(static, staticAgent1Velocity, dynamicAgent1Velocity)
+        self.blade1.velocity = torch.where(static, staticBlade1Velocity, dynamicBlade1Velocity)
 
     def update(self, horizon: int):
         self.state = get_simulation_state(self.simulation)
@@ -61,7 +80,7 @@ class DataGenerator:
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
-        p = 0.01 # Discount Rate
+        p = 0.001 # Discount Rate
         with torch.no_grad():
             self.reset()
             self.update(horizon)
