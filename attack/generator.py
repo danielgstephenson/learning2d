@@ -45,9 +45,8 @@ class DataGenerator:
         self.state = get_simulation_state(self.simulation)
         gap0 = torch.norm(self.agent0.position - self.blade1.position,p=2,dim=1,keepdim=True)
         gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
-        distance = torch.norm(self.agent0.position - self.agent0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(gap0 > 15, 1, 0).to(physics_dtype)
-        self.life1 = torch.where((gap1 > 15) & (distance < 200), 1, 0).to(physics_dtype)
+        self.life1 = torch.where(gap1 > 15, 1, 0).to(physics_dtype)
         if horizon==0:
             self.costate = 0*self.state
             self.vgrad0 = +self.costate[:,[0,1]]
@@ -58,9 +57,7 @@ class DataGenerator:
             self.vgrad0 = +self.costate[:,[0,1]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0,active_action_tensor)
             self.agent0.action = torch.argmax(action_values0, dim=1)+1
-            random_actions = torch.randint(0,9,(self.batch_size,))
-            switch_mask = (torch.rand(self.batch_size) < 0.05)
-            self.agent1.action = torch.where(switch_mask, random_actions, self.agent1.action)
+            self.agent1.action = torch.zeros(self.batch_size).int()
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
