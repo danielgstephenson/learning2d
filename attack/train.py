@@ -37,7 +37,7 @@ if (horizon > 0):
         old_value_model.load_state_dict(value_model.state_dict())
         save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,0,horizon-1)
 else:
-    old_value_checkpoint_path = './checkpoints/old_value_checkpoint0.pt'
+    old_value_checkpoint_path = './checkpoints/old_value_checkpoint.pt'
     old_value_model.load_state_dict(value_model.state_dict())
     save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,batch,horizon)
 
@@ -45,7 +45,7 @@ for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
 batch_size = 4096
-batch_count = 200
+batch_count = 1000
 generator = DataGenerator(old_value_model, batch_size)
 
 # horizon = 0

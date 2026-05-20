@@ -74,9 +74,6 @@ class DataGenerator:
         self.state = get_simulation_state(self.simulation)
         gap0 = torch.norm(self.agent0.position - self.blade1.position,p=2,dim=1,keepdim=True)
         gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
-        # charge_vector = F.normalize(self.agent1.position - self.agent0.position, dim=1)
-        # safety_factor = 0.1 * torch.clamp((gap0 - 35) / 35, 0.0, 1.0)
-        # bias_values = torch.einsum('ij,kj->ik', charge_vector * safety_factor, active_action_tensor)
         self.life0 = torch.where(gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(gap1 > 15, 1, 0).to(physics_dtype)
         if horizon==0:
@@ -94,27 +91,26 @@ class DataGenerator:
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
         p = 0.001 # Discount Rate
-        c = 0.00 # Caution
         with torch.no_grad():
             self.reset()
             self.update(horizon)
             state = self.state.clone()
             life0 = self.life0.clone()
             life1 = self.life1.clone()
-            reward = c * life0 + (1-c) * life0 * (1 - life1)
+            reward = (1 - life1)
             value_target = reward * p
             for t in range(self.step_count):
                 self.simulation.step()
                 self.update(horizon)
-                complete = (life0 * life1 == 0)
+                complete = (life1 == 0)
                 life0 = torch.where(complete, life0, life0*self.life0)
                 life1 = torch.where(complete, life1, life1*self.life1)
                 end_prob = p * (1-p) ** (t+1)    
-                reward = c * life0 + (1-c) * life0 * (1 - life1)
+                reward = (1 - life1)
                 value_target += reward * end_prob
             outcome = self.state.clone()
-            reward = c * life0 + (1-c) * life0 * (1 - life1)
-            complete = (life0*life1 == 0)
+            reward = (1 - life1)
+            complete = (life1 == 0)
             current_value = F.sigmoid(self.value_model(outcome))
             continuation_value = reward if horizon == 0 else torch.where(complete, reward, current_value)
             continuation_prob = (1-p) ** (self.step_count+1) 
@@ -126,11 +122,11 @@ def get_simulation_state(simulation: Simulation)->Tensor:
     vision = vision_cast(simulation.agents[0].position, vision_reach, simulation.boundary)
     stateTensors = [
         simulation.agents[0].velocity,
-        simulation.blades[0].position - simulation.agents[1].position,
+        simulation.blades[0].position - simulation.agents[0].position,
         simulation.blades[0].velocity,
-        simulation.agents[1].position - simulation.agents[1].position,
+        simulation.agents[1].position - simulation.agents[0].position,
         simulation.agents[1].velocity,
-        simulation.blades[1].position - simulation.agents[1].position,
+        simulation.blades[1].position - simulation.agents[0].position,
         simulation.blades[1].velocity,
         vision.reshape(-1,16),
     ]
