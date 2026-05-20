@@ -115,7 +115,7 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        arcade.draw_circle_outline(0, 0, SCALE*100, arcade.color.GRAY, SCALE*1)
+        arcade.draw_circle_outline(0, 0, SCALE*20, arcade.color.GRAY, SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -185,7 +185,6 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
         
-
 value_checkpoint_path = './checkpoints/value_checkpoint.pt'
 value_model = ValueModel()
 value_model.eval()

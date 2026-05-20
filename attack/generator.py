@@ -29,6 +29,7 @@ class DataGenerator:
         self.vgrad1: Tensor
         self.life0: Tensor
         self.life1: Tensor
+        self.ringDistance: Tensor
         self.reset()
     
     def reset(self):
@@ -66,6 +67,7 @@ class DataGenerator:
         gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(gap1 > 15, 1, 0).to(physics_dtype)
+        self.ringDistance = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         if horizon==0:
             self.costate = 0*self.state
             self.vgrad0 = +self.costate[:,[0,1]]
@@ -78,16 +80,21 @@ class DataGenerator:
             self.agent0.action = torch.argmax(action_values0, dim=1)+1
             self.agent1.action = torch.zeros(self.batch_size).int()
 
+    def getReward(self, life0: Tensor, life1: Tensor, ringDistance: Tensor)->Tensor:
+        victory = life0 * (1 - life1) > 0
+        ringOut = ringDistance > 20
+        return torch.where(victory | ringOut, 1, 0)
+        
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
-        p = 0.001 # Discount Rate
+        p = 0.005 # Discount Rate
         with torch.no_grad():
             self.reset()
             self.update(horizon)
             state = self.state.clone()
             life0 = self.life0.clone()
             life1 = self.life1.clone()
-            reward = life0 * (1 - life1)
+            reward = self.getReward(life0, life1, self.ringDistance)
             value_target = reward * p
             for t in range(self.step_count):
                 self.simulation.step()
@@ -96,10 +103,10 @@ class DataGenerator:
                 life0 = torch.where(complete, life0, life0*self.life0)
                 life1 = torch.where(complete, life1, life1*self.life1)
                 end_prob = p * (1-p) ** (t+1)    
-                reward = life0 * (1 - life1)
+                reward = self.getReward(life0, life1, self.ringDistance)
                 value_target += reward * end_prob
             outcome = self.state.clone()
-            reward = life0 * (1 - life1)
+            reward = self.getReward(life0, life1, self.ringDistance)
             complete = (life0*life1 == 0)
             current_value = F.sigmoid(self.value_model(outcome))
             continuation_value = reward if horizon == 0 else torch.where(complete, reward, current_value)
