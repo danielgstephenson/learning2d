@@ -32,15 +32,14 @@ class DataGenerator:
         self.reset()
     
     def reset(self):
-        max_distance_from_center = 100
-        self.agent0.position = get_random_vectors(self.batch_size, max_distance_from_center)
-        self.blade0.position = self.agent0.position + get_random_vectors(self.batch_size, 100)
-        self.agent1.position = get_random_vectors(self.batch_size, max_distance_from_center)
-        self.blade1.position = self.agent1.position + get_random_vectors(self.batch_size, 100)
+        self.agent0.position = get_random_vectors(self.batch_size, 50)
+        self.blade0.position = self.agent0.position + get_random_vectors(self.batch_size, 50)
+        self.agent1.position = get_random_vectors(self.batch_size, 50)
+        self.blade1.position = self.agent1.position + get_random_vectors(self.batch_size, 50)
         self.agent0.velocity = get_random_vectors(self.batch_size,30)
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
-        self.blade0.velocity = get_random_vectors(self.batch_size,70)
-        self.blade1.velocity = get_random_vectors(self.batch_size,70)
+        self.blade0.velocity = get_random_vectors(self.batch_size,30)
+        self.blade1.velocity = get_random_vectors(self.batch_size,30)
 
     def update(self, horizon: int):
         self.state = get_simulation_state(self.simulation)
@@ -89,7 +88,6 @@ class DataGenerator:
             value_target += continuation_value * continuation_prob
             return state, value_target
 
-vision_reach = 100
 def get_simulation_state(simulation: Simulation)->Tensor:
     stateTensors = [
         simulation.agents[0].velocity,

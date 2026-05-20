@@ -143,7 +143,6 @@ class Game(arcade.Window):
         gap1 = torch.norm(agentPosition1-bladePosition0,p=2,dim=0)
         self.life0 = 1 if gap0 > 15 else 0
         self.life1 = 1 if gap1 > 15 else 0
-        print('life', self.frame_counter,self.life0,self.life1)
         state = get_simulation_state(generator.simulation)
         value_estimate = F.sigmoid(value_model(state))
         velocity_grad = get_costate(state)[:,0:2]
