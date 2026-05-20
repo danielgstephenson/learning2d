@@ -32,9 +32,9 @@ class DataGenerator:
         self.reset()
     
     def reset(self):
-        self.agent0.position = get_random_vectors(self.batch_size, 50)
+        self.agent0.position = get_random_vectors(self.batch_size, 100)
         self.blade0.position = self.agent0.position + get_random_vectors(self.batch_size, 50)
-        self.agent1.position = get_random_vectors(self.batch_size, 50)
+        self.agent1.position = get_random_vectors(self.batch_size, 100)
         self.blade1.position = self.agent1.position + get_random_vectors(self.batch_size, 50)
         self.agent0.velocity = get_random_vectors(self.batch_size,30)
         self.agent1.velocity = get_random_vectors(self.batch_size,30)
@@ -57,7 +57,9 @@ class DataGenerator:
             self.vgrad0 = +self.costate[:,[0,1]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0,active_action_tensor)
             self.agent0.action = torch.argmax(action_values0, dim=1)+1
-            self.agent1.action = torch.zeros(self.batch_size).int()
+            random_actions = torch.randint(1,9,(self.batch_size,))
+            switch_mask = (torch.rand(self.batch_size) < 0.05)
+            self.agent1.action = torch.where(switch_mask, random_actions, self.agent1.action)
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
@@ -68,20 +70,20 @@ class DataGenerator:
             state = self.state.clone()
             life0 = self.life0.clone()
             life1 = self.life1.clone()
-            reward = (1 - life1)
+            reward = life0 * (1 - life1)
             value_target = reward * p
             for t in range(self.step_count):
                 self.simulation.step()
                 self.update(horizon)
-                complete = (life1 == 0)
+                complete = (life0*life1 == 0)
                 life0 = torch.where(complete, life0, life0*self.life0)
                 life1 = torch.where(complete, life1, life1*self.life1)
                 end_prob = p * (1-p) ** (t+1)    
-                reward = (1 - life1)
+                reward = life0 * (1 - life1)
                 value_target += reward * end_prob
             outcome = self.state.clone()
-            reward = (1 - life1)
-            complete = (life1 == 0)
+            reward = life0 * (1 - life1)
+            complete = (life0*life1 == 0)
             current_value = F.sigmoid(self.value_model(outcome))
             continuation_value = reward if horizon == 0 else torch.where(complete, reward, current_value)
             continuation_prob = (1-p) ** (self.step_count+1) 

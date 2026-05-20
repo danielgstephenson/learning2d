@@ -115,6 +115,7 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
+        arcade.draw_circle_outline(0, 0, SCALE*100, arcade.color.GRAY, SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -128,7 +129,7 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
-        if self.life1 < 1: return
+        if self.life0 < 1 or self.life1 < 1: return
         self.simulation.step()
         self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         agentPosition0 = self.simulation.agents[0].position[self.index,:]
