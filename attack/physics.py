@@ -49,19 +49,6 @@ class Blade(Circle):
         self.move_power = 2
         self.drag = 0.3
 
-class Boundary():
-    def __init__(self, simulation: Simulation):
-        self.simulation = simulation
-        simulation.boundary = self
-        self.wall_starts = torch.empty(0)
-        self.wall_ends = torch.empty(0)
-        self.num_walls = 0
-
-    def setup(self, points: Tensor):
-        self.wall_starts = points.to(physics_dtype)
-        self.wall_ends = torch.roll(self.wall_starts, shifts=-1, dims=1)
-        self.num_walls = self.wall_starts.shape[1]
-
 action_vector_list = [[0.0,0.0]]
 for i in range(8):
     angle = 2 * pi * i / 8
@@ -88,7 +75,6 @@ class Simulation:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
-        self.boundary: Boundary = Boundary(self)
 
     def step(self):
         for agent in self.agents:
@@ -110,8 +96,6 @@ class Simulation:
         for agent1 in self.agents:
             for agent2 in self.agents:
                 collide_circle_circle(agent1, agent2)
-        for circle in self.circles:
-            collide_circle_boundary(circle, self.boundary)
         dt = self.time_step
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity 
@@ -144,26 +128,6 @@ def collide_circle_point(circle: Circle, point: Tensor):
     circle.impulse += torch.where(overlap > 0, 1.2 * impact_speed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
 
-def collide_circle_boundary(circle: Circle, boundary: Boundary):
-    position = circle.position.unsqueeze(1)
-    segment_vector = boundary.wall_ends - boundary.wall_starts
-    relative_position = position - boundary.wall_starts
-    squared_segment_length = torch.sum(segment_vector**2, dim=-1, keepdim=True)
-    segment_factor = torch.sum(relative_position * segment_vector, dim=-1, keepdim=True) / (squared_segment_length + 1e-9)
-    segment_factor = torch.clamp(segment_factor, 0.0, 1.0)
-    closest_point = boundary.wall_starts + segment_factor * segment_vector
-    vector_to_circle = position - closest_point
-    squared_distance = torch.sum(vector_to_circle**2, dim=-1, keepdim=True)
-    distance = torch.sqrt(squared_distance + 1e-9)
-    overlap = circle.radius - distance
-    hit_mask = overlap > 0
-    normal = vector_to_circle / distance
-    velocity = circle.velocity.unsqueeze(1)
-    impact_speed = -torch.sum(velocity * normal, dim=-1, keepdim=True)
-    impulse = torch.where(hit_mask, 1.2 * impact_speed * circle.mass * normal, 0.0)
-    shift = torch.where(hit_mask, overlap * normal, 0.0)
-    circle.impulse += torch.sum(impulse, dim=1)
-    circle.shift += torch.sum(shift, dim=1)
 
 def collide_circle_segment(circle: Circle, segment: list[Tensor]):
     a = segment[0]
@@ -200,22 +164,3 @@ def raycast_segment(ray_start: Tensor, ray_vector: Tensor, segment_start: Tensor
     hit = (denominator != 0) & (ray_factor >= 0) & (segment_factor >= 0) & (segment_factor <= 1)
     inf_tensor = torch.full_like(ray_factor, float('inf'))
     return torch.where(hit, ray_factor, inf_tensor)
-
-def vision_cast(origin: Tensor, reach: float | int, boundary: Boundary)->Tensor:
-    batch_size = origin.shape[0]
-    ray_vectors = (reach*vision_dirs).expand(batch_size, -1, -1)
-    vmap_raycast = torch.vmap(
-        torch.vmap(         
-            torch.vmap(
-                raycast_segment, 
-                in_dims=(None, None, 0, 0)
-            ),
-            in_dims=(None, 0, None, None) 
-        ),
-        in_dims=(0, 0, 0, 0)
-    )
-    ray_factors = vmap_raycast(origin, ray_vectors, boundary.wall_starts, boundary.wall_ends)
-    min_ray_factors = torch.amin(ray_factors, dim=-1)
-    clamp_ray_factors = torch.clamp(min_ray_factors, min=0.0, max=1.0).unsqueeze(-1)
-    relative_hitpoints = clamp_ray_factors * ray_vectors
-    return relative_hitpoints

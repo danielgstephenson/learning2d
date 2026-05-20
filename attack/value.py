@@ -5,7 +5,7 @@ from physics import physics_dtype
 class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.input_dim = 30
+        self.input_dim = 14
         k = 512
         self.projection = nn.Linear(self.input_dim, k)
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])

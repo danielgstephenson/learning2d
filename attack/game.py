@@ -44,7 +44,7 @@ class BladeCircle(arcade.SpriteCircle):
 class Game(arcade.Window):
     def __init__(self, generator: DataGenerator):
         super().__init__(800, 600, 'learning2d')
-        arcade.set_background_color((20,20,20,255))
+        arcade.set_background_color((0,0,0,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
         self.index = 0
@@ -68,9 +68,6 @@ class Game(arcade.Window):
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
-        corner_count = self.simulation.boundary.num_walls
-        corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
-        self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         self.value_estimate = 0
         self.velocity_gradient = [0, 0]
         self.agent_action = 0
@@ -118,10 +115,6 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        corner_count = self.simulation.boundary.num_walls
-        corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
-        self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
-        arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -202,7 +195,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale=1)
+generator = DataGenerator(value_model,batch_size=10,time_step=0.1)
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
