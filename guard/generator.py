@@ -34,10 +34,10 @@ class DataGenerator:
     
     def reset(self):
         staticDistance = (20 + 10*torch.rand(self.batch_size).unsqueeze(1))
-        staticAgent0Position = get_random_vectors(self.batch_size, 0)
+        staticAgent0Position = staticDistance*get_random_directions(self.batch_size)
         staticBlade0Position = staticAgent0Position + get_random_vectors(self.batch_size, 0)
-        staticAgent1Position = staticDistance*get_random_directions(self.batch_size)
-        staticBlade1Position = staticAgent1Position + get_random_vectors(self.batch_size, 0)
+        staticAgent1Position = get_random_vectors(self.batch_size,0)
+        staticBlade1Position = get_random_vectors(self.batch_size,0)
         staticAgent0Velocity = get_random_vectors(self.batch_size,0)
         staticBlade0Velocity = get_random_vectors(self.batch_size,0)
         staticAgent1Velocity = get_random_vectors(self.batch_size,0)
@@ -76,9 +76,11 @@ class DataGenerator:
         else:
             self.costate = self.get_costate(self.state)
             self.vgrad0 = +self.costate[:,[0,1]]
+            self.vgrad1 = -self.costate[:,[8,9]]
             action_values0 = torch.einsum('ij,kj->ik',self.vgrad0,active_action_tensor)
+            action_values1 = torch.einsum('ij,kj->ik',self.vgrad1,active_action_tensor)
             self.agent0.action = torch.argmax(action_values0, dim=1)+1
-            self.agent1.action = torch.zeros(self.batch_size).int()
+            self.agent1.action = torch.argmax(action_values1, dim=1)+1
 
     def getReward(self, life0: Tensor, life1: Tensor, ringDistance: Tensor)->Tensor:
         victory = life0 * (1 - life1) > 0
@@ -117,12 +119,13 @@ class DataGenerator:
 def get_simulation_state(simulation: Simulation)->Tensor:
     stateTensors = [
         simulation.agents[0].velocity,
-        simulation.blades[0].position - simulation.agents[0].position,
+        simulation.agents[0].position,
         simulation.blades[0].velocity,
-        simulation.agents[1].position - simulation.agents[0].position,
+        simulation.blades[0].position,
         simulation.agents[1].velocity,
-        simulation.blades[1].position - simulation.agents[0].position,
-        simulation.blades[1].velocity
+        simulation.agents[1].position,
+        simulation.blades[1].velocity,
+        simulation.blades[1].position
     ]
     simulation_state = torch.cat(stateTensors,dim=1)
     return simulation_state

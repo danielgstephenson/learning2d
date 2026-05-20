@@ -45,7 +45,7 @@ for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
 batch_size = 4096
-batch_count = 1000
+batch_count = 100
 generator = DataGenerator(old_value_model, batch_size)
 
 # horizon = 0
@@ -77,12 +77,10 @@ for _ in range(100000000):
         stop_time = time.perf_counter()
         message += f'Time: {stop_time-start_time:.03f}, '
         print(message)
-    if batch % 100 == 0:
-        save_checkpoint(value_checkpoint_path,value_model,value_optimizer,batch,horizon)
     if batch > batch_count:
         print(f'Horizon {horizon} Complete.')
+        print(f'Saving checkpints...')
         save_checkpoint(old_value_checkpoint_path, value_model, value_optimizer, batch, horizon)
-        print(f'Horizon backup saved to: {old_value_checkpoint_path}')
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1
         batch = 0
