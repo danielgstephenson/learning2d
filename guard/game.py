@@ -39,6 +39,7 @@ class BladeCircle(arcade.SpriteCircle):
         x = blade.position[index,0].item()
         y = blade.position[index,1].item()
         super().__init__(radius, color, False, x, y)
+        self.alpha = 100
         self.blade = blade
 
 class Game(arcade.Window):

@@ -91,7 +91,7 @@ class DataGenerator:
         self.gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
-        self.simulation.complete = self.life0 * self.life1 == 0
+        self.simulation.complete = (self.life0 * self.life1 == 0)
         centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 150
