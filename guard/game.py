@@ -121,6 +121,7 @@ class Game(arcade.Window):
         self.clear()
         self.camera.use()
         arcade.draw_circle_outline(0, 0, SCALE*20, arcade.color.GRAY, SCALE*1)
+        arcade.draw_circle_outline(0, 0, SCALE*100, arcade.color.GRAY, SCALE*1)
         arcade.draw_circle_outline(0, 0, SCALE*150, arcade.color.GRAY, SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
@@ -157,8 +158,8 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         self.log_writer.writerow([
             self.frame_counter,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 

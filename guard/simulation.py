@@ -22,7 +22,7 @@ class Circle(Entity):
         super().__init__(simulation)
         self.simulation.circles.append(self)
         self.radius = radius
-        self.mass = 0.01 * pi * radius ** 2
+        self.mass = 1
         self.drag = 0
         self.position = torch.zeros(simulation.count,2,dtype=physics_dtype)
         self.velocity = torch.zeros(simulation.count,2,dtype=physics_dtype)
@@ -35,7 +35,6 @@ class Agent(Circle):
         super().__init__(simulation, 5)
         self.simulation.agents.append(self)
         self.align = align
-        self.mass = 1
         self.drag = 0.7
         self.move_power = 20
         self.action = torch.zeros(simulation.count, dtype=torch.int)
@@ -46,8 +45,7 @@ class Blade(Circle):
         self.simulation.blades.append(self)
         self.position = agent.position.detach().clone()
         self.agent = agent
-        self.move_power = 2
-        self.drag = 0.3
+        self.drag = 0.2
 
 action_vector_list = [[0.0,0.0]]
 for i in range(8):
@@ -90,7 +88,7 @@ class Simulation:
             agent.force = agent.move_power * action_tensor[agent.action,:]
         for blade in self.blades:
             vector = blade.agent.position - blade.position
-            blade.force = blade.move_power * vector
+            blade.force = 0.5 * vector
         for blade1 in self.blades:
             for blade2 in self.blades:
                 collide_circle_circle(blade1, blade2)
