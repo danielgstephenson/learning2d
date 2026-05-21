@@ -44,8 +44,11 @@ for param_group in value_optimizer.param_groups:
 
 sim_count = 2000
 step_count = 50
-batch_count = 100
+batch_size = sim_count*step_count
+batch_count = 20
 minibatch_size = 4000
+minibatch_count = batch_size // minibatch_size
+print('minibatch_count',minibatch_count)
 epochs = 2
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)
@@ -81,7 +84,7 @@ for _ in range(100000000):
     last_log_time = now
     print(message)
     save_checkpoint(checkpoint_path, value_model, value_optimizer, batch, horizon)
-    if batch > batch_count:
+    if batch + 1 >= batch_count:
         print(f'Horizon {horizon} Complete.')
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1
