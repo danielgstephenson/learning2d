@@ -88,7 +88,7 @@ class DataGenerator:
         ringSize1 = 20
         self.ringOut0 = torch.where(self.centerDistance0 > ringSize0, self.centerDistance0, ringSize0)
         self.ringOut1 = torch.where(self.centerDistance1 > ringSize1, self.centerDistance1, ringSize1)
-        ringReward = 0.1*F.sigmoid(self.ringOut1-self.ringOut0)
+        ringReward = 0.1*F.sigmoid(0.2 * (self.ringOut1 - self.ringOut0))
         self.reward = torch.where(self.victory == 0.5, ringReward, self.victory)
 
     def act(self, horizon: int):
