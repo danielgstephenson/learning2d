@@ -80,9 +80,8 @@ for _ in range(100000000):
     message += f'Time: {now - last_log_time:.03f}, '
     last_log_time = now
     print(message)
-    max_batch = 2 * batch_count if horizon == 0 else batch_count
     save_checkpoint(checkpoint_path, value_model, value_optimizer, batch, horizon)
-    if batch > max_batch:
+    if batch > batch_count:
         print(f'Horizon {horizon} Complete.')
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1

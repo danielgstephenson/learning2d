@@ -86,7 +86,7 @@ class DataGenerator:
         self.victory = self.life0 * (1 - 0.5 * self.life1)
         centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
-        ringSize0 = 60
+        ringSize0 = 150
         ringSize1 = 20
         ringOut0 = torch.where(centerDistance0 > ringSize0, 1, 0)
         ringOut1 = torch.where(centerDistance1 > ringSize1, 1, 0)
@@ -110,7 +110,7 @@ class DataGenerator:
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
-        p = 0.005 # Discount Rate
+        p = 0.01 # Discount Rate
         with torch.no_grad():
             state = torch.zeros((self.sim_count,self.step_count,state_size))
             target = torch.zeros((self.sim_count,self.step_count))
