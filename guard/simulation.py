@@ -70,6 +70,7 @@ class Simulation:
         self.count = count
         self.device = device
         self.time_step = timeStep
+        self.complete = torch.zeros((self.count,1)).bool()
         self.dtype = dtype
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
@@ -98,10 +99,12 @@ class Simulation:
                 collide_circle_circle(agent1, agent2)
         dt = self.time_step
         for circle in self.circles:
-            circle.velocity = (1 - circle.drag * dt) * circle.velocity 
-            circle.velocity = circle.velocity + dt / circle.mass * circle.force
-            circle.velocity = circle.velocity + 1 / circle.mass * circle.impulse
-            circle.position = circle.position + dt * circle.velocity + circle.shift
+            nextVelocity = (1 - circle.drag * dt) * circle.velocity
+            nextVelocity = nextVelocity + dt / circle.mass * circle.force
+            nextVelocity = nextVelocity + circle.impulse / circle.mass
+            nextPosition = circle.position + dt * circle.velocity + circle.shift
+            circle.velocity = torch.where(self.complete, circle.velocity, nextVelocity)
+            circle.position = torch.where(self.complete, circle.position, nextPosition)
 
 def collide_circle_circle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return

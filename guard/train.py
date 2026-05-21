@@ -2,6 +2,7 @@ from math import sqrt
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
 from torch.func import vmap, grad
 import os
 import time
@@ -21,69 +22,63 @@ if os.path.exists(value_checkpoint_path):
     print(f'Loading Value Checkpoint from {value_checkpoint_path}...')
     checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(checkpoint['model_state_dict'])
+    old_value_model.load_state_dict(checkpoint['model_state_dict'])
     value_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     batch = checkpoint['batch']
     horizon = checkpoint['horizon']
 
-if (horizon > 0):
-    old_value_checkpoint_path = f'./checkpoints/old_value_checkpoint.pt'
-    if os.path.exists(old_value_checkpoint_path):
-        print(f'Loading Old Value Checkpoint from {old_value_checkpoint_path}...')
-        checkpoint = torch.load(old_value_checkpoint_path, weights_only=False)
-        old_value_model.load_state_dict(checkpoint['model_state_dict'])
-    else:
-        print(f'Warning: {old_value_checkpoint_path} was not found!')
-        print('Bootstrapping old_value_model using current live model weights instead.')
-        old_value_model.load_state_dict(value_model.state_dict())
-        save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,0,horizon-1)
-else:
-    old_value_checkpoint_path = './checkpoints/old_value_checkpoint.pt'
-    old_value_model.load_state_dict(value_model.state_dict())
-    save_checkpoint(old_value_checkpoint_path,old_value_model,value_optimizer,batch,horizon)
-
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
-batch_size = 4096
-batch_count = 100
-generator = DataGenerator(old_value_model, batch_size)
 
 # horizon = 0
 # batch = 0
 
+sim_count = 2000
+batch_count = 100
+minibatch_size = 4000
+epochs = 2
+cuda_generator = torch.Generator(device='cuda')
+data_generator = DataGenerator(old_value_model, sim_count)
+last_log_time = time.perf_counter()
+
 print('Training...')
 for _ in range(100000000):
     start_time = time.perf_counter()
-    value_optimizer.zero_grad()
-    state, value_target = generator.generate(horizon)
-    value_logits = value_model(state)
-    value_loss = F.binary_cross_entropy_with_logits(value_logits, value_target)
-    if np.isfinite(value_loss.item()): 
-        value_loss.backward()
-        value_optimizer.step()
-    else:
-        print('non-finite value loss')
-        continue
+    full_state, full_target = data_generator.generate(horizon)
+    dataset = TensorDataset(full_state, full_target)
+    loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, generator=cuda_generator)
+    for epoch in range(epochs):
+        for state, target in loader:
+            value_optimizer.zero_grad()
+            logits = value_model(state)
+            value_loss = F.binary_cross_entropy_with_logits(logits, target)
+            value_loss.backward()
+            torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
+            value_optimizer.step()
     if (batch + 1) % 10 == 0 or batch == 0:
         with torch.no_grad():
-            null_value_probs = 0*value_target + value_target.mean()
-            null_value_loss = F.binary_cross_entropy(null_value_probs, value_target)
-            quality = 1 - value_loss/null_value_loss
+            full_logits = value_model(full_state)
+            full_loss = F.binary_cross_entropy_with_logits(full_logits, full_target)
+            null_probs = 0*full_target + full_target.mean()
+            null_loss = F.binary_cross_entropy(null_probs, full_target)
+            quality = 1 - full_loss/null_loss
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'Quality: {quality:.03f}, '
-        message += f'MeanTarget: {torch.mean(value_target):.03f}, '
-        stop_time = time.perf_counter()
-        message += f'Time: {stop_time-start_time:.03f}, '
+        message += f'ModelQuality: {quality:.03f}, '
+        message += f'MeanTarget: {torch.mean(full_target):.03f}, '
+        now = time.perf_counter()
+        message += f'Time: {now - last_log_time:.03f}, '
+        last_log_time = now
         print(message)
-    if batch > batch_count:
+    max_batch = 2 * batch_count if horizon == 0 else batch_count
+    if batch > max_batch:
         print(f'Horizon {horizon} Complete.')
-        print(f'Saving checkpints...')
-        save_checkpoint(old_value_checkpoint_path, value_model, value_optimizer, batch, horizon)
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1
         batch = 0
+        print(f'Saving checkpoint...')
         save_checkpoint(value_checkpoint_path, value_model, value_optimizer, batch, horizon)
         print(f'Beginning Horizon {horizon}...')
         continue

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.onnx
 from onnxruntime.quantization import quantize_dynamic, QuantType
 import os
-from value import ValueModel
+from value import ValueModel, state_size
 
 # log_file = open("export_debug.log", "w", encoding="utf-8")
 # sys.stdout = log_file
@@ -32,12 +32,12 @@ def value_sum(state: Tensor)->Tensor:
 def compute_grad(state: Tensor) -> Tensor:
     return torch.func.grad(value_sum)(state)[:,0:2]
 
-test_input = torch.randn(1, 16).cpu()
+test_input = torch.randn(1, state_size).cpu()
 test_grad = compute_grad(test_input)
 print('test_input:',test_input)
 print('test_grad:',test_grad)
 
-dummy_input = torch.randn(1, 16).cpu()
+dummy_input = torch.randn(1, state_size).cpu()
 traced_graph = make_fx(compute_grad)(dummy_input)
 
 base_path = 'onnx/grad_model.onnx'

@@ -12,12 +12,12 @@ from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from value import ValueModel
-import physics as physics
+import simulation as simulation
 from torch.func import vmap, grad
-from physics import Agent, Blade, device, action_tensor, active_action_tensor
+from simulation import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
 
-torch.set_default_device(physics.device)
+torch.set_default_device(simulation.device)
 
 class AgentCircle(arcade.SpriteCircle):
     def __init__(self, index: int, agent: Agent):
@@ -71,7 +71,7 @@ class Game(arcade.Window):
         self.value_estimate = 0
         self.velocity_gradient = [0, 0]
         self.agent_action = 0
-        self.log_file = open(datetime.now().strftime("./logs/%Y-%m-%d-%H-%M-%S.csv"), mode='w', newline="")
+        self.log_file = open("./logs/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
             "frame","life0","life1", 
@@ -79,7 +79,10 @@ class Game(arcade.Window):
             "b0_x", "b0_y", "b0_vx", "b0_vy",
             "a1_x", "a1_y", "a1_vx", "a1_vy",
             "b1_x", "b1_y", "b1_vx", "b1_vy",
-            "value_estimate", "grad_vx", "grad_vy", "chosen_action"
+            "grad_a0_vx", "grad_a0_vy",
+            "grad_a1_vx", "grad_a1_vy",
+            "reward", "value_estimate",
+            "action0", "action1"
         ])
         self.frame_counter = 0
 
@@ -87,12 +90,9 @@ class Game(arcade.Window):
         self.pressed[symbol] = True
         if symbol == arcade.key.SPACE:
             self.paused = not self.paused
-            if not self.paused:
-                self.life0 = 1
-                self.life1 = 1
         if symbol == arcade.key.ENTER:
-            self.index = (self.index + 1) % self.generator.batch_size
-            print('index',self.index)
+            self.generator.reset()
+            self.paused = True
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.pressed[symbol] = False
@@ -129,9 +129,8 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
-        if self.life0 < 1 or self.life1 < 1: return
         self.simulation.step()
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        self.generator.update()
         agentPosition0 = self.simulation.agents[0].position[self.index,:]
         agentVelocity0 = self.simulation.agents[0].velocity[self.index,:]
         bladePosition0 = self.simulation.blades[0].position[self.index,:]
@@ -146,9 +145,14 @@ class Game(arcade.Window):
         self.life1 = 1 if gap1 > 15 else 0
         state = get_simulation_state(generator.simulation)
         value_estimate = F.sigmoid(value_model(state))
-        velocity_grad = get_costate(state)[:,0:2]
-        action_values = torch.einsum('ij,kj->ik',velocity_grad,active_action_tensor)
-        generator.agent0.action = torch.argmax(action_values, dim=1) + 1
+        costate = get_costate(state)
+        velocity_grad0 = +costate[:,[0,1]]
+        velocity_grad1 = -costate[:,[8,9]]
+        action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
+        action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
+        # generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
+        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         self.log_writer.writerow([
             self.frame_counter,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
@@ -159,9 +163,12 @@ class Game(arcade.Window):
             agentVelocity1[0].detach().item(), agentVelocity1[1].detach().item(),
             bladePosition1[0].detach().item(), bladePosition1[1].detach().item(), 
             bladeVelocity1[0].detach().item(), bladeVelocity1[1].detach().item(),
-            value_estimate[self.index,0].detach().item(), 
-            velocity_grad[self.index,0].detach().item(), velocity_grad[self.index,1].detach().item(), 
-            generator.agent0.action[self.index].detach().item()
+            velocity_grad0[self.index,0].detach().item(), velocity_grad0[self.index,1].detach().item(),
+            velocity_grad1[self.index,0].detach().item(), velocity_grad1[self.index,1].detach().item(),
+            generator.reward[self.index].detach().item(),
+            value_estimate[self.index,0].detach().item(),
+            generator.agent0.action[self.index].detach().item(),
+            generator.agent1.action[self.index].detach().item()
         ])
         self.log_file.flush()
         self.frame_counter += 1
@@ -194,7 +201,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=10,time_step=0.1)
+generator = DataGenerator(value_model,sim_count=1)
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))

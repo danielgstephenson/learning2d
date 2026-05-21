@@ -1,11 +1,13 @@
 from torch import nn, Tensor
 import torch.nn.functional as F
-from physics import physics_dtype
+from simulation import physics_dtype
+
+state_size = 16
 
 class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.input_dim = 16
+        self.input_dim = state_size
         k = 512
         self.projection = nn.Linear(self.input_dim, k)
         self.layer_norms = nn.ModuleList([nn.LayerNorm(k) for _ in range(4)])
