@@ -154,9 +154,9 @@ class Game(arcade.Window):
         velocity_grad1 = -costate[:,[8,9]]
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
-        # generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
+        generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
         # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[0].agent.action[self.index] = self.get_user_action()
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         self.log_writer.writerow([
             self.frame_counter,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 

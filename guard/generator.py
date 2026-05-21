@@ -90,7 +90,7 @@ class DataGenerator:
         ringSize1 = 20
         ringOut0 = torch.where(self.centerDistance0 > ringSize0, 1, 0)
         ringOut1 = torch.where(self.centerDistance1 > ringSize1, 1, 0)
-        self.reward = self.life0 * torch.maximum(1 - self.life1, ringOut1 * (1 - ringOut0))
+        self.reward = self.life0 * (0.01 + 0.99 * torch.maximum(1 - self.life1, ringOut1))
 
     def act(self, horizon: int):
         if horizon==0:
