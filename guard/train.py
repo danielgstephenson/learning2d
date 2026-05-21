@@ -34,12 +34,12 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 # batch = 0
 
-sim_count = 1000
-step_count = 200
+sim_count = 4000
+step_count = 10
 batch_size = sim_count*step_count
 batch_count = 30
 minibatch_size = 40000
-print('minibatch_count',batch_size // minibatch_size)
+minibatch_count = batch_size // minibatch_size
 epoch_count = 2
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)

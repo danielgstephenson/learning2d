@@ -86,11 +86,12 @@ class DataGenerator:
         self.simulation.complete = self.life0 * self.life1 == 0
         self.centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         self.centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
-        ringSize0 = 20
+        ringSize0 = 50
         ringSize1 = 20
         ringOut0 = torch.where(self.centerDistance0 > ringSize0, 1, 0)
         ringOut1 = torch.where(self.centerDistance1 > ringSize1, 1, 0)
-        self.reward = self.life0 * (0.01 + 0.99 * torch.maximum(1 - self.life1, ringOut1))
+        #self.reward = 0.5*self.life0*(1-ringOut0) + 0.5*self.life0*torch.maximum(1-self.life1,ringOut1)
+        self.reward = self.life0*(1-ringOut0) # + 0.5*self.life0*torch.maximum(1-self.life1,ringOut1)
 
     def act(self, horizon: int):
         if horizon==0:
