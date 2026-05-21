@@ -91,7 +91,7 @@ class DataGenerator:
         ringOut0 = torch.where(self.centerDistance0 > ringSize0, 1, 0)
         ringOut1 = torch.where(self.centerDistance1 > ringSize1, 1, 0)
         #self.reward = 0.5*self.life0*(1-ringOut0) + 0.5*self.life0*torch.maximum(1-self.life1,ringOut1)
-        self.reward = self.life0*(1-ringOut0) # + 0.5*self.life0*torch.maximum(1-self.life1,ringOut1)
+        self.reward = self.life0*(1-self.life1)
 
     def act(self, horizon: int):
         if horizon==0:
@@ -113,22 +113,20 @@ class DataGenerator:
         self.value_model.eval()
         p = 0.005 # Discount Rate
         with torch.no_grad():
-            state = torch.zeros((self.sim_count,self.step_count,state_size))
-            target = torch.zeros((self.sim_count,self.step_count))
             self.reset()
+            self.update()
+            state = self.state
+            target = torch.zeros(self.sim_count,1)
             for t in range(self.step_count):
+                end_prob = p * (1 - p) ** t
+                target += end_prob * self.reward
                 self.simulation.step()
-                self.update()
                 self.act(horizon)
-                state[:,t,:] = self.state
-                end_prob = self.end_probs[:, t].view(1, self.step_count)
-                target[:,:] += end_prob * self.reward
+                self.update()
             continuation_value = self.reward if horizon == 0 else F.sigmoid(self.value_model(self.state))
-            continuation_prob = self.continuation_probs.view(1, self.step_count)
-            target[:,:] += continuation_prob * continuation_value
+            continuation_prob = (1 - p) ** (self.step_count)
+            target += continuation_prob * continuation_value
             target = torch.clamp(target, 0.0, 1.0)
-            state = state.reshape(self.sim_count * self.step_count, state_size)
-            target = target.reshape(self.sim_count * self.step_count, 1)
             return state, target
 
 def get_simulation_state(simulation: Simulation)->Tensor:
