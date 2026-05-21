@@ -34,10 +34,10 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 # batch = 0
 
-sim_count = 16000
-step_count = 50
+sim_count = 1000
+step_count = 200
 batch_size = sim_count*step_count
-batch_count = 10
+batch_count = 30
 minibatch_size = 40000
 print('minibatch_count',batch_size // minibatch_size)
 epoch_count = 2
@@ -76,6 +76,7 @@ for _ in range(100000000):
     message += f'Time: {now - last_log_time:.03f}, '
     last_log_time = now
     print(message, flush=True)
+    save_checkpoint(value_checkpoint_path, value_model, value_optimizer, batch, horizon)
     if batch + 1 >= batch_count:
         print(f'Horizon {horizon} Complete.')
         old_value_model.load_state_dict(value_model.state_dict())
