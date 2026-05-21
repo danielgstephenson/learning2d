@@ -79,13 +79,13 @@ class Simulation:
 
     def step(self):
         for agent in self.agents:
-            agent.force[:,:] = 0
-            agent.impulse[:,:] = 0
-            agent.shift[:,:] = 0
+            agent.force.fill_(0.0)
+            agent.impulse.fill_(0.0)
+            agent.shift.fill_(0.0)
         for blade in self.blades:
-            blade.force[:,:] = 0
-            blade.impulse[:,:] = 0
-            blade.shift[:,:] = 0
+            blade.force.fill_(0.0)
+            blade.impulse.fill_(0.0)
+            blade.shift.fill_(0.0)
         for agent in self.agents:
             agent.force = agent.move_power * action_tensor[agent.action,:]
         for blade in self.blades:

@@ -1,4 +1,4 @@
-from math import sqrt
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -35,11 +35,13 @@ for param_group in value_optimizer.param_groups:
 # batch = 0
 
 sim_count = 2000
+step_count = 50
+batch_size = sim_count*step_count
 batch_count = 100
 minibatch_size = 4000
-epochs = 2
+epoch_count = 2
 cuda_generator = torch.Generator(device='cuda')
-data_generator = DataGenerator(old_value_model, sim_count)
+data_generator = DataGenerator(old_value_model, sim_count, step_count)
 last_log_time = time.perf_counter()
 
 print('Training...')
@@ -47,27 +49,29 @@ for _ in range(100000000):
     start_time = time.perf_counter()
     full_state, full_target = data_generator.generate(horizon)
     dataset = TensorDataset(full_state, full_target)
-    loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, generator=cuda_generator)
-    for epoch in range(epochs):
-        for state, target in loader:
+    loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, drop_last=True, generator=cuda_generator)
+    minibatch_count = len(loader)
+    for epoch in range(epoch_count):
+        model_qualities = []
+        mean_targets = []
+        for minibatch, (state, target) in enumerate(loader):
             value_optimizer.zero_grad()
             logits = value_model(state)
-            value_loss = F.binary_cross_entropy_with_logits(logits, target)
-            value_loss.backward()
+            loss = F.binary_cross_entropy_with_logits(logits, target)
+            loss.backward()
             torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
             value_optimizer.step()
-    if (batch + 1) % 10 == 0 or batch == 0:
-        with torch.no_grad():
-            full_logits = value_model(full_state)
-            full_loss = F.binary_cross_entropy_with_logits(full_logits, full_target)
-            null_probs = 0*full_target + full_target.mean()
-            null_loss = F.binary_cross_entropy(null_probs, full_target)
-            quality = 1 - full_loss/null_loss
+            with torch.no_grad():
+                null_probs = 0*target + target.mean()
+                null_loss = F.binary_cross_entropy(null_probs, target)
+                model_qualities.append((1 - loss/null_loss).item())
+                mean_targets.append(torch.mean(target).item())
         message = ''
         message += f'Horizon: {horizon}, '
         message += f'Batch: {batch+1}, '
-        message += f'ModelQuality: {quality:.03f}, '
-        message += f'MeanTarget: {torch.mean(full_target):.03f}, '
+        message += f'Epoch: {epoch}, '
+        message += f'ModelQuality: {np.mean(model_qualities):.03f}, '
+        message += f'MeanTarget: {np.mean(mean_targets):.03f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
         last_log_time = now

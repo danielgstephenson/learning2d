@@ -10,11 +10,11 @@ from simulation import Agent, Blade, Simulation, active_action_tensor, physics_d
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, sim_count = 3):
+    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=50):
         self.value_model = value_model
         self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
         self.sim_count = sim_count
-        self.step_count = 50
+        self.step_count = step_count
         self.time_step = 0.1
         start_time = torch.arange(self.step_count)
         step_time = torch.arange(self.step_count)
