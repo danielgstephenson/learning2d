@@ -42,53 +42,40 @@ class DataGenerator:
         self.reset()
     
     def reset(self):
-        staticDistance = (20 + 10*torch.rand(self.sim_count).unsqueeze(1))
-        staticAgent0Position = staticDistance*get_random_directions(self.sim_count)
-        staticBlade0Position = staticAgent0Position + get_random_vectors(self.sim_count, 0)
-        staticAgent1Position = torch.zeros(self.sim_count,2)
-        staticBlade1Position = torch.zeros(self.sim_count,2)
-        staticAgent0Velocity = torch.zeros(self.sim_count,2)
-        staticBlade0Velocity = torch.zeros(self.sim_count,2)
-        staticAgent1Velocity = torch.zeros(self.sim_count,2)
-        staticBlade1Velocity = torch.zeros(self.sim_count,2)
-        dynamicAgent0Position = get_random_vectors(self.sim_count, 100)
-        dynamicBlade0Position = dynamicAgent0Position + get_random_vectors(self.sim_count, 80)
-        dynamicAgent1Position = get_random_vectors(self.sim_count, 100)
-        dynamicBlade1Position = dynamicAgent1Position + get_random_vectors(self.sim_count, 80)
-        dynamicAgent0Velocity = get_random_vectors(self.sim_count,30)
-        dynamicBlade0Velocity = get_random_vectors(self.sim_count,70)
-        dynamicAgent1Velocity = get_random_vectors(self.sim_count,30)
-        dynamicBlade1Velocity = get_random_vectors(self.sim_count,70)
-        attackAgentDistance = 20 + 20*torch.rand(self.sim_count).unsqueeze(1)
-        attackBladeDistance = attackAgentDistance + 50*torch.rand(self.sim_count).unsqueeze(1)
-        attackDirection = get_random_directions(self.sim_count)
-        attackAgent0Position = attackAgentDistance*attackDirection
-        attackBlade0Position = attackBladeDistance*attackDirection + get_random_vectors(self.sim_count, 50)
-        attackAgent1Position = torch.zeros(self.sim_count,2)
-        attackBlade1Position = torch.zeros(self.sim_count,2)
-        attackAgent0Velocity = torch.zeros(self.sim_count,2)
-        attackBlade0Velocity = get_random_vectors(self.sim_count, 70)
-        attackAgent1Velocity = torch.zeros(self.sim_count,2)
-        attackBlade1Velocity = torch.zeros(self.sim_count,2)
-        static = torch.rand(self.sim_count).unsqueeze(1) < 0.5
-        self.agent0.position = torch.where(static, staticAgent0Position, dynamicAgent0Position)
-        self.blade0.position = torch.where(static, staticBlade0Position, dynamicBlade0Position)
-        self.agent1.position = torch.where(static, staticAgent1Position, dynamicAgent1Position)
-        self.blade1.position = torch.where(static, staticBlade1Position, dynamicBlade1Position)
-        self.agent0.velocity = torch.where(static, staticAgent0Velocity, dynamicAgent0Velocity)
-        self.blade0.velocity = torch.where(static, staticBlade0Velocity, dynamicBlade0Velocity)
-        self.agent1.velocity = torch.where(static, staticAgent1Velocity, dynamicAgent1Velocity)
-        self.blade1.velocity = torch.where(static, staticBlade1Velocity, dynamicBlade1Velocity)
-        attack = torch.rand(self.sim_count).unsqueeze(1) < 0.5
-        self.agent0.position = torch.where(attack, self.agent0.position, attackAgent0Position)
-        self.blade0.position = torch.where(attack, self.blade0.position, attackBlade0Position)
-        self.agent1.position = torch.where(attack, self.agent1.position, attackAgent1Position)
-        self.blade1.position = torch.where(attack, self.blade1.position, attackBlade1Position)
-        self.agent0.velocity = torch.where(attack, self.agent0.velocity, attackAgent0Velocity)
-        self.blade0.velocity = torch.where(attack, self.blade0.velocity, attackBlade0Velocity)
-        self.agent1.velocity = torch.where(attack, self.agent1.velocity, attackAgent1Velocity)
-        self.blade1.velocity = torch.where(attack, self.blade1.velocity, attackBlade1Velocity)
-        self.simulation.complete = torch.zeros((self.sim_count,1)).bool()
+        n = self.sim_count
+        z = torch.zeros(n, 2)
+        features = [
+            self.agent0.position, self.blade0.position,
+            self.agent1.position, self.blade1.position,
+            self.agent0.velocity, self.blade0.velocity,
+            self.agent1.velocity, self.blade1.velocity,
+        ]
+        def static():
+            vector = (20 + 10*torch.rand(n, 1)) * get_random_directions(n)
+            return vector, vector, z, z, z, z, z, z
+        def dynamic():
+            a0p = get_random_vectors(n, 100)
+            b0p = a0p + get_random_vectors(n, 80)
+            a1p = get_random_vectors(n, 100)
+            b1p = a1p + get_random_vectors(n, 80)
+            a0v = get_random_vectors(n, 30)
+            b0v = get_random_vectors(n, 70)
+            a1v = get_random_vectors(n, 30)
+            b1v = get_random_vectors(n, 70)
+            return a0p, b0p, a1p, b1p, a0v, b0v, a1v, b1v
+        def attack():
+            direction = get_random_directions(n)
+            a0_dist = 20 + 20*torch.rand(n, 1)
+            b0_dist = a0_dist + 50*torch.rand(n, 1)
+            a0p = a0_dist * direction
+            b0p = b0_dist * direction + get_random_vectors(n, 50)
+            return a0p, b0p, z, z, z, get_random_vectors(n, 70), z, z
+        situations = [static(), dynamic(), attack()]
+        choice = torch.randint(0, len(situations), (n, 1))
+        for i, feature in enumerate(features):
+            for j, situation in enumerate(situations):
+                feature[:] = torch.where(choice == j, situation[i], feature)
+        self.simulation.complete = torch.zeros((n, 1)).bool()
 
     def update(self):
         self.state = get_simulation_state(self.simulation)
