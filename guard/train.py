@@ -34,11 +34,12 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 # batch = 0
 
-sim_count = 2000
+sim_count = 8000
 step_count = 50
 batch_size = sim_count*step_count
-batch_count = 100
-minibatch_size = 4000
+batch_count = 10
+minibatch_size = 20000
+print('minibatch_count',batch_size // minibatch_size)
 epoch_count = 2
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)
@@ -68,15 +69,14 @@ for _ in range(100000000):
                 mean_targets.append(torch.mean(target).item())
     message = ''
     message += f'Horizon: {horizon}, '
-    message += f'Batch: {batch+1}, '
+    message += f'Batch: {batch+1} / {batch_count}, '
     message += f'ModelQuality: {np.mean(model_qualities):.03f}, '
     message += f'MeanTarget: {np.mean(mean_targets):.03f}, '
     now = time.perf_counter()
     message += f'Time: {now - last_log_time:.03f}, '
     last_log_time = now
     print(message, flush=True)
-    max_batch = 2 * batch_count if horizon == 0 else batch_count
-    if batch > max_batch:
+    if batch + 1 >= batch_count:
         print(f'Horizon {horizon} Complete.')
         old_value_model.load_state_dict(value_model.state_dict())
         horizon += 1

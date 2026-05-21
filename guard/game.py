@@ -26,7 +26,7 @@ class AgentCircle(arcade.SpriteCircle):
         if agent.align == 1: color = csscolor.BLUE
         if agent.align == 2: color = csscolor.RED
         x = agent.position[index,0].item()
-        y = agent.position[index,0].item()
+        y = agent.position[index,1].item()
         super().__init__(radius, color, False, x, y)
         self.agent = agent
 
@@ -37,7 +37,7 @@ class BladeCircle(arcade.SpriteCircle):
         if blade.agent.align == 1: color = csscolor.AQUA
         if blade.agent.align == 2: color = csscolor.MAGENTA
         x = blade.position[index,0].item()
-        y = blade.position[index,0].item()
+        y = blade.position[index,1].item()
         super().__init__(radius, color, False, x, y)
         self.blade = blade
 
@@ -71,6 +71,10 @@ class Game(arcade.Window):
         self.value_estimate = 0
         self.velocity_gradient = [0, 0]
         self.agent_action = 0
+        self.reset_log_file()
+        self.frame_counter = 0
+
+    def reset_log_file(self):
         self.log_file = open("./logs/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
@@ -84,7 +88,6 @@ class Game(arcade.Window):
             "reward", "value_estimate",
             "action0", "action1"
         ])
-        self.frame_counter = 0
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
@@ -93,6 +96,7 @@ class Game(arcade.Window):
         if symbol == arcade.key.ENTER:
             self.generator.reset()
             self.paused = True
+            self.reset_log_file()
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.pressed[symbol] = False
@@ -152,7 +156,7 @@ class Game(arcade.Window):
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         # generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
         # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        self.agentCircles[0].agent.action[self.index] = self.get_user_action()
         self.log_writer.writerow([
             self.frame_counter,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 

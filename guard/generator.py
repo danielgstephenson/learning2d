@@ -38,9 +38,6 @@ class DataGenerator:
         self.life1: Tensor
         self.centerDistance0: Tensor
         self.centerDistance1: Tensor
-        self.ringOut0: Tensor
-        self.ringOut1: Tensor
-        self.victory: Tensor
         self.reward: Tensor
         self.reset()
     
@@ -48,12 +45,12 @@ class DataGenerator:
         staticDistance = (20 + 10*torch.rand(self.sim_count).unsqueeze(1))
         staticAgent0Position = staticDistance*get_random_directions(self.sim_count)
         staticBlade0Position = staticAgent0Position + get_random_vectors(self.sim_count, 0)
-        staticAgent1Position = get_random_vectors(self.sim_count,0)
-        staticBlade1Position = get_random_vectors(self.sim_count,0)
-        staticAgent0Velocity = get_random_vectors(self.sim_count,0)
-        staticBlade0Velocity = get_random_vectors(self.sim_count,0)
-        staticAgent1Velocity = get_random_vectors(self.sim_count,0)
-        staticBlade1Velocity = get_random_vectors(self.sim_count,0)
+        staticAgent1Position = torch.zeros(self.sim_count,2)
+        staticBlade1Position = torch.zeros(self.sim_count,2)
+        staticAgent0Velocity = torch.zeros(self.sim_count,2)
+        staticBlade0Velocity = torch.zeros(self.sim_count,2)
+        staticAgent1Velocity = torch.zeros(self.sim_count,2)
+        staticBlade1Velocity = torch.zeros(self.sim_count,2)
         dynamicAgent0Position = get_random_vectors(self.sim_count, 100)
         dynamicBlade0Position = dynamicAgent0Position + get_random_vectors(self.sim_count, 80)
         dynamicAgent1Position = get_random_vectors(self.sim_count, 100)
@@ -62,8 +59,18 @@ class DataGenerator:
         dynamicBlade0Velocity = get_random_vectors(self.sim_count,70)
         dynamicAgent1Velocity = get_random_vectors(self.sim_count,30)
         dynamicBlade1Velocity = get_random_vectors(self.sim_count,70)
-        static = torch.rand(self.sim_count) < 0.5
-        static = torch.stack((static,static),dim=1)
+        attackAgentDistance = 20 + 20*torch.rand(self.sim_count).unsqueeze(1)
+        attackBladeDistance = attackAgentDistance + 50*torch.rand(self.sim_count).unsqueeze(1)
+        attackDirection = get_random_directions(self.sim_count)
+        attackAgent0Position = attackAgentDistance*attackDirection
+        attackBlade0Position = attackBladeDistance*attackDirection + get_random_vectors(self.sim_count, 50)
+        attackAgent1Position = torch.zeros(self.sim_count,2)
+        attackBlade1Position = torch.zeros(self.sim_count,2)
+        attackAgent0Velocity = torch.zeros(self.sim_count,2)
+        attackBlade0Velocity = get_random_vectors(self.sim_count, 70)
+        attackAgent1Velocity = torch.zeros(self.sim_count,2)
+        attackBlade1Velocity = torch.zeros(self.sim_count,2)
+        static = torch.rand(self.sim_count).unsqueeze(1) < 0.5
         self.agent0.position = torch.where(static, staticAgent0Position, dynamicAgent0Position)
         self.blade0.position = torch.where(static, staticBlade0Position, dynamicBlade0Position)
         self.agent1.position = torch.where(static, staticAgent1Position, dynamicAgent1Position)
@@ -72,6 +79,15 @@ class DataGenerator:
         self.blade0.velocity = torch.where(static, staticBlade0Velocity, dynamicBlade0Velocity)
         self.agent1.velocity = torch.where(static, staticAgent1Velocity, dynamicAgent1Velocity)
         self.blade1.velocity = torch.where(static, staticBlade1Velocity, dynamicBlade1Velocity)
+        attack = torch.rand(self.sim_count).unsqueeze(1) < 0.5
+        self.agent0.position = torch.where(attack, self.agent0.position, attackAgent0Position)
+        self.blade0.position = torch.where(attack, self.blade0.position, attackBlade0Position)
+        self.agent1.position = torch.where(attack, self.agent1.position, attackAgent1Position)
+        self.blade1.position = torch.where(attack, self.blade1.position, attackBlade1Position)
+        self.agent0.velocity = torch.where(attack, self.agent0.velocity, attackAgent0Velocity)
+        self.blade0.velocity = torch.where(attack, self.blade0.velocity, attackBlade0Velocity)
+        self.agent1.velocity = torch.where(attack, self.agent1.velocity, attackAgent1Velocity)
+        self.blade1.velocity = torch.where(attack, self.blade1.velocity, attackBlade1Velocity)
         self.simulation.complete = torch.zeros((self.sim_count,1)).bool()
 
     def update(self):
@@ -81,15 +97,13 @@ class DataGenerator:
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
         self.simulation.complete = self.life0 * self.life1 == 0
-        self.victory = self.life0 * (1 - 0.5 * self.life1)
         self.centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         self.centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 20
-        ringSize1 = 80
-        self.ringOut0 = torch.where(self.centerDistance0 > ringSize0, self.centerDistance0, ringSize0)
-        self.ringOut1 = torch.where(self.centerDistance1 > ringSize1, self.centerDistance1, ringSize1)
-        ringReward = 0.1*F.sigmoid(0.2 * (self.ringOut1 - self.ringOut0))
-        self.reward = torch.where(self.victory == 0.5, ringReward, self.victory)
+        ringSize1 = 20
+        ringOut0 = torch.where(self.centerDistance0 > ringSize0, 1, 0)
+        ringOut1 = torch.where(self.centerDistance1 > ringSize1, 1, 0)
+        self.reward = self.life0 * torch.maximum(1 - self.life1, ringOut1 * (1 - ringOut0))
 
     def act(self, horizon: int):
         if horizon==0:
