@@ -20,10 +20,10 @@ torch.set_printoptions(sci_mode=False, precision=4)
     
 value_model = ValueModel().cpu().eval()
 value_model.requires_grad_(False)
-value_checkpoint_path = './checkpoints/value_checkpoint.pt'
-if os.path.exists(value_checkpoint_path):
+checkpoint_path = './checkpoints/checkpoint.pt'
+if os.path.exists(checkpoint_path):
     print('Loading Value Checkpoint...')
-    value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
+    value_checkpoint = torch.load(checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
 def value_sum(state: Tensor)->Tensor:

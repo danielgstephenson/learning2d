@@ -36,11 +36,10 @@ class DataGenerator:
         self.gap1: Tensor
         self.life0: Tensor
         self.life1: Tensor
-        self.centerDistance0: Tensor
-        self.centerDistance1: Tensor
         self.reward: Tensor
         self.reset()
     
+
     def reset(self):
         n = self.sim_count
         z = torch.zeros(n, 2)
@@ -84,14 +83,14 @@ class DataGenerator:
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
         self.simulation.complete = self.life0 * self.life1 == 0
-        self.centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
-        self.centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
-        ringSize0 = 50
+        self.victory = self.life0 * (1 - 0.5 * self.life1)
+        centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
+        centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
+        ringSize0 = 60
         ringSize1 = 20
-        ringOut0 = torch.where(self.centerDistance0 > ringSize0, 1, 0)
-        ringOut1 = torch.where(self.centerDistance1 > ringSize1, 1, 0)
-        #self.reward = 0.5*self.life0*(1-ringOut0) + 0.5*self.life0*torch.maximum(1-self.life1,ringOut1)
-        self.reward = self.life0*(1-self.life1)
+        ringOut0 = torch.where(centerDistance0 > ringSize0, 1, 0)
+        ringOut1 = torch.where(centerDistance1 > ringSize1, 1, 0)
+        self.reward = self.life0 * (1 - ringOut0)
 
     def act(self, horizon: int):
         if horizon==0:
@@ -113,20 +112,22 @@ class DataGenerator:
         self.value_model.eval()
         p = 0.005 # Discount Rate
         with torch.no_grad():
+            state = torch.zeros((self.sim_count,self.step_count,state_size))
+            target = torch.zeros((self.sim_count,self.step_count))
             self.reset()
-            self.update()
-            state = self.state
-            target = torch.zeros(self.sim_count,1)
             for t in range(self.step_count):
-                end_prob = p * (1 - p) ** t
-                target += end_prob * self.reward
                 self.simulation.step()
-                self.act(horizon)
                 self.update()
+                self.act(horizon)
+                state[:,t,:] = self.state
+                end_prob = self.end_probs[:, t].view(1, self.step_count)
+                target[:,:] += end_prob * self.reward
             continuation_value = self.reward if horizon == 0 else F.sigmoid(self.value_model(self.state))
-            continuation_prob = (1 - p) ** (self.step_count)
-            target += continuation_prob * continuation_value
+            continuation_prob = self.continuation_probs.view(1, self.step_count)
+            target[:,:] += continuation_prob * continuation_value
             target = torch.clamp(target, 0.0, 1.0)
+            state = state.reshape(self.sim_count * self.step_count, state_size)
+            target = target.reshape(self.sim_count * self.step_count, 1)
             return state, target
 
 def get_simulation_state(simulation: Simulation)->Tensor:
@@ -152,4 +153,3 @@ def get_random_vectors(count: int, max_scale=1.0) ->Tensor:
     directions = get_random_directions(count)
     scales = max_scale*torch.rand(count).unsqueeze(1)
     return scales*directions
-
