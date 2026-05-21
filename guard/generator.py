@@ -85,7 +85,7 @@ class DataGenerator:
         self.centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         self.centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 20
-        ringSize1 = 20
+        ringSize1 = 80
         self.ringOut0 = torch.where(self.centerDistance0 > ringSize0, self.centerDistance0, ringSize0)
         self.ringOut1 = torch.where(self.centerDistance1 > ringSize1, self.centerDistance1, ringSize1)
         ringReward = 0.1*F.sigmoid(0.2 * (self.ringOut1 - self.ringOut0))
