@@ -51,9 +51,9 @@ for _ in range(100000000):
     dataset = TensorDataset(full_state, full_target)
     loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, drop_last=True, generator=cuda_generator)
     minibatch_count = len(loader)
+    model_qualities = []
+    mean_targets = []
     for epoch in range(epoch_count):
-        model_qualities = []
-        mean_targets = []
         for minibatch, (state, target) in enumerate(loader):
             value_optimizer.zero_grad()
             logits = value_model(state)
@@ -66,16 +66,15 @@ for _ in range(100000000):
                 null_loss = F.binary_cross_entropy(null_probs, target)
                 model_qualities.append((1 - loss/null_loss).item())
                 mean_targets.append(torch.mean(target).item())
-        message = ''
-        message += f'Horizon: {horizon}, '
-        message += f'Batch: {batch+1}, '
-        message += f'Epoch: {epoch}, '
-        message += f'ModelQuality: {np.mean(model_qualities):.03f}, '
-        message += f'MeanTarget: {np.mean(mean_targets):.03f}, '
-        now = time.perf_counter()
-        message += f'Time: {now - last_log_time:.03f}, '
-        last_log_time = now
-        print(message)
+    message = ''
+    message += f'Horizon: {horizon}, '
+    message += f'Batch: {batch+1}, '
+    message += f'ModelQuality: {np.mean(model_qualities):.03f}, '
+    message += f'MeanTarget: {np.mean(mean_targets):.03f}, '
+    now = time.perf_counter()
+    message += f'Time: {now - last_log_time:.03f}, '
+    last_log_time = now
+    print(message, flush=True)
     max_batch = 2 * batch_count if horizon == 0 else batch_count
     if batch > max_batch:
         print(f'Horizon {horizon} Complete.')
