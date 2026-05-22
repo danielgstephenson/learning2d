@@ -89,6 +89,9 @@ class Simulation:
         for blade in self.blades:
             vector = blade.agent.position - blade.position
             blade.force = 0.5 * vector
+            magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
+            clamped = 50*F.normalize(blade.force, p=2, dim=1)
+            blade.force = torch.where(magnitude > 50, clamped, blade.force)
         for blade1 in self.blades:
             for blade2 in self.blades:
                 collide_circle_circle(blade1, blade2)
