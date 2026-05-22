@@ -96,8 +96,8 @@ class DataGenerator:
         centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 150
         ringSize1 = 20
-        ringOut0 = 1 - torch.exp(-0.1*F.relu(centerDistance0-ringSize0))
-        ringOut1 = 1 - torch.exp(-0.1*F.relu(centerDistance1-ringSize1))
+        ringOut0 = 1 - torch.exp(-0.02*F.relu(centerDistance0-ringSize0))
+        ringOut1 = 1 - torch.exp(-0.05*F.relu(centerDistance1-ringSize1))
         A = 0.6    # in [0,1] (Advantage to Agent 1)
         B = 0.5 - 0.5*A    # in [0,1] (Balance)
         self.reward = (1-B) + B*self.life0*(1-ringOut0) - (1-B)*self.life1*(1-ringOut1)
