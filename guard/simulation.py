@@ -68,7 +68,7 @@ class Simulation:
         self.count = count
         self.device = device
         self.time_step = timeStep
-        self.complete = torch.zeros((self.count,1)).bool()
+        self.complete = torch.zeros(self.count,1).bool()
         self.dtype = dtype
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
