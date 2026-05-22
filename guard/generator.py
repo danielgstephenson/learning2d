@@ -10,7 +10,7 @@ from simulation import Agent, Blade, Simulation, active_action_tensor, physics_d
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=50):
+    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=10):
         self.value_model = value_model
         self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
         self.sim_count = sim_count
@@ -55,7 +55,7 @@ class DataGenerator:
         def dynamic():
             a0p = get_random_vectors(n, 300)
             b0p = a0p + get_random_vectors(n, 80)
-            a1p = get_random_vectors(n, 300)
+            a1p = get_random_vectors(n, 100)
             b1p = a1p + get_random_vectors(n, 80)
             a0v = get_random_vectors(n, 30)
             b0v = get_random_vectors(n, 70)
@@ -95,10 +95,12 @@ class DataGenerator:
         centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
         centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 150
-        ringSize1 = 150
-        ringOut0 = torch.where(centerDistance0 > ringSize0, 1, 0)
-        ringOut1 = torch.where(centerDistance1 > ringSize1, 1, 0)
-        self.reward = 0.5 + 0.5*self.life0*(1-ringOut0) - 0.5*self.life1*(1 - ringOut1)
+        ringSize1 = 20
+        ringOut0 = 1 - torch.exp(-0.1*F.relu(centerDistance0-ringSize0))
+        ringOut1 = 1 - torch.exp(-0.1*F.relu(centerDistance1-ringSize1))
+        A = 0.6    # in [0,1] (Advantage to Agent 1)
+        B = 0.5 - 0.5*A    # in [0,1] (Balance)
+        self.reward = (1-B) + B*self.life0*(1-ringOut0) - (1-B)*self.life1*(1-ringOut1)
 
     def act(self, horizon: int):
         if horizon==0:

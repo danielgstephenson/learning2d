@@ -39,11 +39,11 @@ else:
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
-# horizon = 0
-# batch = 0
+horizon = 1
+batch = 0
 
 sim_count = 2000
-step_count = 50
+step_count = 10
 batch_size = sim_count*step_count
 batch_count = 20
 minibatch_size = 4000

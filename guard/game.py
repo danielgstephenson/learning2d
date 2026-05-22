@@ -120,8 +120,8 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
+        arcade.draw_text(f"FPS: {arcade.get_fps():.1f}",x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         arcade.draw_circle_outline(0, 0, SCALE*20, arcade.color.GRAY, SCALE*1)
-        arcade.draw_circle_outline(0, 0, SCALE*100, arcade.color.GRAY, SCALE*1)
         arcade.draw_circle_outline(0, 0, SCALE*150, arcade.color.GRAY, SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
@@ -137,6 +137,7 @@ class Game(arcade.Window):
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
         self.simulation.step()
+        if self.simulation.complete[self.index]: return
         self.generator.update()
         agentPosition0 = self.simulation.agents[0].position[self.index,:]
         agentVelocity0 = self.simulation.agents[0].velocity[self.index,:]
