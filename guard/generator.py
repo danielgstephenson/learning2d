@@ -1,7 +1,5 @@
-from math import pi
-from numpy import where
 import torch
-from torch import Tensor, tensor
+from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
 from value import ValueModel, state_size
@@ -16,18 +14,11 @@ class DataGenerator:
         self.sim_count = sim_count
         self.step_count = step_count
         self.time_step = 0.1
-        start_time = torch.arange(self.step_count)
-        step_time = torch.arange(self.step_count)
-        p = 0.01 # Discount Rate
-        dt = step_time.unsqueeze(0) - start_time.unsqueeze(1)
-        self.end_probs = torch.where(dt < 0, 0.0, p * (1 - p) ** dt)
-        self.continuation_probs = (1-p) ** (self.step_count - start_time)
         self.simulation = Simulation(sim_count, self.time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.blade0 = Blade(self.simulation, self.agent0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
-        self.scale: Tensor
         self.state: Tensor
         self.costate: Tensor
         self.vgrad0: Tensor
@@ -84,6 +75,7 @@ class DataGenerator:
             for j, situation in enumerate(situations):
                 feature[:] = torch.where(choice == j, situation[i], feature)
         self.simulation.complete = torch.zeros((n, 1)).bool()
+        self.update()
 
     def update(self):
         self.state = get_simulation_state(self.simulation)
@@ -96,9 +88,9 @@ class DataGenerator:
         centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
         ringSize0 = 150
         ringSize1 = 20
-        ringOut0 = 5e-5 * F.relu(centerDistance0 - ringSize0) ** 2
-        ringOut1 = 5e-5 * F.relu(centerDistance1 - ringSize1) ** 2
-        self.reward = self.life0 - ringOut0 - self.life1 + ringOut1
+        ringOut0 = 0.03 * F.relu(centerDistance0 - ringSize0) ** 2
+        ringOut1 = 0.03 * F.relu(centerDistance1 - ringSize1) ** 2
+        self.reward = 100 * self.life0 - ringOut0 - self.life1 + ringOut1
 
     def act(self, horizon: int):
         if horizon==0:
@@ -118,22 +110,20 @@ class DataGenerator:
     def generate(self, horizon: int)->tuple[Tensor,...]:
         self.value_model.eval()
         with torch.no_grad():
-            state = torch.zeros((self.sim_count,self.step_count,state_size))
-            target = torch.zeros((self.sim_count,self.step_count))
             self.reset()
+            state = self.state.clone()
+            target = torch.zeros((self.sim_count,1))
+            p = 0.01 # Discount Rate
             for t in range(self.step_count):
+                self.act(horizon)
                 self.simulation.step()
                 self.update()
-                self.act(horizon)
-                state[:,t,:] = self.state
-                end_prob = self.end_probs[:, t].view(1, self.step_count)
-                target[:,:] += end_prob * self.reward
-            continuation_value = self.reward if horizon == 0 else self.value_model(self.state)
-            # Set the continuation_value equal to the reward if either agent is dead
-            continuation_prob = self.continuation_probs.view(1, self.step_count)
-            target[:,:] += continuation_prob * continuation_value
-            state = state.reshape(self.sim_count * self.step_count, state_size)
-            target = target.reshape(self.sim_count * self.step_count, 1)
+                end_prob = p * (1 - p) ** t
+                target += end_prob * self.reward
+            bootstrap_estimate = self.reward if horizon == 0 else self.value_model(self.state)
+            continuation_value = torch.where(self.simulation.complete, self.reward, bootstrap_estimate) 
+            continuation_prob = (1-p) ** self.step_count
+            target += continuation_prob * continuation_value
             return state, target
 
 def get_simulation_state(simulation: Simulation)->Tensor:

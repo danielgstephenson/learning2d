@@ -1,4 +1,6 @@
 
+from math import sqrt
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -42,16 +44,14 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 # batch = 0
 
-sim_count = 25000
-window = 10
-threshold = 0.002
+sim_count = 100_000
+batch_count = 1000000
 step_count = 10
-minibatch_size = 25000
-batch_size = sim_count*step_count
-minibatch_count = batch_size // minibatch_size
+minibatch_size = 10_000
+minibatch_count = sim_count // minibatch_size
 print('minibatch_count',minibatch_count)
 quality_history = []
-epochs = 2
+epoch_count = 10
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)
 last_log_time = time.perf_counter()
@@ -62,7 +62,7 @@ for _ in range(100000000):
     full_state, full_target = data_generator.generate(horizon)
     dataset = TensorDataset(full_state, full_target)
     loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, generator=cuda_generator)
-    for epoch in range(epochs):
+    for epoch in range(epoch_count):
         for state, target in loader:
             value_optimizer.zero_grad()
             estimate = value_model(state)
@@ -70,36 +70,33 @@ for _ in range(100000000):
             value_loss.backward()
             torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
             value_optimizer.step()
-    with torch.no_grad():
-        full_estimate = value_model(full_state)
-        full_loss = F.mse_loss(full_estimate, full_target)
-        null_estimate = 0*full_target + full_target.mean()
-        null_loss = F.mse_loss(null_estimate, full_target)
-        quality = 1 - full_loss/null_loss
-        quality_history.append(quality.item())
-    message = ''
-    message += f'Horizon: {horizon}, '
-    message += f'Batch: {batch+1}, '
-    message += f'ModelQuality: {quality:.03f}, '
-    message += f'TargetMean: {torch.mean(full_target):.03f}, '
-    message += f'TargetVar: {null_loss:.03f}, '
-    now = time.perf_counter()
-    message += f'Time: {now - last_log_time:.03f}, '
-    last_log_time = now
-    print(message)
+        with torch.no_grad():
+            full_estimate = value_model(full_state)
+            full_loss = F.mse_loss(full_estimate, full_target)
+            null_estimate = 0*full_target + full_target.mean()
+            null_loss = F.mse_loss(null_estimate, full_target)
+            quality = 1 - full_loss/null_loss
+            quality_history.append(quality.item())
+            message = ''
+            message += f'Horizon: {horizon}, '
+            message += f'Batch: {batch+1}, '
+            message += f'Epoch: {epoch+1}, '
+            message += f'ModelQuality: {quality:.03f}, '
+            message += f'TargetMean: {torch.mean(full_target):.03f}, '
+            message += f'TargetSD: {sqrt(null_loss):.03f}, '
+            now = time.perf_counter()
+            message += f'Time: {now - last_log_time:.03f}, '
+            last_log_time = now
+            print(message)
     save_checkpoint(checkpoint_path, value_model, value_optimizer, batch, horizon)
-    if len(quality_history) >= 2*window:
-        recent_mean = np.mean(quality_history[-window:])
-        past_mean = np.mean(quality_history[-2*window:-window])
-        improvement = recent_mean - past_mean
-        if improvement < threshold:
-            print(f'Horizon {horizon} Complete.')
-            horizon += 1
-            batch = 0
-            quality_history = []
-            print(f'Saving checkpoint...')
-            old_value_model.load_state_dict(value_model.state_dict())
-            save_checkpoint(old_checkpoint_path, value_model, value_optimizer, batch, horizon)
-            print(f'Beginning Horizon {horizon}...')
-            continue
+    if batch + 1 >= batch_count:
+        print(f'Horizon {horizon} Complete.')
+        horizon += 1
+        batch = 0
+        quality_history = []
+        print(f'Saving checkpoint...')
+        old_value_model.load_state_dict(value_model.state_dict())
+        save_checkpoint(old_checkpoint_path, value_model, value_optimizer, batch, horizon)
+        print(f'Beginning Horizon {horizon}...')
+        continue
     batch += 1
