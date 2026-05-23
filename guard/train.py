@@ -39,16 +39,18 @@ else:
 for param_group in value_optimizer.param_groups:
     param_group['lr'] = 1e-4
 
-horizon = 1
-batch = 0
+# horizon = 0
+# batch = 0
 
-sim_count = 20000
-batch_count = 1000
+sim_count = 25000
+window = 10
+threshold = 0.002
 step_count = 10
+minibatch_size = 25000
 batch_size = sim_count*step_count
-minibatch_size = 4000
 minibatch_count = batch_size // minibatch_size
 print('minibatch_count',minibatch_count)
+quality_history = []
 epochs = 2
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)
@@ -63,35 +65,41 @@ for _ in range(100000000):
     for epoch in range(epochs):
         for state, target in loader:
             value_optimizer.zero_grad()
-            logits = value_model(state)
-            value_loss = F.binary_cross_entropy_with_logits(logits, target)
+            estimate = value_model(state)
+            value_loss = F.mse_loss(estimate, target)
             value_loss.backward()
             torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
             value_optimizer.step()
     with torch.no_grad():
-        full_logits = value_model(full_state)
-        full_loss = F.binary_cross_entropy_with_logits(full_logits, full_target)
-        null_probs = 0*full_target + full_target.mean()
-        null_loss = F.binary_cross_entropy(null_probs, full_target)
+        full_estimate = value_model(full_state)
+        full_loss = F.mse_loss(full_estimate, full_target)
+        null_estimate = 0*full_target + full_target.mean()
+        null_loss = F.mse_loss(null_estimate, full_target)
         quality = 1 - full_loss/null_loss
+        quality_history.append(quality.item())
     message = ''
     message += f'Horizon: {horizon}, '
     message += f'Batch: {batch+1}, '
     message += f'ModelQuality: {quality:.03f}, '
-    message += f'MeanTarget: {torch.mean(full_target):.03f}, '
+    message += f'TargetMean: {torch.mean(full_target):.03f}, '
+    message += f'TargetVar: {null_loss:.03f}, '
     now = time.perf_counter()
     message += f'Time: {now - last_log_time:.03f}, '
     last_log_time = now
     print(message)
     save_checkpoint(checkpoint_path, value_model, value_optimizer, batch, horizon)
-    if batch + 1 >= batch_count:
-        print(f'Horizon {horizon} Complete.')
-        old_value_model.load_state_dict(value_model.state_dict())
-        horizon += 1
-        batch = 0
-        print(f'Saving checkpoint...')
-        old_value_model.load_state_dict(value_model.state_dict())
-        save_checkpoint(old_checkpoint_path, value_model, value_optimizer, batch, horizon)
-        print(f'Beginning Horizon {horizon}...')
-        continue
+    if len(quality_history) >= 2*window:
+        recent_mean = np.mean(quality_history[-window:])
+        past_mean = np.mean(quality_history[-2*window:-window])
+        improvement = recent_mean - past_mean
+        if improvement < threshold:
+            print(f'Horizon {horizon} Complete.')
+            horizon += 1
+            batch = 0
+            quality_history = []
+            print(f'Saving checkpoint...')
+            old_value_model.load_state_dict(value_model.state_dict())
+            save_checkpoint(old_checkpoint_path, value_model, value_optimizer, batch, horizon)
+            print(f'Beginning Horizon {horizon}...')
+            continue
     batch += 1

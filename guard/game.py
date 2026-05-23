@@ -1,5 +1,4 @@
 import os
-from onnx_ir import val
 import torch
 import torch.nn.functional as F
 import onnxruntime as ort
@@ -152,7 +151,7 @@ class Game(arcade.Window):
         self.life0 = 1 if gap0 > 15 else 0
         self.life1 = 1 if gap1 > 15 else 0
         state = get_simulation_state(generator.simulation)
-        value_estimate = F.sigmoid(value_model(state))
+        value_estimate = value_model(state)
         costate = get_costate(state)
         velocity_grad0 = +costate[:,[0,1]]
         velocity_grad1 = -costate[:,[8,9]]
