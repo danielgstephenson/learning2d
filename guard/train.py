@@ -46,12 +46,12 @@ for param_group in value_optimizer.param_groups:
 
 sim_count = 100_000
 batch_count = 1000000
+epoch_count = 10
 step_count = 10
 minibatch_size = 10_000
 minibatch_count = sim_count // minibatch_size
 print('minibatch_count',minibatch_count)
 quality_history = []
-epoch_count = 10
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count)
 last_log_time = time.perf_counter()
