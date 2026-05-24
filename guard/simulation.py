@@ -3,7 +3,7 @@ from numpy import dtype
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from math import cos, inf, pi, sin
+from math import cos, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device = " + str(device))
@@ -47,6 +47,17 @@ class Blade(Circle):
         self.agent = agent
         self.drag = 0.2
 
+class Boundary:
+    def __init__(self, simulation: Simulation):
+        self.simulation = simulation
+        self.wall_starts: Tensor  # (n, num_walls, 2)
+        self.wall_ends: Tensor    # (n, num_walls, 2)
+        self.num_walls: int = 0
+    def setup(self, corners: Tensor):
+        self.num_walls = 4
+        self.wall_starts = corners                        # (n, 4, 2)
+        self.wall_ends = torch.roll(corners, -1, dims=1)  # (n, 4, 2)
+
 action_vector_list = [[0.0,0.0]]
 for i in range(8):
     angle = 2 * pi * i / 8
@@ -70,10 +81,12 @@ class Simulation:
         self.time_step = timeStep
         self.complete = torch.zeros(self.count,1).bool()
         self.dtype = dtype
+        self.time = 0.0
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
+        self.boundary: Boundary
 
     def step(self):
         for agent in self.agents:
@@ -88,7 +101,6 @@ class Simulation:
             agent.force = agent.move_power * action_tensor[agent.action,:]
         for blade in self.blades:
             blade.force = blade.agent.position - blade.position
-            # blade.force = 0.5 * (blade.agent.position - blade.position)
             magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
             clamped = 50*F.normalize(blade.force, p=2, dim=1)
             blade.force = torch.where(magnitude > 50, clamped, blade.force)
@@ -98,7 +110,14 @@ class Simulation:
         for agent1 in self.agents:
             for agent2 in self.agents:
                 collide_circle_circle(agent1, agent2)
+        for wall_index in range(self.boundary.num_walls):
+            start = self.boundary.wall_starts[:, wall_index, :]
+            end = self.boundary.wall_ends[:, wall_index, :]
+            segment = [start, end]
+            for circle in self.circles:
+                collide_circle_segment(circle, segment)
         dt = self.time_step
+        self.time += dt
         for circle in self.circles:
             nextVelocity = (1 - circle.drag * dt) * circle.velocity
             nextVelocity = nextVelocity + dt / circle.mass * circle.force
@@ -131,7 +150,6 @@ def collide_circle_point(circle: Circle, point: Tensor):
     impact_speed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
     circle.impulse += torch.where(overlap > 0, 1.2 * impact_speed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
-
 
 def collide_circle_segment(circle: Circle, segment: list[Tensor]):
     a = segment[0]
@@ -168,3 +186,25 @@ def raycast_segment(ray_start: Tensor, ray_vector: Tensor, segment_start: Tensor
     hit = (denominator != 0) & (ray_factor >= 0) & (segment_factor >= 0) & (segment_factor <= 1)
     inf_tensor = torch.full_like(ray_factor, float('inf'))
     return torch.where(hit, ray_factor, inf_tensor)
+
+def vision_cast(origin: Tensor, reach: float, boundary: Boundary) -> Tensor:
+    # origin: (n, 2)
+    # returns hitpoints: (n, 8, 2)
+    n = origin.shape[0]
+    ray_vectors = (reach * vision_dirs.to(physics_dtype)).unsqueeze(0).expand(n, -1, -1)  # (n, 8, 2)
+    vmap_raycast = torch.vmap(
+        torch.vmap(
+            torch.vmap(
+                raycast_segment,
+                in_dims=(None, None, 0, 0)
+            ),
+            in_dims=(None, 0, None, None)
+        ),
+        in_dims=(0, 0, 0, 0)
+    )
+    # ray_factors: (n, 8, num_walls)
+    ray_factors = vmap_raycast(origin, ray_vectors, boundary.wall_starts, boundary.wall_ends)
+    min_ray_factors = torch.amin(ray_factors, dim=-1)                        # (n, 8)
+    clamp_ray_factors = torch.clamp(min_ray_factors, min=0.0, max=1.0)       # (n, 8)
+    hitpoints = origin.unsqueeze(1) + clamp_ray_factors.unsqueeze(-1) * ray_vectors  # (n, 8, 2)
+    return hitpoints

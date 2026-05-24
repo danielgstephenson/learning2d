@@ -2,23 +2,29 @@ import torch
 from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
+from math import pi
 from value import ValueModel, state_size
-from simulation import Agent, Blade, Simulation, active_action_tensor, physics_dtype
+from simulation import Agent, Blade, Boundary, Simulation, active_action_tensor, physics_dtype, vision_cast
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
+vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=10):
+    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=10, time_step=0.1):
         self.value_model = value_model
         self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
         self.sim_count = sim_count
         self.step_count = step_count
-        self.time_step = 0.1
+        self.time_step = time_step
         self.simulation = Simulation(sim_count, self.time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.blade0 = Blade(self.simulation, self.agent0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)
+        self.simulation.boundary = Boundary(self.simulation)
+        self.rotation: Tensor
+        self.radius: Tensor
+        self.box_offset: Tensor
         self.state: Tensor
         self.costate: Tensor
         self.vgrad0: Tensor
@@ -30,67 +36,60 @@ class DataGenerator:
         self.reward: Tensor
         self.reset()
     
+    def setup_boundary(self):
+        n = self.sim_count
+        angle = torch.rand(n) * 2 * pi
+        cos_angle = torch.cos(angle)
+        sin_angle = torch.sin(angle)
+        xs = torch.stack((cos_angle, -sin_angle), dim=-1)
+        ys = torch.stack((sin_angle,  cos_angle), dim=-1)
+        self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
+        self.radius = (40 + 160 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
+        max_offset = (self.radius.squeeze(-1) - 20).clamp(min=0)   # (n,1)
+        self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2))   # (n,2)
+        corners_local = unit_square.unsqueeze(0) * self.radius + self.box_offset.unsqueeze(1) # (n,4,2)
+        rotated_corners = torch.einsum('bij,bkj->bki', self.rotation, corners_local)
+        self.simulation.boundary.setup(rotated_corners)
 
     def reset(self):
+        self.simulation.time = 0
         n = self.sim_count
-        z = torch.zeros(n, 2)
-        features = [
-            self.agent0.position, self.blade0.position,
-            self.agent1.position, self.blade1.position,
-            self.agent0.velocity, self.blade0.velocity,
-            self.agent1.velocity, self.blade1.velocity,
-        ]
-        def static():
-            vector = (20 + 10*torch.rand(n, 1)) * get_random_directions(n)
-            return vector, vector, -vector, -vector, z, z, z, z
-        def dynamic():
-            a0p = get_random_vectors(n, 300)
-            b0p = a0p + get_random_vectors(n, 80)
-            a1p = get_random_vectors(n, 100)
-            b1p = a1p + get_random_vectors(n, 80)
-            a0v = get_random_vectors(n, 30)
-            b0v = get_random_vectors(n, 70)
-            a1v = get_random_vectors(n, 30)
-            b1v = get_random_vectors(n, 70)
-            return a0p, b0p, a1p, b1p, a0v, b0v, a1v, b1v
-        def attack():
-            dir0 = get_random_directions(n)
-            a0_dist = 20 + 20*torch.rand(n, 1)
-            b0_dist = a0_dist + 50*torch.rand(n, 1)
-            a0p = a0_dist * dir0
-            b0p = b0_dist * dir0 + get_random_vectors(n, 50)
-            dir1 = get_random_directions(n)
-            a1_dist = 20 + 20*torch.rand(n, 1)
-            b1_dist = a1_dist + 50*torch.rand(n, 1)
-            a1p = a1_dist * dir1
-            b1p = b1_dist * dir1 + get_random_vectors(n, 50)
-            a0v = get_random_vectors(n, 20)
-            b0v = get_random_vectors(n, 20)
-            a1v = get_random_vectors(n, 20)
-            b1v = get_random_vectors(n, 20)
-            return a0p, b0p, a1p, b1p, a0v, b0v, a1v, b1v
-        situations = [static(), dynamic(), attack()]
-        choice = torch.randint(0, len(situations), (n, 1))
-        for i, feature in enumerate(features):
-            for j, situation in enumerate(situations):
-                feature[:] = torch.where(choice == j, situation[i], feature)
+        self.setup_boundary()
+        radiusColumn = self.radius.squeeze(-1)
+        a0p_local = self.box_offset + (radiusColumn - self.agent0.radius) * (1 - 2 * torch.rand(n, 2))
+        a1p_local = self.box_offset + (radiusColumn - self.agent1.radius) * (1 - 2 * torch.rand(n, 2))
+        blade_bound = radiusColumn - self.blade0.radius  # (n,1)
+        b0_max = torch.min(a0p_local + 80, self.box_offset + blade_bound)
+        b0_min = torch.max(a0p_local - 80, self.box_offset - blade_bound)
+        b0p_local = b0_min + (b0_max - b0_min) * torch.rand(n, 2)
+        b1_max = torch.min(a1p_local + 80, self.box_offset + blade_bound)
+        b1_min = torch.max(a1p_local - 80, self.box_offset - blade_bound)
+        b1p_local = b1_min + (b1_max - b1_min) * torch.rand(n, 2)
+        self.agent0.position = torch.einsum('bij,bj->bi', self.rotation, a0p_local)
+        self.agent1.position = torch.einsum('bij,bj->bi', self.rotation, a1p_local)
+        self.blade0.position = torch.einsum('bij,bj->bi', self.rotation, b0p_local)
+        self.blade1.position = torch.einsum('bij,bj->bi', self.rotation, b1p_local)
+        self.agent0.velocity = get_random_vectors(n, 30)
+        self.agent1.velocity = get_random_vectors(n, 30)
+        self.blade0.velocity = get_random_vectors(n, 70)
+        self.blade1.velocity = get_random_vectors(n, 70)
         self.simulation.complete = torch.zeros((n, 1)).bool()
         self.update()
 
     def update(self):
         self.state = get_simulation_state(self.simulation)
-        self.gap0 = torch.norm(self.agent0.position - self.blade1.position,p=2,dim=1,keepdim=True)
-        self.gap1 = torch.norm(self.agent1.position - self.blade0.position,p=2,dim=1,keepdim=True)
+        self.gap0 = torch.norm(self.agent0.position-self.blade1.position,p=2,dim=1,keepdim=True)
+        self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
         self.simulation.complete = (self.life0 * self.life1 == 0)
-        centerDistance0 = torch.norm(self.agent0.position,p=2,dim=1,keepdim=True)
-        centerDistance1 = torch.norm(self.agent1.position,p=2,dim=1,keepdim=True)
+        centerDistance0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
+        centerDistance1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
         ringSize0 = 150
         ringSize1 = 20
         ringOut0 = 0.03 * F.relu(centerDistance0 - ringSize0) ** 2
         ringOut1 = 0.2 * torch.clamp(centerDistance1 - ringSize1, min=0, max=20) ** 2
-        self.reward = 100 * (self.life0 - self.life1) + self.life0 * self.life1 * (ringOut1 - ringOut0)
+        self.reward = 100*(self.life0-self.life1) + self.life0*self.life1*(ringOut1-ringOut0)
 
     def act(self, horizon: int):
         if horizon==0:
@@ -127,6 +126,8 @@ class DataGenerator:
             return state, target
 
 def get_simulation_state(simulation: Simulation)->Tensor:
+    wallPoints0 = vision_cast(simulation.agents[0].position,vision_reach,simulation.boundary)   # (n,8,2)
+    wallPoints1 = vision_cast(simulation.agents[1].position,vision_reach,simulation.boundary)   # (n,8,2)
     stateTensors = [
         simulation.agents[0].velocity,
         simulation.agents[0].position,
@@ -135,10 +136,11 @@ def get_simulation_state(simulation: Simulation)->Tensor:
         simulation.agents[1].velocity,
         simulation.agents[1].position,
         simulation.blades[1].velocity,
-        simulation.blades[1].position
+        simulation.blades[1].position,
+        wallPoints0.reshape(simulation.count, 16),
+        wallPoints1.reshape(simulation.count, 16)
     ]
-    simulation_state = torch.cat(stateTensors,dim=1)
-    return simulation_state
+    return torch.cat(stateTensors,dim=1)
 
 def get_random_directions(count: int)->Tensor:
     normals = torch.randn(count, 2)

@@ -5,19 +5,20 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 
 from value import ValueModel
-from physics import Agent, Blade, Simulation, active_action_tensor, vision_cast, physics_dtype
+from physics import Agent, Blade, Simulation, active_action_tensor, vision_cast, physics_dtype, vision_cast, vision_dirs
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
+vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, batch_size = 3, time_step = 0.1, step_count = 50, boundary_scale = 1):
+    def __init__(self, value_model: ValueModel, sim_count = 3, time_step = 0.1, step_count = 50, boundary_scale = 1):
         self.value_model = value_model
-        self.batch_size = batch_size
+        self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
+        self.batch_size = sim_count
         self.step_count = step_count
         self.time_step = time_step
         self.boundary_scale = boundary_scale
-        self.simulation = Simulation(batch_size, time_step)
-        self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
+        self.simulation = Simulation(sim_count, time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.agent1 = Agent(self.simulation, 1)
         self.blade1 = Blade(self.simulation, self.agent1)

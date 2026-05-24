@@ -159,7 +159,7 @@ if os.path.exists(value_checkpoint_path):
     value_checkpoint = torch.load(value_checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,batch_size=10,time_step=0.1,boundary_scale=1)
+generator = DataGenerator(value_model,sim_count=10,time_step=0.1,boundary_scale=1)
 generator.reset()
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
