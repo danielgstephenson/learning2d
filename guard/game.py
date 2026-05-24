@@ -49,7 +49,7 @@ class Game(arcade.Window):
         self.camera.zoom = 0.1
         self.index = 0
         self.timeScale = 2
-        self.set_update_rate(1 / 30)
+        self.set_update_rate(1 / 60)
         self.accumulator = 0
         self.generator = generator
         self.simulation = generator.simulation
@@ -124,7 +124,8 @@ class Game(arcade.Window):
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         arcade.draw_circle_outline(0, 0, SCALE*20, arcade.color.GRAY, SCALE*1)
-        arcade.draw_circle_outline(0, 0, SCALE*150, arcade.color.GRAY, SCALE*1)
+        # arcade.draw_circle_outline(0, 0, SCALE*150, arcade.color.GRAY, SCALE*1)
+        arcade.draw_text(f"FPS: {arcade.get_fps():.1f}",x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -161,8 +162,8 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         self.log_writer.writerow([
             self.frame_counter,self.simulation.time,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 

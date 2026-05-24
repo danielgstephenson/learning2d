@@ -110,12 +110,8 @@ class Simulation:
         for agent1 in self.agents:
             for agent2 in self.agents:
                 collide_circle_circle(agent1, agent2)
-        for wall_index in range(self.boundary.num_walls):
-            start = self.boundary.wall_starts[:, wall_index, :]
-            end = self.boundary.wall_ends[:, wall_index, :]
-            segment = [start, end]
-            for circle in self.circles:
-                collide_circle_segment(circle, segment)
+        for circle in self.circles:
+            collide_circle_boundary(circle, self.boundary)
         dt = self.time_step
         self.time += dt
         for circle in self.circles:
@@ -150,6 +146,27 @@ def collide_circle_point(circle: Circle, point: Tensor):
     impact_speed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
     circle.impulse += torch.where(overlap > 0, 1.2 * impact_speed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
+
+def collide_circle_boundary(circle: Circle, boundary: Boundary):
+    position = circle.position.unsqueeze(1)
+    segment_vector = boundary.wall_ends - boundary.wall_starts
+    relative_position = position - boundary.wall_starts
+    squared_segment_length = torch.sum(segment_vector**2, dim=-1, keepdim=True)
+    segment_factor = torch.sum(relative_position * segment_vector, dim=-1, keepdim=True) / (squared_segment_length + 1e-9)
+    segment_factor = torch.clamp(segment_factor, 0.0, 1.0)
+    closest_point = boundary.wall_starts + segment_factor * segment_vector
+    vector_to_circle = position - closest_point
+    squared_distance = torch.sum(vector_to_circle**2, dim=-1, keepdim=True)
+    distance = torch.sqrt(squared_distance + 1e-9)
+    overlap = circle.radius - distance
+    hit_mask = overlap > 0
+    normal = vector_to_circle / distance
+    velocity = circle.velocity.unsqueeze(1)
+    impact_speed = -torch.sum(velocity * normal, dim=-1, keepdim=True)
+    impulse = torch.where(hit_mask, 1.2 * impact_speed * circle.mass * normal, 0.0)
+    shift = torch.where(hit_mask, overlap * normal, 0.0)
+    circle.impulse += torch.sum(impulse, dim=1)
+    circle.shift += torch.sum(shift, dim=1)
 
 def collide_circle_segment(circle: Circle, segment: list[Tensor]):
     a = segment[0]
