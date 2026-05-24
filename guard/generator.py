@@ -73,7 +73,7 @@ class DataGenerator:
         self.agent1.velocity = get_random_vectors(n, 30)
         self.blade0.velocity = get_random_vectors(n, 70)
         self.blade1.velocity = get_random_vectors(n, 70)
-        self.simulation.complete = torch.zeros((n, 1)).bool()
+        self.simulation.complete = torch.zeros(n, 1).bool()
         self.update()
 
     def update(self):
@@ -83,13 +83,10 @@ class DataGenerator:
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
         self.simulation.complete = (self.life0 * self.life1 == 0)
-        centerDistance0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
         centerDistance1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
-        ringSize0 = 150
-        ringSize1 = 20
-        ringOut0 = 0.03 * F.relu(centerDistance0 - ringSize0) ** 2
-        ringOut1 = 0.2 * torch.clamp(centerDistance1 - ringSize1, min=0, max=20) ** 2
-        self.reward = 100*(self.life0-self.life1) + self.life0*self.life1*(ringOut1-ringOut0)
+        ringSize = 20
+        ringOut = 0.2 * torch.clamp(centerDistance1 - ringSize, min=0, max=20) ** 2
+        self.reward = 100*(self.life0-self.life1) + self.life0*self.life1*ringOut
 
     def act(self, horizon: int):
         if horizon==0:
