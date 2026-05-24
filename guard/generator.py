@@ -123,10 +123,8 @@ class DataGenerator:
             return state, target
 
 def get_simulation_state(simulation: Simulation)->Tensor:
-    # wallPoints0 = vision_cast(simulation.agents[0].position,vision_reach,simulation.boundary)   # (n,8,2)
-    # wallPoints1 = vision_cast(simulation.agents[1].position,vision_reach,simulation.boundary)   # (n,8,2)
-    wallPoints0 = torch.zeros(simulation.count, 8, 2)
-    wallPoints1 = torch.zeros(simulation.count, 8, 2)
+    wallPoints0 = vision_cast(simulation.agents[0].position,vision_reach,simulation.boundary)   # (n,8,2)
+    wallPoints1 = vision_cast(simulation.agents[1].position,vision_reach,simulation.boundary)   # (n,8,2)
     stateTensors = [
         simulation.agents[0].velocity,
         simulation.agents[0].position,
