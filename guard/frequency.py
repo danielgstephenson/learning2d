@@ -5,7 +5,7 @@ import torch.nn.functional as F
 state_size = 16
 
 class FrequencyLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, is_first=False, frequency=30.0):
+    def __init__(self, in_dim, out_dim, is_first=False, frequency=1.0):
         super().__init__()
         self.linear = nn.Linear(in_dim, out_dim)
         self.frequency_scale = frequency / 1.3133
@@ -24,7 +24,7 @@ class FrequencyLayer(nn.Module):
         frequency = F.softplus(self.frequency_raw) * self.frequency_scale
         return torch.sin(frequency * self.linear(x))
 
-class FrequencyValueModel2(nn.Module):
+class ValueModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_dim = state_size

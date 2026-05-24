@@ -87,7 +87,8 @@ class Simulation:
         for agent in self.agents:
             agent.force = agent.move_power * action_tensor[agent.action,:]
         for blade in self.blades:
-            blade.force = 0.5 * (blade.agent.position - blade.position)
+            blade.force = blade.agent.position - blade.position
+            # blade.force = 0.5 * (blade.agent.position - blade.position)
             magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
             clamped = 50*F.normalize(blade.force, p=2, dim=1)
             blade.force = torch.where(magnitude > 50, clamped, blade.force)

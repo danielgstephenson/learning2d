@@ -89,8 +89,8 @@ class DataGenerator:
         ringSize0 = 150
         ringSize1 = 20
         ringOut0 = 0.03 * F.relu(centerDistance0 - ringSize0) ** 2
-        ringOut1 = 0.03 * F.relu(centerDistance1 - ringSize1) ** 2
-        self.reward = 100 * self.life0 - ringOut0 - 100 * self.life1 + ringOut1
+        ringOut1 = 0.2 * torch.clamp(centerDistance1 - ringSize1, min=0, max=20) ** 2
+        self.reward = 100 * (self.life0 - self.life1) + self.life0 * self.life1 * (ringOut1 - ringOut0)
 
     def act(self, horizon: int):
         if horizon==0:
