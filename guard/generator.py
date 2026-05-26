@@ -4,7 +4,7 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 from math import pi
 from value import ValueModel, state_size
-from guard.world import Agent, Blade, Boundary, World, active_action_tensor, physics_dtype, vision_cast
+from world import Agent, Blade, Boundary, World, active_action_tensor, physics_dtype, vision_cast
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
@@ -87,17 +87,18 @@ class DataGenerator:
         self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
-        centerDistance0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
-        centerDistance1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
-        charging = centerDistance1 < self.ringSize - self.agent1.radius
+        center_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
+        center_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
+        charging = center_dist1 < self.ringSize - self.agent1.radius
         self.world.charge = torch.where(charging, self.world.charge + self.world.time_step, 0)
-        fullCharge = self.world.charge > self.chargeTarget
+        full_charge = self.world.charge > self.chargeTarget
         victory = self.life1 == 0
-        defeat = fullCharge | (self.life0 == 0)
+        defeat = full_charge | (self.life0 == 0)
         self.world.complete = victory | defeat
         ongoing = ~self.world.complete
-        ringReward = centerDistance1 - centerDistance0
-        completeReward = 100 * (victory - defeat)
+        charge_reward = 25 * (self.world.charge / self.chargeTarget)
+        ringReward = center_dist1 - center_dist0 - charge_reward
+        completeReward = 100 * victory - 100 * defeat
         self.reward = torch.where(ongoing, ringReward, completeReward)
 
     def act(self, horizon: int):
@@ -134,18 +135,19 @@ class DataGenerator:
             target += continuation_prob * continuation_value
             return state, target
 
-def get_simulation_state(simulation: World)->Tensor:
-    wallPoints = vision_cast(simulation.agents[1].position,vision_reach,simulation.boundary)   # (n,8,2)
+def get_simulation_state(world: World)->Tensor:
+    wallPoints = vision_cast(world.agents[1].position,vision_reach,world.boundary)   # (n,8,2)
     stateTensors = [
-        simulation.agents[0].velocity,
-        simulation.agents[0].position,
-        simulation.blades[0].velocity,
-        simulation.blades[0].position,
-        simulation.agents[1].velocity,
-        simulation.agents[1].position,
-        simulation.blades[1].velocity,
-        simulation.blades[1].position,
-        wallPoints.reshape(simulation.count, 16)
+        world.agents[0].velocity,
+        world.agents[0].position,
+        world.blades[0].velocity,
+        world.blades[0].position,
+        world.agents[1].velocity,
+        world.agents[1].position,
+        world.blades[1].velocity,
+        world.blades[1].position,
+        world.charge.reshape(world.count, 1),
+        wallPoints.reshape(world.count, 16)
     ]
     return torch.cat(stateTensors,dim=1)
 

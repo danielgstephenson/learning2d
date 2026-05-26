@@ -11,9 +11,9 @@ from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from value import ValueModel
-import guard.world as world
+import world as world
 from torch.func import vmap, grad
-from guard.world import Agent, Blade, device, action_tensor, active_action_tensor
+from world import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
 
 torch.set_default_device(world.device)
@@ -76,7 +76,7 @@ class Game(arcade.Window):
         self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
-            "frame","time","life0","life1", 
+            "frame","time","life0","life1","charge",
             "a0_x", "a0_y", "a0_vx", "a0_vy",
             "b0_x", "b0_y", "b0_vx", "b0_vy",
             "a1_x", "a1_y", "a1_vx", "a1_vy",
@@ -162,10 +162,11 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         row = [
             self.frame_counter+1,self.simulation.time,self.life0,self.life1,
+            self.simulation.charge[self.index,0].item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
             bladePosition0[0].detach().item(), bladePosition0[1].detach().item(), 

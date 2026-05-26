@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"guard\\\\simulation\\\\simulation.csv\")",
+      "Bash(Select-Object -Last 10)"
+    ]
+  }
+}
