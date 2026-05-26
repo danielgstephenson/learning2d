@@ -2,8 +2,8 @@ import time, csv
 import torch
 import numpy as np
 import pandas as pd
-import physics as physics
-from physics import World, Agent, Blade, Boundary, device
+import guard.world as world
+from guard.world import World, Agent, Blade, Boundary, device
 
 dt = 0.04
 period_length = 2
@@ -32,12 +32,12 @@ def build_sim(batch, init_state, corners):
     a0 = Agent(w, 1); b0 = Blade(w, a0)
     a1 = Agent(w, 2); b1 = Blade(w, a1)
     w.boundary = Boundary(w)
-    cor = torch.tensor(corners,dtype=physics.physics_dtype).unsqueeze(0).expand(batch,4,2).contiguous()
+    cor = torch.tensor(corners,dtype=world.physics_dtype).unsqueeze(0).expand(batch,4,2).contiguous()
     w.boundary.setup(cor)
     def configure_circle(circle, key):
         x,y,vx,vy = init_state[key]
-        circle.position = torch.tensor([[x,y]],dtype=physics.physics_dtype).expand(batch,2).contiguous()
-        circle.velocity = torch.tensor([[vx,vy]],dtype=physics.physics_dtype).expand(batch,2).contiguous()
+        circle.position = torch.tensor([[x,y]],dtype=world.physics_dtype).expand(batch,2).contiguous()
+        circle.velocity = torch.tensor([[vx,vy]],dtype=world.physics_dtype).expand(batch,2).contiguous()
     configure_circle(a0,'a0'); configure_circle(b0,'b0'); configure_circle(a1,'a1'); configure_circle(b1,'b1')
     w.complete = torch.zeros(batch,1).bool()
     w.time = 0.0

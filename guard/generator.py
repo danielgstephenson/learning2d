@@ -4,7 +4,7 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 from math import pi
 from value import ValueModel, state_size
-from physics import Agent, Blade, Boundary, World, active_action_tensor, physics_dtype, vision_cast
+from guard.world import Agent, Blade, Boundary, World, active_action_tensor, physics_dtype, vision_cast
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
@@ -16,13 +16,14 @@ class DataGenerator:
         self.world_count = world_count
         self.step_count = step_count
         self.time_step = time_step
-        self.ringSize = 15
-        self.simulation = World(world_count, self.time_step)
-        self.agent0 = Agent(self.simulation, 0)
-        self.blade0 = Blade(self.simulation, self.agent0)
-        self.agent1 = Agent(self.simulation, 1)
-        self.blade1 = Blade(self.simulation, self.agent1)
-        self.simulation.boundary = Boundary(self.simulation)
+        self.ringSize = 13
+        self.chargeTarget = 4
+        self.world = World(world_count, self.time_step)
+        self.agent0 = Agent(self.world, 0)
+        self.blade0 = Blade(self.world, self.agent0)
+        self.agent1 = Agent(self.world, 1)
+        self.blade1 = Blade(self.world, self.agent1)
+        self.world.boundary = Boundary(self.world)
         self.rotation: Tensor
         self.radius: Tensor
         self.box_offset: Tensor
@@ -51,10 +52,10 @@ class DataGenerator:
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
         corners_local = unit_square.unsqueeze(0) * self.radius + self.box_offset.unsqueeze(1) # (n,4,2)
         rotated_corners = torch.einsum('bij,bkj->bki', self.rotation, corners_local)
-        self.simulation.boundary.setup(rotated_corners)
+        self.world.boundary.setup(rotated_corners)
 
     def reset(self):
-        self.simulation.time = 0
+        self.world.time = 0
         n = self.world_count
         self.setup_boundary()
         radiusColumn = self.radius.squeeze(-1)
@@ -77,19 +78,27 @@ class DataGenerator:
         self.agent1.velocity = get_random_vectors(n, 30)
         self.blade0.velocity = get_random_vectors(n, 45)
         self.blade1.velocity = get_random_vectors(n, 45)
-        self.simulation.complete = torch.zeros(n, 1).bool()
+        self.world.complete = torch.zeros(n, 1).bool()
         self.update()
 
     def update(self):
-        self.state = get_simulation_state(self.simulation)
+        self.state = get_simulation_state(self.world)
         self.gap0 = torch.norm(self.agent0.position-self.blade1.position,p=2,dim=1,keepdim=True)
         self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
-        self.simulation.complete = (self.life0 * self.life1 == 0)
+        centerDistance0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
         centerDistance1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
-        ringOut = 10 * torch.clamp(centerDistance1 - self.ringSize, min=0, max=20)
-        self.reward = 100*(self.life0-self.life1) + self.life0*self.life1*ringOut
+        charging = centerDistance1 < self.ringSize - self.agent1.radius
+        self.world.charge = torch.where(charging, self.world.charge + self.world.time_step, 0)
+        fullCharge = self.world.charge > self.chargeTarget
+        victory = self.life1 == 0
+        defeat = fullCharge | (self.life0 == 0)
+        self.world.complete = victory | defeat
+        ongoing = ~self.world.complete
+        ringReward = centerDistance1 - centerDistance0
+        completeReward = 100 * (victory - defeat)
+        self.reward = torch.where(ongoing, ringReward, completeReward)
 
     def act(self, horizon: int):
         if horizon==0:
@@ -115,12 +124,12 @@ class DataGenerator:
             p = 0.002 # Discount Rate
             for t in range(self.step_count):
                 self.act(horizon)
-                self.simulation.step()
+                self.world.step()
                 self.update()
                 end_prob = p * (1 - p) ** t
                 target += end_prob * self.reward
             bootstrap_estimate = self.reward if horizon == 0 else self.value_model(self.state)
-            continuation_value = torch.where(self.simulation.complete, self.reward, bootstrap_estimate) 
+            continuation_value = torch.where(self.world.complete, self.reward, bootstrap_estimate) 
             continuation_prob = (1-p) ** self.step_count
             target += continuation_prob * continuation_value
             return state, target

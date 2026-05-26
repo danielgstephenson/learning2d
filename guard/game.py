@@ -11,12 +11,12 @@ from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from value import ValueModel
-import physics as physics
+import guard.world as world
 from torch.func import vmap, grad
-from physics import Agent, Blade, device, action_tensor, active_action_tensor
+from guard.world import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
 
-torch.set_default_device(physics.device)
+torch.set_default_device(world.device)
 
 class AgentCircle(arcade.SpriteCircle):
     def __init__(self, index: int, agent: Agent):
@@ -50,7 +50,7 @@ class Game(arcade.Window):
         self.index = 0
         self.set_update_rate(1 / 40)
         self.generator = generator
-        self.simulation = generator.simulation
+        self.simulation = generator.world
         self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
@@ -154,7 +154,7 @@ class Game(arcade.Window):
         gap1 = torch.norm(agentPosition1-bladePosition0,p=2,dim=0)
         self.life0 = 1 if gap0 > 15 else 0
         self.life1 = 1 if gap1 > 15 else 0
-        state = get_simulation_state(generator.simulation)
+        state = get_simulation_state(generator.world)
         value_estimate = value_model(state)
         costate = get_costate(state)
         velocity_grad0 = +costate[:,[0,1]]

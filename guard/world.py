@@ -45,7 +45,7 @@ class Blade(Circle):
         self.world.blades.append(self)
         self.position = agent.position.detach().clone()
         self.agent = agent
-        self.drag = 0.2
+        self.drag = 0.1
 
 class Boundary:
     def __init__(self, world: World):
@@ -75,14 +75,14 @@ for i in range(8):
 vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list])
 
 class World:
-    def __init__(self, count: int, timeStep):
+    def __init__(self, count: int, time_step):
         self.count = count
         self.device = device
-        self.time_step = timeStep
+        self.time_step = time_step
         self.complete = torch.zeros(self.count,1).bool()
+        self.charge = torch.zeros(self.count)
         self.dtype = dtype
         self.time = 0.0
-        self.charge = torch.zeros(self.count)
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
@@ -105,12 +105,14 @@ class World:
             magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
             clamped = 50*F.normalize(blade.force, p=2, dim=1)
             blade.force = torch.where(magnitude > 50, clamped, blade.force)
-        for blade1 in self.blades:
-            for blade2 in self.blades:
-                collide_circle_circle(blade1, blade2)
-        for agent1 in self.agents:
-            for agent2 in self.agents:
-                collide_circle_circle(agent1, agent2)
+        for blade in self.blades:
+            for otherBlade in self.blades:
+                if blade.index < otherBlade.index:
+                    collide_circle_circle(blade, otherBlade)
+        for agent in self.agents:
+            for otherAgent in self.agents:
+                if agent.index < otherAgent.index:
+                    collide_circle_circle(agent, otherAgent)
         for circle in self.circles:
             collide_circle_boundary(circle, self.boundary)
         dt = self.time_step

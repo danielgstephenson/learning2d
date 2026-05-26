@@ -16,8 +16,8 @@ import csv
 import torch
 import numpy as np
 import pandas as pd
-import physics as physics
-from physics import World, Agent, Blade, Boundary, device
+import guard.world as world
+from guard.world import World, Agent, Blade, Boundary, device
 
 dt = 0.04
 ring_size = 15.0
@@ -30,12 +30,12 @@ def build_sim(init_state, corners):
     a0 = Agent(w, 1); b0 = Blade(w, a0)
     a1 = Agent(w, 2); b1 = Blade(w, a1)
     w.boundary = Boundary(w)
-    cor = torch.tensor(corners, dtype=physics.physics_dtype).unsqueeze(0).expand(1,4,2).contiguous()
+    cor = torch.tensor(corners, dtype=world.physics_dtype).unsqueeze(0).expand(1,4,2).contiguous()
     w.boundary.setup(cor)
     def cfg(circle, key):
         x,y,vx,vy = init_state[key]
-        circle.position = torch.tensor([[x,y]], dtype=physics.physics_dtype).contiguous()
-        circle.velocity = torch.tensor([[vx,vy]], dtype=physics.physics_dtype).contiguous()
+        circle.position = torch.tensor([[x,y]], dtype=world.physics_dtype).contiguous()
+        circle.velocity = torch.tensor([[vx,vy]], dtype=world.physics_dtype).contiguous()
     cfg(a0,'a0'); cfg(b0,'b0'); cfg(a1,'a1'); cfg(b1,'b1')
     w.complete = torch.zeros(1,1).bool()
     w.time = 0.0
