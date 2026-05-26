@@ -1,9 +1,5 @@
 
-
-  start=0
-  end=6
-  width=50
-  source = 'simulation'
+makeFigures = function(source = 'simulation',start=0,end=50,width=70) {
   sourcePath = paste(source,'.csv',sep='')
   simData = read.csv(sourcePath)
   frame = simData$frame
@@ -35,12 +31,16 @@
   cx = c(c0x,c1x,c2x,c3x,c0x)
   cy = c(c0y,c1y,c2y,c3y,c0y)
   ringDist = sqrt(a1x^2+a1y^2)
-  dCharge = 2*(ringDist<15) - 1
+  ringOut = ringDist-15
   charge = 0*dCharge
   n = length(frame)
   for(i in 2:n) {
-    dt = time[i] - time[i-1]
-    charge[i] = max(0,charge[i-1]+dCharge[i-1]*dt)
+    if(ringDist[i]>15) {
+      dt = time[i] - time[i-1]
+      charge[i] = charge[i-1]+dCharge[i]*dt
+    } else {
+      charge[i] = 0  
+    }
   }
   par(cex=2,mar=c(3,3,2,2))
   plot(time,charge,type='l')
@@ -109,3 +109,10 @@
   drawCircle(b1xe,b1ye,radius=10,col=b1col)
   trajectoryPath = paste(source,'.png',sep='')
   dev.print(png,trajectoryPath,width=1000,height=1000)
+}
+
+start=20
+end=50
+width=80
+makeFigures('simulation',start,end,width)
+

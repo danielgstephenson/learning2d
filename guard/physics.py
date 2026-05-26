@@ -12,44 +12,44 @@ torch.set_default_device(device)
 torch.set_printoptions(sci_mode=False, precision=4)
 
 class Entity:
-    def __init__(self, simulation: World):
-        self.simulation = simulation
-        self.index = len(simulation.entities)
-        simulation.entities.append(self)
+    def __init__(self, world: World):
+        self.world = world
+        self.index = len(world.entities)
+        world.entities.append(self)
 
 class Circle(Entity):
-    def __init__(self, simulation: World, radius: int):
-        super().__init__(simulation)
-        self.simulation.circles.append(self)
+    def __init__(self, world: World, radius: int):
+        super().__init__(world)
+        self.world.circles.append(self)
         self.radius = radius
         self.mass = 1
         self.drag = 0
-        self.position = torch.zeros(simulation.count,2,dtype=physics_dtype)
-        self.velocity = torch.zeros(simulation.count,2,dtype=physics_dtype)
-        self.force = torch.zeros(simulation.count,2,dtype=physics_dtype)
-        self.impulse = torch.zeros(simulation.count,2,dtype=physics_dtype)
-        self.shift = torch.zeros(simulation.count,2,dtype=physics_dtype)
+        self.position = torch.zeros(world.count,2,dtype=physics_dtype)
+        self.velocity = torch.zeros(world.count,2,dtype=physics_dtype)
+        self.force = torch.zeros(world.count,2,dtype=physics_dtype)
+        self.impulse = torch.zeros(world.count,2,dtype=physics_dtype)
+        self.shift = torch.zeros(world.count,2,dtype=physics_dtype)
 
 class Agent(Circle):
-    def __init__(self, simulation: World, align: int):
-        super().__init__(simulation, 5)
-        self.simulation.agents.append(self)
+    def __init__(self, world: World, align: int):
+        super().__init__(world, 5)
+        self.world.agents.append(self)
         self.align = align
         self.drag = 0.7
         self.move_power = 20
-        self.action = torch.zeros(simulation.count, dtype=torch.int)
+        self.action = torch.zeros(world.count, dtype=torch.int)
 
 class Blade(Circle):
-    def __init__(self, simulation: World, agent: Agent):
-        super().__init__(simulation, 10)
-        self.simulation.blades.append(self)
+    def __init__(self, world: World, agent: Agent):
+        super().__init__(world, 10)
+        self.world.blades.append(self)
         self.position = agent.position.detach().clone()
         self.agent = agent
         self.drag = 0.2
 
 class Boundary:
-    def __init__(self, simulation: World):
-        self.simulation = simulation
+    def __init__(self, world: World):
+        self.world = world
         self.wall_starts: Tensor  # (n, num_walls, 2)
         self.wall_ends: Tensor    # (n, num_walls, 2)
         self.num_walls: int = 0
@@ -82,6 +82,7 @@ class World:
         self.complete = torch.zeros(self.count,1).bool()
         self.dtype = dtype
         self.time = 0.0
+        self.charge = torch.zeros(self.count)
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
@@ -118,7 +119,7 @@ class World:
             nextVelocity = (1 - circle.drag * dt) * circle.velocity
             nextVelocity = nextVelocity + dt / circle.mass * circle.force
             nextVelocity = nextVelocity + circle.impulse / circle.mass
-            nextPosition = circle.position + dt * circle.velocity + circle.shift
+            nextPosition = circle.position + dt * nextVelocity + circle.shift
             circle.velocity = torch.where(self.complete, circle.velocity, nextVelocity)
             circle.position = torch.where(self.complete, circle.position, nextPosition)
 

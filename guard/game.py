@@ -48,7 +48,7 @@ class Game(arcade.Window):
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
         self.index = 0
-        self.set_update_rate(1 / 30)
+        self.set_update_rate(1 / 40)
         self.generator = generator
         self.simulation = generator.simulation
         self.pressed = defaultdict(lambda: False)
@@ -94,6 +94,7 @@ class Game(arcade.Window):
             self.paused = not self.paused
         if symbol == arcade.key.ENTER:
             self.generator.reset()
+            self.frame_counter = 0
             self.paused = True
             self.reset_log_file()
 
@@ -161,8 +162,8 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         row = [
             self.frame_counter+1,self.simulation.time,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
@@ -219,7 +220,7 @@ if os.path.exists(checkpoint_path):
     value_checkpoint = torch.load(checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,sim_count=1,time_step=0.04)
+generator = DataGenerator(value_model,world_count=1,time_step=0.04)
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
     

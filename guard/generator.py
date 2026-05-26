@@ -10,14 +10,14 @@ unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, sim_count = 3, step_count=10, time_step=0.1):
+    def __init__(self, value_model: ValueModel, world_count = 3, step_count=10, time_step=0.1):
         self.value_model = value_model
         self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
-        self.sim_count = sim_count
+        self.world_count = world_count
         self.step_count = step_count
         self.time_step = time_step
         self.ringSize = 15
-        self.simulation = World(sim_count, self.time_step)
+        self.simulation = World(world_count, self.time_step)
         self.agent0 = Agent(self.simulation, 0)
         self.blade0 = Blade(self.simulation, self.agent0)
         self.agent1 = Agent(self.simulation, 1)
@@ -38,7 +38,7 @@ class DataGenerator:
         self.reset()
     
     def setup_boundary(self):
-        n = self.sim_count
+        n = self.world_count
         angle = torch.rand(n) * 2 * pi
         cos_angle = torch.cos(angle)
         sin_angle = torch.sin(angle)
@@ -55,7 +55,7 @@ class DataGenerator:
 
     def reset(self):
         self.simulation.time = 0
-        n = self.sim_count
+        n = self.world_count
         self.setup_boundary()
         radiusColumn = self.radius.squeeze(-1)
         a0p_local = self.box_offset + (radiusColumn - self.agent0.radius) * (1 - 2 * torch.rand(n, 2))
@@ -95,8 +95,8 @@ class DataGenerator:
         if horizon==0:
             self.costate = 0*self.state
             self.vgrad0 = +self.costate[:,[0,1]]
-            self.agent0.action = torch.zeros(self.sim_count).int()
-            self.agent1.action = torch.zeros(self.sim_count).int()
+            self.agent0.action = torch.zeros(self.world_count).int()
+            self.agent1.action = torch.zeros(self.world_count).int()
         else:
             self.costate = self.get_costate(self.state)
             self.vgrad0 = +self.costate[:,[0,1]]
@@ -111,8 +111,8 @@ class DataGenerator:
         with torch.no_grad():
             self.reset()
             state = self.state.clone()
-            target = torch.zeros((self.sim_count,1))
-            p = 0.01 # Discount Rate
+            target = torch.zeros((self.world_count,1))
+            p = 0.002 # Discount Rate
             for t in range(self.step_count):
                 self.act(horizon)
                 self.simulation.step()
