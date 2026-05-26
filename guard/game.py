@@ -11,12 +11,12 @@ from arcade.types import Point2List, Color
 from collections import defaultdict
 from generator import DataGenerator, get_simulation_state
 from value import ValueModel
-import simulation as simulation
+import physics as physics
 from torch.func import vmap, grad
-from simulation import Agent, Blade, device, action_tensor, active_action_tensor
+from physics import Agent, Blade, device, action_tensor, active_action_tensor
 SCALE = 10
 
-torch.set_default_device(simulation.device)
+torch.set_default_device(physics.device)
 
 class AgentCircle(arcade.SpriteCircle):
     def __init__(self, index: int, agent: Agent):
@@ -48,9 +48,7 @@ class Game(arcade.Window):
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
         self.index = 0
-        self.timeScale = 2
-        self.set_update_rate(1 / 60)
-        self.accumulator = 0
+        self.set_update_rate(1 / 30)
         self.generator = generator
         self.simulation = generator.simulation
         self.pressed = defaultdict(lambda: False)
@@ -75,7 +73,7 @@ class Game(arcade.Window):
         self.frame_counter = 0
 
     def reset_log_file(self):
-        self.log_file = open("./logs/simulation.csv", mode='w', newline="")
+        self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
             "frame","time","life0","life1", 
@@ -86,7 +84,8 @@ class Game(arcade.Window):
             "grad_a0_vx", "grad_a0_vy",
             "grad_a1_vx", "grad_a1_vy",
             "reward", "value_estimate",
-            "action0", "action1"
+            "action0", "action1",
+            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y'
         ])
 
     def on_key_press(self, symbol: int, modifiers: int):
@@ -123,7 +122,7 @@ class Game(arcade.Window):
         corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
-        arcade.draw_circle_outline(0, 0, SCALE*20, arcade.color.GRAY, SCALE*1)
+        arcade.draw_circle_outline(0, 0, SCALE*15, arcade.color.GRAY, SCALE*1)
         # arcade.draw_circle_outline(0, 0, SCALE*150, arcade.color.GRAY, SCALE*1)
         arcade.draw_text(f"FPS: {arcade.get_fps():.1f}",x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
@@ -162,10 +161,10 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
-        self.log_writer.writerow([
-            self.frame_counter,self.simulation.time,self.life0,self.life1,
+        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        row = [
+            self.frame_counter+1,self.simulation.time,self.life0,self.life1,
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
             bladePosition0[0].detach().item(), bladePosition0[1].detach().item(), 
@@ -180,7 +179,16 @@ class Game(arcade.Window):
             value_estimate[self.index,0].detach().item(),
             generator.agent0.action[self.index].detach().item(),
             generator.agent1.action[self.index].detach().item()
-        ])
+        ]
+        c0 = self.simulation.boundary.wall_starts[self.index,0,:].detach()
+        row += [c0[0].item(),c0[1].item()]
+        c1 = self.simulation.boundary.wall_starts[self.index,1,:].detach()
+        row += [c1[0].item(),c1[1].item()]
+        c2 = self.simulation.boundary.wall_starts[self.index,2,:].detach()
+        row += [c2[0].item(),c2[1].item()]
+        c3 = self.simulation.boundary.wall_starts[self.index,3,:].detach()
+        row += [c3[0].item(),c3[1].item()]
+        self.log_writer.writerow(row)
         self.log_file.flush()
         self.frame_counter += 1
 
@@ -211,7 +219,7 @@ if os.path.exists(checkpoint_path):
     value_checkpoint = torch.load(checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
 
-generator = DataGenerator(value_model,sim_count=1,time_step=0.02)
+generator = DataGenerator(value_model,sim_count=1,time_step=0.04)
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
     

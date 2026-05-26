@@ -56,6 +56,7 @@ quality_history = []
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count, time_step)
 last_log_time = time.perf_counter()
+quality_threshold = 0.88
 quality = 0
 
 print('Training...')
@@ -91,7 +92,7 @@ for _ in range(100000000):
             last_log_time = now
             print(message)
     save_checkpoint(checkpoint_path, value_model, value_optimizer, batch, horizon)
-    if batch + 1 >= batch_count and quality > 0.9:
+    if batch + 1 >= batch_count and quality > quality_threshold:
         print(f'Horizon {horizon} Complete.')
         horizon += 1
         batch = 0
