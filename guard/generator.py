@@ -99,6 +99,7 @@ class DataGenerator:
         self.blade1.velocity = get_random_vectors(n, 45)
         self.world.complete = torch.zeros(n, 1).bool()
         self.world.charge = self.charge_target * torch.rand(n,1)
+        self.world.charge = torch.where(torch.rand(n,1)<0.5,self.charge_target,self.world.charge)
         self.update()
 
     def reset_custom(self):
@@ -134,11 +135,10 @@ class DataGenerator:
         victory = self.life1 == 0
         defeat = full_charge | (self.life0 == 0)
         self.world.complete = victory | defeat
-        ongoing = ~self.world.complete
         charge_share = self.world.charge / self.charge_target
         ringReward = ring_dist1 - 0.5*ring_dist0 - 50 * charge_share - 50 * charging
-        completeReward = 300 * victory - 300 * defeat
-        self.reward = torch.where(ongoing, ringReward, completeReward)
+        completeReward = 500 * victory - (300 + ring_dist0) * defeat
+        self.reward = torch.where(self.world.complete, completeReward, ringReward)
 
     def act(self, horizon: int):
         if horizon==0:

@@ -97,7 +97,7 @@ class Game(arcade.Window):
             self.frame_counter = 0
             self.paused = True
             self.reset_log_file()
-        if symbol == arcade.key.T:
+        if symbol == arcade.key.L:
             self.generator.reset_custom()
             self.frame_counter = 0
             self.paused = True
@@ -172,8 +172,8 @@ class Game(arcade.Window):
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
         generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         row = [
             self.frame_counter+1,self.simulation.time,self.life0,self.life1,
             self.simulation.charge[self.index,0].item(),
