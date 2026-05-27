@@ -135,7 +135,7 @@ class DataGenerator:
         victory0 = self.life1 == 0
         victory1 = full_charge | (self.life0 == 0)
         self.world.complete = victory0 | victory1
-        ringReward = 0.02 * (ring_dist1 ** 2 - ring_dist0 ** 2)
+        ringReward = 0.02 * (ring_dist1 ** 2 - ring_dist0 ** 2) - 100 * charging 
         completeReward = 500*victory0 - 500*victory1
         self.reward = torch.where(self.world.complete, completeReward, ringReward)
 
