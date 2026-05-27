@@ -1,8 +1,9 @@
 source = 'simulation'
-start=30
+start=0
 end=50
-width=80
+width=10
 sourcePath = paste(source,'.csv',sep='')
+
 simData = read.csv(sourcePath)
 frame = simData$frame
 time = simData$time
@@ -53,6 +54,7 @@ tmin = start
 tmax = end #max(time)
 s = (tmin<=time&time<=tmax)
 times = time[s]
+tmax = min(tmax,max(times))
 a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-tmin)/(tmax-tmin)))
 b0cols = sapply(times,function(x)rgb(0,0.9,0.0,(x-tmin)/(tmax-tmin)))
 a1cols = sapply(times,function(x)rgb(0,0.0,0.9,(x-tmin)/(tmax-tmin)))
@@ -67,10 +69,10 @@ a1xs = a1x[s]
 a1ys = a1y[s]
 b1xs = b1x[s]
 b1ys = b1y[s]
-xmin = -width # min(cx)
-xmax = +width # max(cx)
-ymin = -width # min(cy)
-ymax = +width # max(cy)
+xmin = min(a0xs,b0xs,a1xs,b1xs) -width
+xmax = max(a0xs,b0xs,a1xs,b1xs) +width 
+ymin = min(a0ys,b0ys,a1ys,b1ys) -width
+ymax = max(a0ys,b0ys,a1ys,b1ys) +width
 plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
      xlab='',ylab='',asp=1,axes=FALSE)
 title(main=sprintf("Time %.2f - %.2f", min(times), max(times)))
@@ -93,12 +95,12 @@ a0col = a0cols[length(a0cols)]
 b0col = b0cols[length(b0cols)]
 a1col = a1cols[length(a1cols)]
 b1col = b1cols[length(b1cols)]
-segments(a0xe,a0ye,b0xe,b0ye,col=b0col)
-segments(a1xe,a1ye,b1xe,b1ye,col=b1col)
-drawCircle(a0xe,a0ye,radius=5,col=a0col)
-drawCircle(b0xe,b0ye,radius=10,col=b0col)
-drawCircle(a1xe,a1ye,radius=5,col=a1col)
-drawCircle(b1xe,b1ye,radius=10,col=b1col)
+segments(a0xe,a0ye,b0xe,b0ye,col=b0col,lwd=2)
+segments(a1xe,a1ye,b1xe,b1ye,col=b1col,lwd=2)
+drawCircle(a0xe,a0ye,radius=5,col=a0col,lwd=2)
+drawCircle(b0xe,b0ye,radius=10,col=b0col,lwd=2)
+drawCircle(a1xe,a1ye,radius=5,col=a1col,lwd=2)
+drawCircle(b1xe,b1ye,radius=10,col=b1col,lwd=2)
 trajectoryPath = paste(source,'.png',sep='')
 dev.print(png,trajectoryPath,width=1000,height=1000)
 

@@ -17,7 +17,7 @@ class DataGenerator:
         self.step_count = step_count
         self.time_step = time_step
         self.ringSize = 13
-        self.chargeTarget = 4
+        self.charge_target = 4
         self.world = World(world_count, self.time_step)
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
@@ -91,12 +91,12 @@ class DataGenerator:
         center_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
         charging = center_dist1 < self.ringSize - self.agent1.radius
         self.world.charge = torch.where(charging, self.world.charge + self.world.time_step, 0)
-        full_charge = self.world.charge > self.chargeTarget
+        full_charge = self.world.charge > self.charge_target
         victory = self.life1 == 0
         defeat = full_charge | (self.life0 == 0)
         self.world.complete = victory | defeat
         ongoing = ~self.world.complete
-        charge_reward = 25 * (self.world.charge / self.chargeTarget)
+        charge_reward = 100 * (self.world.charge / self.charge_target)
         ringReward = center_dist1 - center_dist0 - charge_reward
         completeReward = 100 * victory - 100 * defeat
         self.reward = torch.where(ongoing, ringReward, completeReward)

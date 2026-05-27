@@ -45,7 +45,7 @@ for param_group in value_optimizer.param_groups:
 # batch = 0
 
 sim_count = 10_000
-batch_count = 100
+batch_count = 400
 epoch_count = 1
 step_count = 10
 minibatch_size = 1000
@@ -56,7 +56,7 @@ quality_history = []
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count, time_step)
 last_log_time = time.perf_counter()
-quality_threshold = 0.92
+quality_threshold = 0.90
 quality = 0
 
 print('Training...')
