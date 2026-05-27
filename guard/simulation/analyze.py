@@ -46,10 +46,20 @@ def find_charging_periods(rows):
         periods.append(period_rows)
     return periods
 
+def load_horizon():
+    checkpoint_path = os.path.join(os.path.dirname(__file__), '..', 'checkpoints', 'checkpoint.pt')
+    try:
+        import torch
+        ck = torch.load(checkpoint_path, weights_only=False)
+        return ck.get('horizon', None), ck.get('batch', None)
+    except Exception:
+        return None, None
+
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'simulation.csv')
     rows = load(path)
     first, last = rows[0], rows[-1]
+    horizon, batch = load_horizon()
 
     # ------------------------------------------------------------------ #
     print("=" * 62)
@@ -58,6 +68,8 @@ def main():
     print(f"  Frames   : {len(rows)}")
     print(f"  Duration : {float(last['time']):.2f} seconds")
     print(f"  Outcome  : {determine_outcome(rows)}")
+    if horizon is not None:
+        print(f"  Horizon  : {horizon}  ({horizon * 0.1:.1f}s planning), Batch: {batch}")
     value_est = float(first['value_estimate'])
     sign = "predicts agent1 wins" if value_est < 0 else "predicts agent0 wins"
     print(f"  Initial value estimate : {value_est:.1f}  ({sign})")
