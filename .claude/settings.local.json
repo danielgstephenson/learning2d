@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(Get-Content \"guard\\\\simulation\\\\simulation.csv\")",
-      "Bash(Select-Object -Last 10)"
+      "Bash(Select-Object -Last 10)",
+      "Bash(py -c ' *)"
     ]
   }
 }

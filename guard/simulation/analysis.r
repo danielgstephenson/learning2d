@@ -1,6 +1,6 @@
 source = 'simulation'
 start=0
-end=50
+end=200
 width=10
 sourcePath = paste(source,'.csv',sep='')
 
@@ -36,7 +36,7 @@ cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
 charge = simData$charge
 par(cex=2,mar=c(3,3,2,2))
-plot(time,charge,type='l')
+plot(time,charge,type='l',ylim=c(0,4))
 chargePath = paste(source,'-charge.png',sep='')
 dev.print(png,chargePath,width=1000,height=1000)
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
