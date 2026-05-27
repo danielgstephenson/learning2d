@@ -44,11 +44,11 @@ for param_group in value_optimizer.param_groups:
 horizon = 0
 batch = 0
 
-sim_count = 10_000
-batch_count = 400
+sim_count = 5000
+batch_count = 10
 epoch_count = 1
-step_count = 10
-minibatch_size = 1000
+step_count = 1
+minibatch_size = 500
 time_step = 0.1
 minibatch_count = sim_count // minibatch_size
 print('minibatch_count',minibatch_count)

@@ -97,6 +97,20 @@ class Game(arcade.Window):
             self.frame_counter = 0
             self.paused = True
             self.reset_log_file()
+        if symbol == arcade.key.T:
+            self.generator.reset()
+            r_val = (self.generator.radius[0] - self.generator.agent0.radius).item() * 0.9
+            a0p_local = self.generator.box_offset[0] + torch.tensor([r_val, r_val])
+            a1p_local = self.generator.box_offset[0] + torch.tensor([-r_val, -r_val])
+            self.generator.agent0.position[0] = torch.einsum('ij,j->i', self.generator.rotation[0], a0p_local)
+            self.generator.agent1.position[0] = torch.einsum('ij,j->i', self.generator.rotation[0], a1p_local)
+            self.generator.agent0.velocity[0] = torch.zeros(2)
+            self.generator.agent1.velocity[0] = torch.zeros(2)
+            self.generator.world.charge[0] = torch.zeros(1)
+            self.generator.update()
+            self.frame_counter = 0
+            self.paused = True
+            self.reset_log_file()
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.pressed[symbol] = False
@@ -129,7 +143,8 @@ class Game(arcade.Window):
         start_angle = 270
         end_angle = 270 + 360 * (charge / charge_target)
         arcade.draw_arc_outline(0, 0, SCALE*30, SCALE*30, arcade.color.GRAY, start_angle, end_angle, border_width=SCALE*3)
-        arcade.draw_text(f"FPS: {arcade.get_fps():.1f}",x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
+        text = f'FPS: {arcade.get_fps():.1f}, Time: {self.simulation.time:.1f}'
+        arcade.draw_text(text,x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()

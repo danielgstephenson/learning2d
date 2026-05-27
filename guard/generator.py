@@ -10,7 +10,7 @@ unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, world_count = 3, step_count=10, time_step=0.1):
+    def __init__(self, value_model: ValueModel, world_count = 3, step_count=1, time_step=0.1):
         self.value_model = value_model
         self.get_costate = vmap(grad(lambda x: self.value_model(x).sum()))
         self.world_count = world_count

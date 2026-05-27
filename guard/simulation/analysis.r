@@ -1,6 +1,6 @@
 source = 'simulation'
 start=0
-end=200
+end=1000
 width=10
 sourcePath = paste(source,'.csv',sep='')
 
