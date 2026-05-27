@@ -98,16 +98,7 @@ class Game(arcade.Window):
             self.paused = True
             self.reset_log_file()
         if symbol == arcade.key.T:
-            self.generator.reset()
-            r_val = (self.generator.radius[0] - self.generator.agent0.radius).item() * 0.9
-            a0p_local = self.generator.box_offset[0] + torch.tensor([r_val, r_val])
-            a1p_local = self.generator.box_offset[0] + torch.tensor([-r_val, -r_val])
-            self.generator.agent0.position[0] = torch.einsum('ij,j->i', self.generator.rotation[0], a0p_local)
-            self.generator.agent1.position[0] = torch.einsum('ij,j->i', self.generator.rotation[0], a1p_local)
-            self.generator.agent0.velocity[0] = torch.zeros(2)
-            self.generator.agent1.velocity[0] = torch.zeros(2)
-            self.generator.world.charge[0] = torch.zeros(1)
-            self.generator.update()
+            self.generator.reset_custom()
             self.frame_counter = 0
             self.paused = True
             self.reset_log_file()

@@ -56,7 +56,7 @@ quality_history = []
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model, sim_count, step_count, time_step)
 last_log_time = time.perf_counter()
-quality_threshold = 0.93
+quality_threshold = 0.98
 quality = 0
 
 print('Training...')

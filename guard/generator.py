@@ -62,7 +62,16 @@ class DataGenerator:
         a0p_local = self.box_offset + (radiusColumn - self.agent0.radius) * (1 - 2 * torch.rand(n, 2))
         a1p_local = self.box_offset + (radiusColumn - self.agent1.radius) * (1 - 2 * torch.rand(n, 2))
         ring_radius = self.ringSize - self.agent1.radius
-        a1p_local = torch.where(torch.rand(n,1) < 0.5, get_random_vectors(n, ring_radius), a1p_local)
+        # Oversample charging states
+        a1p_inside = get_random_vectors(n, ring_radius)
+        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_inside, a1p_local)
+        # Oversample corner states
+        r_far = radiusColumn * 0.9  # (n, 1)
+        far0_local = self.box_offset + torch.sign(torch.rand(n,2)-0.5) * r_far
+        far1_local = self.box_offset + torch.sign(torch.rand(n,2)-0.5) * r_far
+        use_far = torch.rand(n, 1) < 0.2
+        a0p_local = torch.where(use_far, far0_local, a0p_local)
+        a1p_local = torch.where(use_far, far1_local, a1p_local)
         blade_bound = radiusColumn - self.blade0.radius  # (n,1)
         b0_max = torch.min(a0p_local + 65, self.box_offset + blade_bound)
         b0_min = torch.max(a0p_local - 65, self.box_offset - blade_bound)
@@ -84,12 +93,32 @@ class DataGenerator:
         self.world.charge = self.charge_target * torch.rand(n,1)
         self.update()
 
+    def reset_custom(self):
+        self.reset()
+        r_val = (self.radius[0] - self.agent0.radius).item() * 0.9
+        a0p_local = self.box_offset[0] + torch.tensor([r_val, r_val])
+        a1p_local = self.box_offset[0] + torch.tensor([-r_val, -r_val])
+        self.agent0.position[0] = torch.einsum('ij,j->i', self.rotation[0], a0p_local)
+        self.agent1.position[0] = torch.einsum('ij,j->i', self.rotation[0], a1p_local)
+        self.agent0.velocity[0] = torch.zeros(2)
+        self.agent1.velocity[0] = torch.zeros(2)
+        blade_bound = (self.radius[0] - self.blade0.radius).squeeze()
+        b0_max = torch.min(a0p_local + 65, self.box_offset[0] + blade_bound)
+        b0_min = torch.max(a0p_local - 65, self.box_offset[0] - blade_bound)
+        b1_max = torch.min(a1p_local + 65, self.box_offset[0] + blade_bound)
+        b1_min = torch.max(a1p_local - 65, self.box_offset[0] - blade_bound)
+        self.blade0.position[0] = torch.einsum('ij,j->i', self.rotation[0], b0_min + (b0_max - b0_min) * torch.rand(2))
+        self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
+        self.world.charge[0] = torch.zeros(1)
+        self.update()
+
     def update(self):
         self.state = get_simulation_state(self.world)
         self.gap0 = torch.norm(self.agent0.position-self.blade1.position,p=2,dim=1,keepdim=True)
         self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.life0 = torch.where(self.gap0 > 15, 1, 0).to(physics_dtype)
         self.life1 = torch.where(self.gap1 > 15, 1, 0).to(physics_dtype)
+        center_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
         center_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
         charging = center_dist1 < self.ringSize - self.agent1.radius
         self.world.charge = torch.where(charging, self.world.charge + self.world.time_step, 0)
@@ -99,8 +128,8 @@ class DataGenerator:
         self.world.complete = victory | defeat
         ongoing = ~self.world.complete
         charge_share = self.world.charge / self.charge_target
-        ringReward = center_dist1 - 50 * charge_share - 50 * charging
-        completeReward = 100 * victory - 100 * defeat
+        ringReward = center_dist1 - 0.5*center_dist0 - 50 * charge_share - 50 * charging
+        completeReward = 300 * victory - 300 * defeat
         self.reward = torch.where(ongoing, ringReward, completeReward)
 
     def act(self, horizon: int):
