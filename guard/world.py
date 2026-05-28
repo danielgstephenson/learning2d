@@ -37,7 +37,8 @@ class Agent(Circle):
         self.align = align
         self.drag = 0.7
         self.move_power = 20
-        self.action = torch.zeros(world.count, dtype=torch.int)
+        self.alive = torch.ones(world.count, 1).bool()
+        self.action = torch.zeros(world.count).int()
 
 class Blade(Circle):
     def __init__(self, world: World, agent: Agent):
@@ -103,8 +104,9 @@ class World:
         for blade in self.blades:
             blade.force = blade.agent.position - blade.position
             magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
-            clamped = 50*F.normalize(blade.force, p=2, dim=1)
-            blade.force = torch.where(magnitude > 50, clamped, blade.force)
+            max_force = 50*F.normalize(blade.force, p=2, dim=1)
+            force = torch.where(magnitude > 50, max_force, blade.force)
+            blade.force = torch.where(blade.agent.alive, force, 0)
         for blade in self.blades:
             for otherBlade in self.blades:
                 if blade.index < otherBlade.index:
