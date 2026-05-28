@@ -1,6 +1,6 @@
 
+import sys
 from math import sqrt
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,6 +12,8 @@ import time
 from generator import DataGenerator
 from value import ValueModel
 from checkpoint import save_checkpoint
+
+sys.stdout = open('train.log', 'w', buffering=1)
 
 checkpoint_path = './checkpoints/checkpoint.pt'
 old_checkpoint_path = './checkpoints/old_checkpoint.pt'
@@ -44,17 +46,16 @@ for param_group in value_optimizer.param_groups:
 # horizon = 0
 # batch = 0
 
-sim_count = 5000
-batch_count = 10
+batch_size = 3000
+batch_count = 20
 epoch_count = 1
-step_count = 1
 minibatch_size = 500
 time_step = 0.1
-minibatch_count = sim_count // minibatch_size
+minibatch_count = batch_size // minibatch_size
 print('minibatch_count',minibatch_count)
 quality_history = []
 cuda_generator = torch.Generator(device='cuda')
-data_generator = DataGenerator(old_value_model, sim_count, time_step)
+data_generator = DataGenerator(old_value_model, batch_size, time_step)
 last_log_time = time.perf_counter()
 quality_threshold = 0.97
 quality = 0
@@ -68,17 +69,17 @@ for _ in range(100000000):
     for epoch in range(epoch_count):
         for state, target in loader:
             value_optimizer.zero_grad()
-            estimate = value_model(state)
-            value_loss = F.mse_loss(estimate, target)
-            value_loss.backward()
+            logit = value_model(state)
+            loss = F.binary_cross_entropy_with_logits(logit, target)
+            loss.backward()
             torch.nn.utils.clip_grad_norm_(value_model.parameters(), max_norm=1.0)
             value_optimizer.step()
         with torch.no_grad():
-            full_estimate = value_model(full_state)
-            full_loss = F.mse_loss(full_estimate, full_target)
-            null_estimate = 0*full_target + full_target.mean()
-            null_loss = F.mse_loss(null_estimate, full_target)
-            quality = 1 - full_loss/null_loss
+            full_logit = value_model(full_state)
+            full_prob = torch.sigmoid(full_logit)
+            full_mse = F.mse_loss(full_prob, full_target)
+            null_mse = ((full_target - full_target.mean())**2).mean()
+            quality = 1 - full_mse / null_mse
             quality_history.append(quality.item())
             message = ''
             message += f'Horizon: {horizon}, '
@@ -86,7 +87,7 @@ for _ in range(100000000):
             message += f'Epoch: {epoch+1}, '
             message += f'ModelQuality: {quality:.03f}, '
             message += f'TargetMean: {torch.mean(full_target):.03f}, '
-            message += f'TargetSD: {sqrt(null_loss):.03f}, '
+            message += f'TargetSD: {sqrt(null_mse):.03f}, '
             now = time.perf_counter()
             message += f'Time: {now - last_log_time:.03f}, '
             last_log_time = now

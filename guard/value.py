@@ -2,7 +2,7 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 
-state_size = 35
+state_size = 34
     
 class ValueModel(nn.Module):
     def __init__(self):
@@ -19,7 +19,7 @@ class ValueModel(nn.Module):
         x = 0.01 * self.projection(x)
         for norm, layer in zip(self.layer_norms, self.hidden_layers):
             x = x + layer(F.silu(norm(x)))
-        return self.output_layer(self.final_norm(x)).clamp(0,1)
+        return self.output_layer(self.final_norm(x))
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)
     

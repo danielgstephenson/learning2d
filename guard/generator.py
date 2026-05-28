@@ -45,7 +45,7 @@ class DataGenerator:
         xs = torch.stack((cos_angle, -sin_angle), dim=-1)
         ys = torch.stack((sin_angle,  cos_angle), dim=-1)
         self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
-        self.radius = (40 + 100 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
+        self.radius = (40 + 40 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
         max_offset = (self.radius.squeeze(-1) - self.ringSize).clamp(min=0)   # (n,1)
         offset_scale = torch.rand(n, 2) ** 2
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
@@ -70,6 +70,8 @@ class DataGenerator:
         a0p_local = torch.where(use_far, far0_local, a0p_local)
         a1p_local = torch.where(use_far, far1_local, a1p_local)
         # Oversample near charging states
+        a0p_near = get_random_vectors(n, 5*ring_radius)
+        a0p_local = torch.where(torch.rand(n,1) < 0.5, a0p_near, a0p_local)
         a1p_near = get_random_vectors(n, 3*ring_radius)
         a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_near, a1p_local)
         # Oversample charging states
@@ -146,7 +148,6 @@ class DataGenerator:
             self.world.blades[1].position,
             self.agent0.alive.int(),
             self.agent1.alive.int(),
-            self.world.charge.reshape(self.world.count, 1),
             wallPoints.reshape(self.world.count, 16)
         ]
         return torch.cat(stateTensors,dim=1)
@@ -159,10 +160,9 @@ class DataGenerator:
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
         ring_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
         inRing1 = ring_dist1 < self.ringSize - self.agent1.radius
-        fullCharge = self.world.charge >= 1
-        charging = fullCharge | (inRing1 & self.agent1.alive)
-        self.world.charge = torch.where(charging,self.world.charge+self.charge_step,0).clamp(0,1)
-        self.reward =  1 - self.world.charge
+        charging = inRing1 & self.agent1.alive
+        self.world.charge = torch.where(charging, self.world.charge + self.charge_step, 0).clamp(0, 1)
+        self.reward =  1.0 - charging.float()
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         p = 0.01 # Discount Rate
@@ -175,11 +175,13 @@ class DataGenerator:
                 return state, reward
             self.world.step()
             self.update()
-            outcome_values = self.value_model(self.state)
+            outcome_values = torch.sigmoid(self.value_model(self.state))
             outcome_values = torch.where(self.agent1.alive, outcome_values, 1)
-            outcome_values = torch.where(self.world.charge>=1, 0.0, outcome_values)
             q = outcome_values.view(self.batch_size,8,8,1)
-            continuation_value = q.amin(dim=2).amax(dim=1)
+            average_value = q.mean(dim=(1,2))
+            minimax_value = q.amin(dim=2).amax(dim=1)
+            noise = 0.01
+            continuation_value = noise*average_value + (1-noise)*minimax_value
             target = p*reward + (1-p)*continuation_value
             return state, target
 

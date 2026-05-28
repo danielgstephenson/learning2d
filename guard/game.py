@@ -13,7 +13,7 @@ from generator import DataGenerator
 from value import ValueModel
 import world as world
 from torch.func import vmap, grad
-from world import Agent, Blade, device, action_tensor, active_action_tensor
+from world import Agent, Blade, action_tensor
 SCALE = 10
 
 torch.set_default_device(world.device)
@@ -43,7 +43,7 @@ class BladeCircle(arcade.SpriteCircle):
 
 class Game(arcade.Window):
     def __init__(self, generator: DataGenerator):
-        super().__init__(1000, 1000, 'learning2d')
+        super().__init__(900, 900, 'learning2d')
         arcade.set_background_color((20,20,20,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
@@ -148,7 +148,6 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
-        if self.world.charge[self.index,0].item() >= 1: return
         self.world.step()
         self.generator.update()
         agentPosition0 = self.world.agents[0].position[self.index,:]
@@ -160,15 +159,15 @@ class Game(arcade.Window):
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         state = self.generator.get_simulation_state()
-        value_estimate = value_model(state)
+        value_estimate = torch.sigmoid(value_model(state))
         costate = get_costate(state)
         velocity_grad0 = +costate[:,[0,1]]
         velocity_grad1 = -costate[:,[8,9]]
-        action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
-        action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
-        generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,action_tensor)
+        action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
+        # generator.agent0.action = torch.argmax(action_values0, dim=1)
+        generator.agent1.action = torch.argmax(action_values1, dim=1)
+        generator.agent0.action[self.index] = self.get_user_action()
         row = [
             self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
