@@ -74,7 +74,7 @@ class Game(arcade.Window):
         self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
-            "frame","time","life0","life1","charge",
+            "frame","time","life0","life1",
             "a0_x", "a0_y", "a0_vx", "a0_vy",
             "b0_x", "b0_y", "b0_vx", "b0_vy",
             "a1_x", "a1_y", "a1_vx", "a1_vy",
@@ -127,10 +127,6 @@ class Game(arcade.Window):
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         arcade.draw_circle_outline(0, 0, SCALE*13, arcade.color.GRAY, SCALE*1)
-        charge = self.generator.world.charge[self.index].item()
-        start_angle = 270
-        end_angle = 270 + 360 * charge
-        arcade.draw_arc_outline(0, 0, SCALE*30, SCALE*30, arcade.color.GRAY, start_angle, end_angle, border_width=SCALE*2)
         text = f'FPS: {arcade.get_fps():.1f}, Time: {self.world.time:.1f}'
         arcade.draw_text(text,x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
@@ -146,7 +142,7 @@ class Game(arcade.Window):
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
-        self.camera.position = self.agentCircles[1].position
+        self.camera.position = self.agentCircles[0].position
         if self.paused: return
         self.world.step()
         self.generator.update()
@@ -165,14 +161,13 @@ class Game(arcade.Window):
         velocity_grad1 = -costate[:,[8,9]]
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
-        # generator.agent0.action = torch.argmax(action_values0, dim=1)
+        generator.agent0.action = torch.argmax(action_values0, dim=1)
         generator.agent1.action = torch.argmax(action_values1, dim=1)
-        generator.agent0.action[self.index] = self.get_user_action()
+        # generator.agent0.action[self.index] = self.get_user_action()
         row = [
             self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
             self.generator.agent1.alive[self.index,0].int().item(),
-            self.world.charge[self.index,0].item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
             bladePosition0[0].detach().item(), bladePosition0[1].detach().item(), 

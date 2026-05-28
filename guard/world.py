@@ -81,7 +81,6 @@ class World:
         self.count = count
         self.device = device
         self.time_step = time_step
-        self.charge = torch.zeros(self.count,1)
         self.dtype = dtype
         self.time = 0.0
         self.entities: list[Entity] = []

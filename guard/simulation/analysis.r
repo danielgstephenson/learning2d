@@ -35,11 +35,7 @@ c3y = simData$c3y[1]
 cx = c(c0x,c1x,c2x,c3x,c0x)
 cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
-charge = simData$charge
-par(cex=2,mar=c(3,3,2,2))
-plot(time,charge,type='l',ylim=c(0,1))
-chargePath = paste(source,'-charge.png',sep='')
-dev.print(png,chargePath,width=1000,height=1000)
+
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)
   xs <- x + radius * cos(theta)
@@ -50,6 +46,7 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
     lines(xs, ys, ...)
   }
 }
+
 par(cex=2,mar=c(0,0,1,0))
 tmin = start
 tmax = end #max(time)
@@ -111,6 +108,7 @@ if(life1e) {
 }
 drawCircle(b0xe,b0ye,radius=10,col=b0col,lwd=2)
 drawCircle(b1xe,b1ye,radius=10,col=b1col,lwd=2)
+
 trajectoryPath = paste(source,'.png',sep='')
 dev.print(png,trajectoryPath,width=1000,height=1000)
 
