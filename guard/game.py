@@ -9,7 +9,7 @@ import arcade
 from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
-from generator import DataGenerator, get_simulation_state
+from generator import DataGenerator
 from value import ValueModel
 import world as world
 from torch.func import vmap, grad
@@ -50,7 +50,7 @@ class Game(arcade.Window):
         self.index = 0
         self.set_update_rate(1 / 40)
         self.generator = generator
-        self.simulation = generator.world
+        self.world = generator.world
         self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
@@ -58,11 +58,11 @@ class Game(arcade.Window):
         self.paused = True
         self.life0 = 1
         self.life1 = 1
-        for blade in self.simulation.blades:
+        for blade in self.world.blades:
             blade_circle = BladeCircle(self.index, blade)
             self.bladeCircles.append(blade_circle)
             self.sprites.append(blade_circle)
-        for blade in self.simulation.agents:
+        for blade in self.world.agents:
             agent_circle = AgentCircle(self.index, blade)
             self.agentCircles.append(agent_circle)
             self.sprites.append(agent_circle)
@@ -124,17 +124,16 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        corner_count = self.simulation.boundary.num_walls
-        corners = [SCALE * self.simulation.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
+        corner_count = self.world.boundary.num_walls
+        corners = [SCALE * self.world.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         arcade.draw_circle_outline(0, 0, SCALE*13, arcade.color.GRAY, SCALE*1)
         charge = self.generator.world.charge[self.index].item()
-        charge_target = self.generator.charge_target
         start_angle = 270
-        end_angle = 270 + 360 * (charge / charge_target)
-        arcade.draw_arc_outline(0, 0, SCALE*30, SCALE*30, arcade.color.GRAY, start_angle, end_angle, border_width=SCALE*3)
-        text = f'FPS: {arcade.get_fps():.1f}, Time: {self.simulation.time:.1f}'
+        end_angle = 270 + 360 * charge
+        arcade.draw_arc_outline(0, 0, SCALE*30, SCALE*30, arcade.color.GRAY, start_angle, end_angle, border_width=SCALE*2)
+        text = f'FPS: {arcade.get_fps():.1f}, Time: {self.world.time:.1f}'
         arcade.draw_text(text,x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
@@ -142,41 +141,43 @@ class Game(arcade.Window):
         for circle in self.agentCircles:
             circle.center_x = SCALE * circle.agent.position[self.index,0].item()
             circle.center_y = SCALE * circle.agent.position[self.index,1].item()
+            circle.alpha = 255 if circle.agent.alive[self.index,0].item() else 0
         for circle in self.bladeCircles:
-            self.draw_line(circle.blade.position, circle.blade.agent.position, circle._color,10)
+            if circle.blade.agent.alive[self.index,0].item():
+                self.draw_line(circle.blade.position, circle.blade.agent.position, circle._color,10)
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
-        self.simulation.step()
-        if self.simulation.complete[self.index]: return
+        if self.world.charge[self.index,0].item() >= 1: return
+        self.world.step()
         self.generator.update()
-        agentPosition0 = self.simulation.agents[0].position[self.index,:]
-        agentVelocity0 = self.simulation.agents[0].velocity[self.index,:]
-        bladePosition0 = self.simulation.blades[0].position[self.index,:]
-        bladeVelocity0 = self.simulation.blades[0].velocity[self.index,:]
-        agentPosition1 = self.simulation.agents[1].position[self.index,:]
-        agentVelocity1 = self.simulation.agents[1].velocity[self.index,:]
-        bladePosition1 = self.simulation.blades[1].position[self.index,:]
-        bladeVelocity1 = self.simulation.blades[1].velocity[self.index,:]
+        agentPosition0 = self.world.agents[0].position[self.index,:]
+        agentVelocity0 = self.world.agents[0].velocity[self.index,:]
+        bladePosition0 = self.world.blades[0].position[self.index,:]
+        bladeVelocity0 = self.world.blades[0].velocity[self.index,:]
+        agentPosition1 = self.world.agents[1].position[self.index,:]
+        agentVelocity1 = self.world.agents[1].velocity[self.index,:]
+        bladePosition1 = self.world.blades[1].position[self.index,:]
+        bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         gap0 = torch.norm(agentPosition0-bladePosition1,p=2,dim=0)
         gap1 = torch.norm(agentPosition1-bladePosition0,p=2,dim=0)
         self.life0 = 1 if gap0 > 15 else 0
         self.life1 = 1 if gap1 > 15 else 0
-        state = get_simulation_state(generator.world)
+        state = self.generator.get_simulation_state()
         value_estimate = value_model(state)
         costate = get_costate(state)
         velocity_grad0 = +costate[:,[0,1]]
         velocity_grad1 = -costate[:,[8,9]]
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
-        generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        # generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
+        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         row = [
-            self.frame_counter+1,self.simulation.time,self.life0,self.life1,
-            self.simulation.charge[self.index,0].item(),
+            self.frame_counter+1,self.world.time,self.life0,self.life1,
+            self.world.charge[self.index,0].item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
             bladePosition0[0].detach().item(), bladePosition0[1].detach().item(), 
@@ -192,13 +193,13 @@ class Game(arcade.Window):
             generator.agent0.action[self.index].detach().item(),
             generator.agent1.action[self.index].detach().item()
         ]
-        c0 = self.simulation.boundary.wall_starts[self.index,0,:].detach()
+        c0 = self.world.boundary.wall_starts[self.index,0,:].detach()
         row += [c0[0].item(),c0[1].item()]
-        c1 = self.simulation.boundary.wall_starts[self.index,1,:].detach()
+        c1 = self.world.boundary.wall_starts[self.index,1,:].detach()
         row += [c1[0].item(),c1[1].item()]
-        c2 = self.simulation.boundary.wall_starts[self.index,2,:].detach()
+        c2 = self.world.boundary.wall_starts[self.index,2,:].detach()
         row += [c2[0].item(),c2[1].item()]
-        c3 = self.simulation.boundary.wall_starts[self.index,3,:].detach()
+        c3 = self.world.boundary.wall_starts[self.index,3,:].detach()
         row += [c3[0].item(),c3[1].item()]
         self.log_writer.writerow(row)
         self.log_file.flush()

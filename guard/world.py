@@ -21,6 +21,7 @@ class Circle(Entity):
     def __init__(self, world: World, radius: int):
         super().__init__(world)
         self.world.circles.append(self)
+        self.alive = torch.ones(world.count, 1).bool()
         self.radius = radius
         self.mass = 1
         self.drag = 0
@@ -37,7 +38,6 @@ class Agent(Circle):
         self.align = align
         self.drag = 0.7
         self.move_power = 20
-        self.alive = torch.ones(world.count, 1).bool()
         self.action = torch.zeros(world.count).int()
 
 class Blade(Circle):
@@ -80,7 +80,6 @@ class World:
         self.count = count
         self.device = device
         self.time_step = time_step
-        self.complete = torch.zeros(self.count,1).bool()
         self.charge = torch.zeros(self.count,1)
         self.dtype = dtype
         self.time = 0.0
@@ -120,18 +119,18 @@ class World:
         dt = self.time_step
         self.time += dt
         for circle in self.circles:
-            nextVelocity = (1 - circle.drag * dt) * circle.velocity
-            nextVelocity = nextVelocity + dt / circle.mass * circle.force
-            nextVelocity = nextVelocity + circle.impulse / circle.mass
-            nextPosition = circle.position + dt * nextVelocity + circle.shift
-            circle.velocity = torch.where(self.complete, circle.velocity, nextVelocity)
-            circle.position = torch.where(self.complete, circle.position, nextPosition)
+            circle.velocity = (1 - circle.drag * dt) * circle.velocity
+            circle.velocity = circle.velocity + dt / circle.mass * circle.force
+            circle.velocity = circle.velocity + circle.impulse / circle.mass
+            circle.position = circle.position + dt * circle.velocity + circle.shift
 
 def collide_circle_circle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return
+    life = circle1.alive & circle2.alive
     vector = circle2.position - circle1.position
     distance = torch.sqrt(torch.sum(vector ** 2, dim=1))
     overlap = (circle1.radius + circle2.radius - distance).unsqueeze(1)
+    overlap = torch.where(life, overlap, 0)
     normal = F.normalize(vector, dim=1)
     relative_velocity = circle1.velocity - circle2.velocity
     impact_speed = torch.linalg.vecdot(relative_velocity, normal).unsqueeze(1)
