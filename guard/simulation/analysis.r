@@ -53,7 +53,7 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
 par(cex=2,mar=c(0,0,1,0))
 tmin = start
 tmax = end #max(time)
-s = (tmin<=time&time<=tmax) & (life1>0)
+s = (tmin<=time&time<=tmax) & (simData$life1>0)
 times = time[s]
 tmax = min(tmax,max(times))
 a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-tmin)/(tmax-tmin)))

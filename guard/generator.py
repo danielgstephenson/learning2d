@@ -181,7 +181,8 @@ class DataGenerator:
                 end_prob = p * (1 - p) ** t
                 target += end_prob * self.reward
             bootstrap_estimate = self.reward if horizon == 0 else self.value_model(self.state)
-            continuation_value = torch.where(self.agent1.alive, bootstrap_estimate, 1) 
+            continuation_value = torch.where(self.agent1.alive, bootstrap_estimate, 1)
+            continuation_value = torch.where(self.world.charge>=1, 0.0, continuation_value) 
             continuation_prob = (1-p) ** self.step_count
             target += continuation_prob * continuation_value
             return state, target
