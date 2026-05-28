@@ -18,7 +18,7 @@ class DataGenerator:
         self.time_step = time_step
         self.world = World(world_count, self.time_step)
         self.ringSize = 13
-        self.charge_interval = 4
+        self.charge_interval = 10
         self.charge_step = self.world.time_step / self.charge_interval
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
