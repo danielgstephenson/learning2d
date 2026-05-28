@@ -16,7 +16,7 @@ class DataGenerator:
         self.batch_size = batch_size
         self.world_count = 64*self.batch_size
         self.world = World(self.world_count, self.time_step)
-        self.ringSize = 13
+        self.ring_size = 20
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
         self.agent1 = Agent(self.world, 1)
@@ -44,7 +44,7 @@ class DataGenerator:
         ys = torch.stack((sin_angle,  cos_angle), dim=-1)
         self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
         self.radius = (40 + 100 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
-        max_offset = (self.radius.squeeze(-1) - self.ringSize).clamp(min=0)   # (n,1)
+        max_offset = (self.radius.squeeze(-1) - self.ring_size).clamp(min=0)   # (n,1)
         offset_scale = torch.rand(n, 2) ** 2
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
         corners_local = unit_square.unsqueeze(0) * self.radius + self.box_offset.unsqueeze(1) # (n,4,2)
@@ -59,7 +59,7 @@ class DataGenerator:
         radiusColumn = self.radius.squeeze(-1)
         a0p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
         a1p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
-        ring_radius = self.ringSize - self.agent1.radius
+        ring_radius = self.ring_size - self.agent1.radius
         # Oversample corner states
         r_far = radiusColumn * 0.9  # (n, 1)
         far0_local = self.box_offset + torch.sign(torch.rand(n,2)-0.5) * r_far
@@ -157,8 +157,8 @@ class DataGenerator:
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
         ring_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
         ring_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
-        inRing0 = ring_dist0 < self.ringSize - self.agent0.radius
-        inRing1 = ring_dist1 < self.ringSize - self.agent1.radius
+        inRing0 = ring_dist0 < self.ring_size - self.agent0.radius
+        inRing1 = ring_dist1 < self.ring_size - self.agent1.radius
         charging0 = inRing0 & self.agent0.alive
         charging1 = inRing1 & self.agent1.alive
         self.reward = 0.5 + 0.5*charging0.float() - 0.5*charging1.float()

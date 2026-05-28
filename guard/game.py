@@ -126,7 +126,7 @@ class Game(arcade.Window):
         corners = [SCALE * self.world.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
-        arcade.draw_circle_outline(0, 0, SCALE*13, arcade.color.GRAY, SCALE*1)
+        arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY, SCALE*1)
         text = f'FPS: {arcade.get_fps():.1f}, Time: {self.world.time:.1f}'
         arcade.draw_text(text,x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
