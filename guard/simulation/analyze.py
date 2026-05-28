@@ -5,7 +5,12 @@ import os
 
 KILL_THRESHOLD = 15     # gap between agent and enemy blade that causes death
 RING_THRESHOLD = 8      # center_dist for agent1 to be charging (ringSize - agent1.radius)
-CHARGE_TARGET  = 4.0    # seconds of continuous charge needed to win
+CHARGE_TARGET  = 1.0    # normalized charge needed to win
+
+def parse_life(val):
+    if val in ('True', 'true'): return 1
+    if val in ('False', 'false'): return 0
+    return int(float(val))
 
 def dist_from_origin(x, y):
     return math.sqrt(float(x)**2 + float(y)**2)
@@ -17,14 +22,20 @@ def load(path):
     with open(path, newline='') as f:
         return list(csv.DictReader(f))
 
+def find_terminal_index(rows):
+    for i, r in enumerate(rows):
+        if float(r['charge']) >= CHARGE_TARGET:
+            return i
+        if parse_life(r['life1']) == 0:
+            return i
+    return len(rows) - 1
+
 def determine_outcome(rows):
     last = rows[-1]
-    if int(float(last['life1'])) == 0:
-        return "Agent0 wins  —  killed agent1"
-    if int(float(last['life0'])) == 0:
-        return "Agent1 wins  —  killed agent0"
     if float(last['charge']) >= CHARGE_TARGET:
         return "Agent1 wins  —  fully charged the ring"
+    if parse_life(last['life1']) == 0:
+        return "Agent0 wins  —  killed agent1"
     return f"No winner  —  simulation ended at t = {float(last['time']):.2f}s"
 
 def find_charging_periods(rows):
@@ -57,7 +68,9 @@ def load_horizon():
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'simulation.csv')
-    rows = load(path)
+    all_rows = load(path)
+    terminal_idx = find_terminal_index(all_rows)
+    rows = all_rows[:terminal_idx + 1]
     first, last = rows[0], rows[-1]
     horizon, batch = load_horizon()
 
@@ -65,14 +78,14 @@ def main():
     print("=" * 62)
     print("  SIMULATION SUMMARY")
     print("=" * 62)
-    print(f"  Frames   : {len(rows)}")
+    print(f"  Frames   : {len(rows)}  (of {len(all_rows)} logged)")
     print(f"  Duration : {float(last['time']):.2f} seconds")
     print(f"  Outcome  : {determine_outcome(rows)}")
     if horizon is not None:
         print(f"  Horizon  : {horizon}  ({horizon * 0.1:.1f}s planning), Batch: {batch}")
     value_est = float(first['value_estimate'])
-    sign = "predicts agent1 wins" if value_est < 0 else "predicts agent0 wins"
-    print(f"  Initial value estimate : {value_est:.1f}  ({sign})")
+    sign = "predicts agent1 wins" if value_est < 0.5 else "predicts agent0 wins"
+    print(f"  Initial value estimate : {value_est:.3f}  ({sign})")
 
     # ------------------------------------------------------------------ #
     print()
@@ -105,7 +118,7 @@ def main():
         b0a1 = dist_between(r['a1_x'], r['a1_y'], r['b0_x'], r['b0_y'])
         ch   = float(r['charge'])
         rw   = float(r['reward'])
-        print(f"  {t:>6.2f}  {a0d:>7.1f}  {a1d:>7.1f}  {b0a1:>10.1f}  {ch:>6.2f}  {rw:>8.1f}")
+        print(f"  {t:>6.2f}  {a0d:>7.1f}  {a1d:>7.1f}  {b0a1:>10.1f}  {ch:>6.2f}  {rw:>8.2f}")
 
     # ------------------------------------------------------------------ #
     print()
@@ -197,7 +210,7 @@ def main():
     print(f"  Period          : t = {t_start_late:.2f}s  to  t = {float(late_rows[-1]['time']):.2f}s")
     print(f"  Agent0 speed    : avg {sum(a0_speeds)/len(a0_speeds):.1f},  min {min(a0_speeds):.1f},  max {max(a0_speeds):.1f}")
     print(f"  Agent1 speed    : avg {sum(a1_speeds)/len(a1_speeds):.1f},  min {min(a1_speeds):.1f},  max {max(a1_speeds):.1f}")
-    print(f"  Value estimate  : avg {sum(values)/len(values):.1f},  min {min(values):.1f},  max {max(values):.1f}")
+    print(f"  Value estimate  : avg {sum(values)/len(values):.3f},  min {min(values):.3f},  max {max(values):.3f}")
 
     from collections import Counter
     a0_counts = Counter(actions0)
@@ -229,7 +242,7 @@ def main():
             if d is None: return '     n/a'
             label = 'toward' if abs(d) < 90 else 'away  '
             return f'{label} {abs(d):>3.0f}°'
-        print(f"  {t:>6.2f}  {sp0:>6.1f}  {sp1:>6.1f}  {g0_mag:>6.3f}  {fmt_diff(diff0)}  {g1_mag:>6.3f}  {fmt_diff(diff1)}  {val:>7.1f}")
+        print(f"  {t:>6.2f}  {sp0:>6.1f}  {sp1:>6.1f}  {g0_mag:>6.3f}  {fmt_diff(diff0)}  {g1_mag:>6.3f}  {fmt_diff(diff1)}  {val:>7.3f}")
     print()
 
 if __name__ == '__main__':

@@ -122,7 +122,8 @@ class World:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity
             circle.velocity = circle.velocity + dt / circle.mass * circle.force
             circle.velocity = circle.velocity + circle.impulse / circle.mass
-            circle.position = circle.position + dt * circle.velocity + circle.shift
+            newPosition = circle.position + dt * circle.velocity + circle.shift
+            circle.position = torch.where(circle.alive, newPosition, circle.position)
 
 def collide_circle_circle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return

@@ -1,10 +1,11 @@
 source = 'simulation'
 start=0
-end=100
+end=1000
 width=10
 sourcePath = paste(source,'.csv',sep='')
 
 simData = read.csv(sourcePath)
+
 frame = simData$frame
 time = simData$time
 a0x = simData$a0_x
@@ -36,7 +37,7 @@ cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
 charge = simData$charge
 par(cex=2,mar=c(3,3,2,2))
-plot(time,charge,type='l',ylim=c(0,4))
+plot(time,charge,type='l',ylim=c(0,1))
 chargePath = paste(source,'-charge.png',sep='')
 dev.print(png,chargePath,width=1000,height=1000)
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
@@ -52,7 +53,7 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
 par(cex=2,mar=c(0,0,1,0))
 tmin = start
 tmax = end #max(time)
-s = (tmin<=time&time<=tmax)
+s = (tmin<=time&time<=tmax) & (life1>0)
 times = time[s]
 tmax = min(tmax,max(times))
 a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-tmin)/(tmax-tmin)))
@@ -61,6 +62,8 @@ a1cols = sapply(times,function(x)rgb(0,0.0,0.9,(x-tmin)/(tmax-tmin)))
 b1cols = sapply(times,function(x)rgb(0,0.5,1.0,(x-tmin)/(tmax-tmin)))
 ringColor = rgb(0,0,0)
 wallColor = rgb(0,0,0)
+life0 = simData$life0[s]
+life1 = simData$life1[s]
 a0xs = a0x[s]
 a0ys = a0y[s]
 b0xs = b0x[s]
@@ -91,15 +94,21 @@ a1xe = a1x[end]
 a1ye = a1y[end]
 b1xe = b1x[end]
 b1ye = b1y[end]
+life0e = life0[end]
+life1e = life1[end]
 a0col = a0cols[length(a0cols)]
 b0col = b0cols[length(b0cols)]
 a1col = a1cols[length(a1cols)]
 b1col = b1cols[length(b1cols)]
-segments(a0xe,a0ye,b0xe,b0ye,col=b0col,lwd=2)
-segments(a1xe,a1ye,b1xe,b1ye,col=b1col,lwd=2)
-drawCircle(a0xe,a0ye,radius=5,col=a0col,lwd=2)
+if(life0e) {
+  drawCircle(a0xe,a0ye,radius=5,col=a0col,lwd=2)
+  segments(a0xe,a0ye,b0xe,b0ye,col=b0col,lwd=2)
+}
+if(life1e) {
+  drawCircle(a1xe,a1ye,radius=5,col=a1col,lwd=2)
+  segments(a1xe,a1ye,b1xe,b1ye,col=b1col,lwd=2)
+}
 drawCircle(b0xe,b0ye,radius=10,col=b0col,lwd=2)
-drawCircle(a1xe,a1ye,radius=5,col=a1col,lwd=2)
 drawCircle(b1xe,b1ye,radius=10,col=b1col,lwd=2)
 trajectoryPath = paste(source,'.png',sep='')
 dev.print(png,trajectoryPath,width=1000,height=1000)

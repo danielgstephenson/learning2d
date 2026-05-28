@@ -45,7 +45,7 @@ class DataGenerator:
         xs = torch.stack((cos_angle, -sin_angle), dim=-1)
         ys = torch.stack((sin_angle,  cos_angle), dim=-1)
         self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
-        self.radius = (40 + 40 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
+        self.radius = (40 + 100 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
         max_offset = (self.radius.squeeze(-1) - self.ringSize).clamp(min=0)   # (n,1)
         offset_scale = torch.rand(n, 2) ** 2
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
@@ -88,8 +88,8 @@ class DataGenerator:
         b1_max = torch.min(a1p_local + 65, self.box_offset + blade_bound)
         b1_min = torch.max(a1p_local - 65, self.box_offset - blade_bound)
         b1p_local = b1_min + (b1_max - b1_min) * torch.rand(n, 2)
-        self.agent0.alive = torch.ones(self.world.count, 1).bool()
-        self.agent1.alive = torch.ones(self.world.count, 1).bool()
+        self.agent0.alive = torch.rand(self.world.count, 1) < 0.9
+        self.agent1.alive = torch.rand(self.world.count, 1) < 0.95
         self.agent0.position = torch.einsum('bij,bj->bi', self.rotation, a0p_local)
         self.agent1.position = torch.einsum('bij,bj->bi', self.rotation, a1p_local)
         self.blade0.position = torch.einsum('bij,bj->bi', self.rotation, b0p_local)

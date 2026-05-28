@@ -56,8 +56,6 @@ class Game(arcade.Window):
         self.bladeCircles: list[BladeCircle] = []
         self.sprites = arcade.SpriteList()
         self.paused = True
-        self.life0 = 1
-        self.life1 = 1
         for blade in self.world.blades:
             blade_circle = BladeCircle(self.index, blade)
             self.bladeCircles.append(blade_circle)
@@ -161,10 +159,6 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
-        gap0 = torch.norm(agentPosition0-bladePosition1,p=2,dim=0)
-        gap1 = torch.norm(agentPosition1-bladePosition0,p=2,dim=0)
-        self.life0 = 1 if gap0 > 15 else 0
-        self.life1 = 1 if gap1 > 15 else 0
         state = self.generator.get_simulation_state()
         value_estimate = value_model(state)
         costate = get_costate(state)
@@ -172,11 +166,13 @@ class Game(arcade.Window):
         velocity_grad1 = -costate[:,[8,9]]
         action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,active_action_tensor)
         action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,active_action_tensor)
-        # generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
-        # generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
-        self.agentCircles[1].agent.action[self.index] = self.get_user_action()
+        generator.agent0.action = torch.argmax(action_values0, dim=1) + 1
+        generator.agent1.action = torch.argmax(action_values1, dim=1) + 1
+        # self.agentCircles[1].agent.action[self.index] = self.get_user_action()
         row = [
-            self.frame_counter+1,self.world.time,self.life0,self.life1,
+            self.frame_counter+1,self.world.time,
+            self.generator.agent0.alive[self.index,0].int().item(),
+            self.generator.agent1.alive[self.index,0].int().item(),
             self.world.charge[self.index,0].item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
