@@ -66,6 +66,7 @@ for i in range(8):
     action_vector_list.append(vision_dir)
 action_tensor = torch.tensor(action_vector_list,dtype=physics_dtype)
 actions = torch.tensor([i for i in range(9)])
+active_actions = actions[1:]
 active_action_tensor = action_tensor[1:,:]
 
 vision_dir_list: list[list[float]] = []
