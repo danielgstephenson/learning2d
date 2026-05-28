@@ -3,5 +3,5 @@
 *.bin
 *.pt
 *.onnx
-
+*.log
 __pycache__
