@@ -66,11 +66,32 @@ def load_horizon():
     except Exception:
         return None, None
 
+def find_post_death(all_rows, terminal_idx):
+    terminal = all_rows[terminal_idx]
+    agent0_died = parse_life(terminal['life0']) == 0
+    agent1_died = parse_life(terminal['life1']) == 0
+    post = all_rows[terminal_idx + 1:]
+    result = {}
+    if agent1_died and not agent0_died:
+        for r in post:
+            if parse_life(r['life0']) == 0:
+                result['agent0_death_time'] = float(r['time'])
+                result['survival_margin'] = float(r['time']) - float(terminal['time'])
+                break
+    if agent0_died and not agent1_died:
+        for r in post:
+            if parse_life(r['life1']) == 0:
+                result['agent1_death_time'] = float(r['time'])
+                result['survival_margin'] = float(r['time']) - float(terminal['time'])
+                break
+    return result
+
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'simulation.csv')
     all_rows = load(path)
     terminal_idx = find_terminal_index(all_rows)
     rows = all_rows[:terminal_idx + 1]
+    post_death = find_post_death(all_rows, terminal_idx)
     first, last = rows[0], rows[-1]
     horizon, batch = load_horizon()
 
@@ -81,6 +102,10 @@ def main():
     print(f"  Frames   : {len(rows)}  (of {len(all_rows)} logged)")
     print(f"  Duration : {float(last['time']):.2f} seconds")
     print(f"  Outcome  : {determine_outcome(rows)}")
+    if 'agent0_death_time' in post_death:
+        print(f"  Agent0 survived {post_death['survival_margin']:.2f}s after game end (died at t = {post_death['agent0_death_time']:.2f}s)")
+    elif 'agent1_death_time' in post_death:
+        print(f"  Agent1 survived {post_death['survival_margin']:.2f}s after game end (died at t = {post_death['agent1_death_time']:.2f}s)")
     if horizon is not None:
         print(f"  Horizon  : {horizon}  ({horizon * 0.1:.1f}s planning), Batch: {batch}")
     value_est = float(first['value_estimate'])

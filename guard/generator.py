@@ -173,7 +173,7 @@ class DataGenerator:
             self.reset()
             state = self.state.clone()
             target = torch.zeros((self.world_count,1))
-            p = 0.005 # Discount Rate
+            p = 0.01 # Discount Rate
             for t in range(self.step_count):
                 self.act(horizon)
                 self.world.step()

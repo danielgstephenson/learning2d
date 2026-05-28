@@ -1,7 +1,7 @@
 source = 'simulation'
 start=0
-end=1000
-width=10
+end=100
+width=20
 sourcePath = paste(source,'.csv',sep='')
 
 simData = read.csv(sourcePath)
@@ -55,6 +55,7 @@ tmin = start
 tmax = end #max(time)
 s = (tmin<=time&time<=tmax) & (simData$life1>0)
 times = time[s]
+tmin = max(tmin,min(times))
 tmax = min(tmax,max(times))
 a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-tmin)/(tmax-tmin)))
 b0cols = sapply(times,function(x)rgb(0,0.9,0.0,(x-tmin)/(tmax-tmin)))
@@ -85,15 +86,15 @@ points(a0xs,a0ys,col=a0cols,pch=16,cex=0.5)
 points(b0xs,b0ys,col=b0cols,pch=16,cex=0.5)
 points(a1xs,a1ys,col=a1cols,pch=16,cex=0.5)
 points(b1xs,b1ys,col=b1cols,pch=16,cex=0.5)
-end = time==max(time[s])
-a0xe = a0x[end]
-a0ye = a0y[end]
-b0xe = b0x[end]
-b0ye = b0y[end]
-a1xe = a1x[end]
-a1ye = a1y[end]
-b1xe = b1x[end]
-b1ye = b1y[end]
+end = times==max(times)
+a0xe = a0xs[end]
+a0ye = a0ys[end]
+b0xe = b0xs[end]
+b0ye = b0ys[end]
+a1xe = a1xs[end]
+a1ye = a1ys[end]
+b1xe = b1xs[end]
+b1ye = b1ys[end]
 life0e = life0[end]
 life1e = life1[end]
 a0col = a0cols[length(a0cols)]
