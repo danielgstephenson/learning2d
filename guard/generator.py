@@ -61,12 +61,6 @@ class DataGenerator:
         a0p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
         a1p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
         ring_radius = self.ringSize - self.agent1.radius
-        # Oversample  charging states
-        a1p_inside = get_random_vectors(n, ring_radius)
-        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_inside, a1p_local)
-        # Oversample near charging states
-        a1p_near = get_random_vectors(n, 3*ring_radius)
-        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_near, a1p_local)
         # Oversample corner states
         r_far = radiusColumn * 0.9  # (n, 1)
         far0_local = self.box_offset + torch.sign(torch.rand(n,2)-0.5) * r_far
@@ -74,6 +68,12 @@ class DataGenerator:
         use_far = torch.rand(n, 1) < 0.2
         a0p_local = torch.where(use_far, far0_local, a0p_local)
         a1p_local = torch.where(use_far, far1_local, a1p_local)
+        # Oversample near charging states
+        a1p_near = get_random_vectors(n, 3*ring_radius)
+        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_near, a1p_local)
+        # Oversample  charging states
+        a1p_inside = get_random_vectors(n, ring_radius)
+        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_inside, a1p_local)
         # Clamp to bounds
         agent_bound = radiusColumn - self.agent1.radius
         min_ap = self.box_offset - agent_bound
@@ -98,7 +98,7 @@ class DataGenerator:
         self.agent1.velocity = get_random_vectors(n, 30)
         self.blade0.velocity = get_random_vectors(n, 45)
         self.blade1.velocity = get_random_vectors(n, 45)
-        self.world.charge = torch.rand(n,1)
+        self.world.charge = torch.where(torch.rand(n,1)<0.5,0.999,torch.rand(n,1))
         self.update()
 
     def reset_custom(self):
