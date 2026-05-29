@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.onnx
 from onnxruntime.quantization import quantize_dynamic, QuantType
 import os
-from value import ValueModel, state_size
+from models import ValueModel, state_size
 
 # log_file = open("export_debug.log", "w", encoding="utf-8")
 # sys.stdout = log_file

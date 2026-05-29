@@ -1,19 +1,20 @@
 import os
 import torch
+from torch import Tensor
 import torch.nn.functional as F
-import onnxruntime as ort
 import numpy as np
 import csv
-from datetime import datetime
 import arcade
 from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
-from generator import DataGenerator
-from value import ValueModel
-import world as world
 from torch.func import vmap, grad
+
+from generator import DataGenerator
+from models import ActionModel, ValueModel
+import world as world
 from world import Agent, Blade, action_tensor
+
 SCALE = 10
 
 torch.set_default_device(world.device)
@@ -69,22 +70,7 @@ class Game(arcade.Window):
         self.agent_action = 0
         self.reset_log_file()
         self.frame_counter = 0
-
-    def reset_log_file(self):
-        self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
-        self.log_writer = csv.writer(self.log_file)
-        self.log_writer.writerow([
-            "horizon","frame","time","life0","life1",
-            "a0_x", "a0_y", "a0_vx", "a0_vy",
-            "b0_x", "b0_y", "b0_vx", "b0_vy",
-            "a1_x", "a1_y", "a1_vx", "a1_vy",
-            "b1_x", "b1_y", "b1_vx", "b1_vy",
-            "grad_a0_vx", "grad_a0_vy",
-            "grad_a1_vx", "grad_a1_vy",
-            "reward", "value_estimate",
-            "action0", "action1",
-            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y'
-        ])
+        self.state: Tensor
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
@@ -142,7 +128,8 @@ class Game(arcade.Window):
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
-        self.camera.position = self.agentCircles[0].position
+        # self.camera.position = self.agentCircles[0].position
+        self.camera.position = (0,0)
         if self.paused: return
         self.world.step()
         self.generator.update()
@@ -155,15 +142,20 @@ class Game(arcade.Window):
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         state = self.generator.get_simulation_state()
-        value_estimate = torch.sigmoid(value_model(state))
-        costate = get_costate(state)
-        velocity_grad0 = +costate[:,[0,1]]
-        velocity_grad1 = -costate[:,[8,9]]
-        action_values0 = torch.einsum('ij,kj->ik',velocity_grad0,action_tensor)
-        action_values1 = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
-        generator.agent0.action = torch.argmax(action_values0, dim=1)
-        generator.agent1.action = torch.argmax(action_values1, dim=1)
-        # generator.agent0.action[self.index] = self.get_user_action()
+        value_estimate = value_model(state)
+        action0_values = action0_model(state)
+        action1_values = action1_model(state)
+        # costate = get_costate(state)
+        # velocity_grad0 = +costate[:,[0,1]]
+        # velocity_grad1 = -costate[:,[8,9]]
+        # action0_values = torch.einsum('ij,kj->ik',velocity_grad0,action_tensor)
+        # action1_values = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
+        # generator.agent0.action = torch.argmax(action0_values, dim=1)
+        # generator.agent1.action = torch.argmax(action1_values, dim=1)
+        minimax_actions = generator.get_minimax_actions()
+        # generator.agent0.action[self.index] = minimax_actions[0]
+        generator.agent1.action[self.index] = minimax_actions[1]
+        generator.agent0.action[self.index] = self.get_user_action()
         row = [
             horizon,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
@@ -176,13 +168,13 @@ class Game(arcade.Window):
             agentVelocity1[0].detach().item(), agentVelocity1[1].detach().item(),
             bladePosition1[0].detach().item(), bladePosition1[1].detach().item(), 
             bladeVelocity1[0].detach().item(), bladeVelocity1[1].detach().item(),
-            velocity_grad0[self.index,0].detach().item(), velocity_grad0[self.index,1].detach().item(),
-            velocity_grad1[self.index,0].detach().item(), velocity_grad1[self.index,1].detach().item(),
             generator.reward[self.index].detach().item(),
             value_estimate[self.index,0].detach().item(),
             generator.agent0.action[self.index].detach().item(),
             generator.agent1.action[self.index].detach().item()
         ]
+        row += action0_values[self.index].tolist()
+        row += action1_values[self.index].tolist()
         c0 = self.world.boundary.wall_starts[self.index,0,:].detach()
         row += [c0[0].item(),c0[1].item()]
         c1 = self.world.boundary.wall_starts[self.index,1,:].detach()
@@ -194,6 +186,22 @@ class Game(arcade.Window):
         self.log_writer.writerow(row)
         self.log_file.flush()
         self.frame_counter += 1
+
+    def reset_log_file(self):
+        self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
+        self.log_writer = csv.writer(self.log_file)
+        self.log_writer.writerow([
+            "horizon","frame","time","life0","life1",
+            "a0x","a0y","a0vx","a0vy",
+            "b0x","b0y","b0vx","b0vy",
+            "a1x","a1y","a1vx","a1vy",
+            "b1x","b1y","b1vx","b1vy",
+            "reward","value",
+            "action0","action1",
+            "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
+            "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
+            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y'
+        ])
 
     def get_user_action(self):
         dx = 0.0
@@ -214,20 +222,26 @@ class Game(arcade.Window):
         return action
         
 checkpoint_path = './checkpoints/checkpoint.pt'
-value_model = ValueModel()
-value_model.eval()
+value_model = ValueModel().eval()
+action0_model = ActionModel().eval()
+action1_model = ActionModel().eval()
 horizon = 0
 
-if os.path.exists(checkpoint_path):
-    print('Loading Value Checkpoint...')
-    value_checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(value_checkpoint['model_state_dict'])
-    horizon = value_checkpoint.get('horizon', 0)
+def load_checkpoint():
+    global horizon
+    if os.path.exists(checkpoint_path):
+        print('Loading Value Checkpoint...')
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        value_model.load_state_dict(checkpoint['value_model'])
+        action0_model.load_state_dict(checkpoint['action0_model'])
+        action1_model.load_state_dict(checkpoint['action1_model'])
+        horizon = checkpoint['horizon']
+        print(f'Horizon: {horizon}')
+
+load_checkpoint()
+get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
 generator = DataGenerator(value_model,batch_size=1,time_step=0.04)
-
-get_costate = vmap(grad(lambda x: value_model(x).sum()))
-    
 game = Game(generator)
 arcade.enable_timings()
 game.run()

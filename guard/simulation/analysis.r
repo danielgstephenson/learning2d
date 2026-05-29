@@ -1,27 +1,28 @@
+
+setwd(this.path::here())
 source = 'simulation'
 start=0
-end=100
-width=10
+end=1000
+width=5
 sourcePath = paste(source,'.csv',sep='')
-
 simData = read.csv(sourcePath)
+
+graphics.off()
+windows()
+
 
 frame = simData$frame
 time = simData$time
-a0x = simData$a0_x
-a0y = simData$a0_y
-b0x = simData$b0_x
-b0y = simData$b0_y
-a1x = simData$a1_x
-a1y = simData$a1_y
-b1x = simData$b1_x
-b1y = simData$b1_y
-g0x = simData$grad_a0_vx
-g0y = simData$grad_a0_vy
-g1x = simData$grad_a1_vx
-g1y = simData$grad_a1_vy
+a0x = simData$a0x
+a0y = simData$a0y
+b0x = simData$b0x
+b0y = simData$b0y
+a1x = simData$a1x
+a1y = simData$a1y
+b1x = simData$b1x
+b1y = simData$b1y
 reward = simData$reward
-value = simData$value_estimate
+value = simData$value
 act0 = simData$action0
 act1 = simData$action1
 c0x = simData$c0x[1]
@@ -36,15 +37,15 @@ cx = c(c0x,c1x,c2x,c3x,c0x)
 cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
 
-par(cex=2,mar=c(3,3,2,2))
+par(cex=1,mar=c(5,5,2,2))
 plot(time,reward,type='l',ylim=c(0,1))
-chargePath = paste(source,'-reward.png',sep='')
-dev.print(png,chargePath,width=1000,height=1000)
+chargePath = paste(source,'-reward.pdf',sep='')
+dev.print(pdf,chargePath)
 
-par(cex=2,mar=c(3,3,2,2))
-plot(time,value,type='l',ylim=c(0,1))
-valuePath = paste(source,'-value.png',sep='')
-dev.print(png,valuePath,width=1000,height=1000)
+par(cex=1,mar=c(5,5,2,2))
+plot(time,value,type='l')
+valuePath = paste(source,'-value.pdf',sep='')
+dev.print(pdf,valuePath)
 
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)
@@ -57,7 +58,6 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   }
 }
 
-par(cex=2,mar=c(0,0,1,0))
 tmin = start
 tmax = end #max(time)
 s = (tmin<=time&time<=tmax)
@@ -80,19 +80,21 @@ a1xs = a1x[s]
 a1ys = a1y[s]
 b1xs = b1x[s]
 b1ys = b1y[s]
-xmin = min(a0xs,b0xs,a1xs,b1xs) -width
-xmax = max(a0xs,b0xs,a1xs,b1xs) +width 
-ymin = min(a0ys,b0ys,a1ys,b1ys) -width
-ymax = max(a0ys,b0ys,a1ys,b1ys) +width
+xmin = min(a0xs,b0xs,a1xs,b1xs) - width
+xmax = max(a0xs,b0xs,a1xs,b1xs) + width 
+ymin = min(a0ys,b0ys,a1ys,b1ys) - width
+ymax = max(a0ys,b0ys,a1ys,b1ys) + width
+
+par(cex=2,mar=c(0,0,1,0))
 plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
      xlab='',ylab='',asp=1,axes=FALSE)
 title(main=sprintf("Time %.2f - %.2f", min(times), max(times)))
 drawCircle(0,0,radius=13,col=ringColor,lwd=3)
 lines(cx,cy,col=wallColor,xpd = NA)
-points(a0xs,a0ys,col=a0cols,pch=16,cex=0.5)
-points(b0xs,b0ys,col=b0cols,pch=16,cex=0.5)
-points(a1xs,a1ys,col=a1cols,pch=16,cex=0.5)
-points(b1xs,b1ys,col=b1cols,pch=16,cex=0.5)
+points(a0xs,a0ys,col=a0cols,pch=16,cex=0.1)
+points(b0xs,b0ys,col=b0cols,pch=16,cex=0.1)
+points(a1xs,a1ys,col=a1cols,pch=16,cex=0.1)
+points(b1xs,b1ys,col=b1cols,pch=16,cex=0.1)
 end = times==max(times)
 a0xe = a0xs[end]
 a0ye = a0ys[end]
@@ -119,6 +121,7 @@ if(life1e) {
 drawCircle(b0xe,b0ye,radius=10,col=b0col,lwd=2)
 drawCircle(b1xe,b1ye,radius=10,col=b1col,lwd=2)
 
-trajectoryPath = paste(source,'.png',sep='')
-dev.print(png,trajectoryPath,width=1000,height=1000)
+trajectoryPath = paste(source,'.pdf',sep='')
+dev.print(pdf,trajectoryPath)
+graphics.off()
 

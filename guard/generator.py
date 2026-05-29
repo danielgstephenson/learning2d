@@ -3,8 +3,8 @@ from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
 from math import pi
-from value import ValueModel
-from world import Agent, Blade, Boundary, World, physics_dtype, vision_cast, active_actions
+from models import ValueModel
+from world import Agent, Blade, Boundary, World, physics_dtype, vision_cast, actions, active_actions
 
 unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
@@ -14,15 +14,19 @@ class DataGenerator:
         self.value_model = value_model        
         self.time_step = time_step
         self.batch_size = batch_size
-        self.world_count = 64*self.batch_size
+        self.sample_idxs = torch.arange(self.batch_size)
+        self.actions = active_actions
+        self.action_count = active_actions.shape[0]
+        actionPairs = torch.cartesian_prod(self.actions,self.actions)
+        self.pair_count = actionPairs.shape[0]
+        actionMatrix = actionPairs.repeat(self.batch_size,1)
+        self.world_count = self.pair_count*self.batch_size
         self.world = World(self.world_count, self.time_step)
         self.ring_size = 13
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
         self.agent1 = Agent(self.world, 1)
         self.blade1 = Blade(self.world, self.agent1)
-        actionPairs = torch.cartesian_prod(active_actions,active_actions)
-        actionMatrix = actionPairs.repeat(self.batch_size,1)
         self.agent0.action = actionMatrix[:,0]
         self.agent1.action = actionMatrix[:,1]
         self.world.boundary = Boundary(self.world)
@@ -49,7 +53,7 @@ class DataGenerator:
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
         corners_local = unit_square.unsqueeze(0) * self.radius + self.box_offset.unsqueeze(1) # (n,4,2)
         rotated_corners = torch.einsum('bij,bkj->bki', self.rotation, corners_local)
-        rotated_corners = rotated_corners.repeat_interleave(64,dim=0)
+        rotated_corners = rotated_corners.repeat_interleave(self.pair_count,dim=0)
         self.world.boundary.setup(rotated_corners)
 
     def reset(self):
@@ -91,8 +95,8 @@ class DataGenerator:
         b1_max = torch.min(a1p_local + 65, self.box_offset + blade_bound)
         b1_min = torch.max(a1p_local - 65, self.box_offset - blade_bound)
         b1p_local = b1_min + (b1_max - b1_min) * torch.rand(n, 2)
-        life0 = torch.rand(n, 1) < 0.9
-        life1 = torch.rand(n, 1) < 0.9
+        life0 = torch.rand(n, 1) < 0.5
+        life1 = torch.rand(n, 1) < 0.5
         a0p = torch.einsum('bij,bj->bi', self.rotation, a0p_local)
         a1p = torch.einsum('bij,bj->bi', self.rotation, a1p_local)
         b0p = torch.einsum('bij,bj->bi', self.rotation, b0p_local)
@@ -101,16 +105,16 @@ class DataGenerator:
         a1v = get_random_vectors(n, 30)
         b0v = get_random_vectors(n, 45)
         b1v = get_random_vectors(n, 45)
-        self.agent0.alive = life0.repeat_interleave(64,dim=0)
-        self.agent1.alive = life1.repeat_interleave(64,dim=0)
-        self.agent0.position = a0p.repeat_interleave(64,dim=0)
-        self.agent1.position = a1p.repeat_interleave(64,dim=0)
-        self.blade0.position = b0p.repeat_interleave(64,dim=0)
-        self.blade1.position = b1p.repeat_interleave(64,dim=0)
-        self.agent0.velocity = a0v.repeat_interleave(64,dim=0)
-        self.agent1.velocity = a1v.repeat_interleave(64,dim=0)
-        self.blade0.velocity = b0v.repeat_interleave(64,dim=0)
-        self.blade1.velocity = b1v.repeat_interleave(64,dim=0)
+        self.agent0.alive = life0.repeat_interleave(self.pair_count,dim=0)
+        self.agent1.alive = life1.repeat_interleave(self.pair_count,dim=0)
+        self.agent0.position = a0p.repeat_interleave(self.pair_count,dim=0)
+        self.agent1.position = a1p.repeat_interleave(self.pair_count,dim=0)
+        self.blade0.position = b0p.repeat_interleave(self.pair_count,dim=0)
+        self.blade1.position = b1p.repeat_interleave(self.pair_count,dim=0)
+        self.agent0.velocity = a0v.repeat_interleave(self.pair_count,dim=0)
+        self.agent1.velocity = a1v.repeat_interleave(self.pair_count,dim=0)
+        self.blade0.velocity = b0v.repeat_interleave(self.pair_count,dim=0)
+        self.blade1.velocity = b1v.repeat_interleave(self.pair_count,dim=0)
         self.update()
 
     def reset_custom(self): # Only works for batch_size = 1
@@ -130,7 +134,7 @@ class DataGenerator:
         self.blade0.position[0] = torch.einsum('ij,j->i', self.rotation[0], b0_min + (b0_max - b0_min) * torch.rand(2))
         self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
         self.update()
-
+        
     def get_action_values(self)->Tensor:
         assert self.batch_size == 1, f'get_action_values requires batch_size=1, got {self.batch_size}'
         self.value_model.eval()
@@ -139,7 +143,7 @@ class DataGenerator:
             saved = [(c.position[0].clone(), c.velocity[0].clone()) for c in self.world.circles]
             saved_alive0 = self.agent0.alive[0].clone()
             saved_alive1 = self.agent1.alive[0].clone()
-            # Broadcast world 0 to all 64 worlds
+            # Broadcast world 0 to all worlds
             for c in self.world.circles:
                 c.position[:] = c.position[0]
                 c.velocity[:] = c.velocity[0]
@@ -148,8 +152,8 @@ class DataGenerator:
             # Step and evaluate
             self.world.step()
             self.update()
-            outcome_values = torch.sigmoid(self.value_model(self.state))
-            q = outcome_values.view(8, 8)  # (agent0_actions, agent1_actions)
+            outcome_values = self.value_model(self.state)
+            q = outcome_values.view(self.action_count, self.action_count)  # (agent0_actions, agent1_actions)
             # Restore world 0
             for c, (pos, vel) in zip(self.world.circles, saved):
                 c.position[0] = pos
@@ -160,8 +164,8 @@ class DataGenerator:
 
     def get_minimax_actions(self)->tuple[int,int]:
         q = self.get_action_values()
-        action0 = int(q.amin(dim=1).argmax().item())  # agent0 maximizes worst-case over agent1
-        action1 = int(q.amax(dim=0).argmin().item())  # agent1 minimizes best-case over agent0
+        action0 = int(q[1:,:].amin(dim=1).argmax().item())+1
+        action1 = int(q[:,1:].amax(dim=0).argmin().item())+1
         return action0, action1
 
     def get_simulation_state(self)->Tensor:
@@ -188,38 +192,42 @@ class DataGenerator:
         self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
-        ring_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
-        ring_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
+        center_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
+        center_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
         key_dist = self.ring_size - self.agent0.radius
-        inRing0 = ring_dist0 < key_dist
-        inRing1 = ring_dist1 < key_dist
+        inRing0 = center_dist0 < key_dist
+        inRing1 = center_dist1 < key_dist
         charging0 = inRing0 & self.agent0.alive
         charging1 = inRing1 & self.agent1.alive
-        ring_near0 = self.agent0.alive.float()*torch.sigmoid(0.1*(key_dist-ring_dist0))
-        ring_near1 = self.agent1.alive.float()*torch.sigmoid(0.1*(key_dist-ring_dist1))
-        dist_reward = 0.5 + 0.5*ring_near0 - 0.5*ring_near1
-        ring_reward = 0.5 + 0.5*charging0.float() - 0.5*charging1.float()
-        self.reward = 0.9*ring_reward + 0.1*dist_reward
+        dist_reward = center_dist1 - center_dist0
+        ring_reward = charging0.float() - charging1.float()
+        self.reward = 100.0*ring_reward + 1.0*dist_reward
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
-        p = 0.005 # Discount Rate
+        p = 0.01 # Discount Rate
+        n = self.batch_size
         self.value_model.eval()
         with torch.no_grad():
             self.reset()
-            state = self.state[::64].clone()
-            reward = self.reward[::64].clone()
+            state = self.state[::self.pair_count].clone()
+            reward = self.reward[::self.pair_count].clone()
+            null_action = torch.zeros(n).long()
             if horizon==0:
-                return state, reward
+                return state, reward, null_action, null_action
             self.world.step()
             self.update()
-            outcome_values = torch.sigmoid(self.value_model(self.state))
-            q = outcome_values.view(self.batch_size,8,8,1)
-            average_value = q.mean(dim=(1,2))
-            minimax_value = q.amin(dim=2).amax(dim=1)
-            noise = 0.01
+            outcome_values = self.value_model(self.state)
+            q = outcome_values.view(self.batch_size,self.action_count,self.action_count)  
+            average_value = q.mean(dim=(1,2)).reshape(n,1)  
+            action0_values = q.amin(dim=2)    
+            action0 = action0_values.argmax(dim=1)   
+            action1_values = q[self.sample_idxs,action0,:]     
+            action1 = action1_values.argmin(dim=1)    
+            minimax_value = q[self.sample_idxs,action0,action1].reshape(n,1) 
+            noise = 0.1
             continuation_value = noise*average_value + (1-noise)*minimax_value
-            target = p*reward + (1-p)*continuation_value
-            return state, target
+            value = p*reward + (1-p)*continuation_value
+            return state, value, action0, action1
 
 def get_random_directions(count: int)->Tensor:
     normals = torch.randn(count, 2)
