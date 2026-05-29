@@ -18,7 +18,7 @@ class ValueModel(nn.Module):
     def forward(self, x: Tensor)->Tensor:
         x = 0.01 * self.projection(x)
         for norm, layer in zip(self.layer_norms, self.hidden_layers):
-            x = x + layer(F.silu(norm(x)))
+            x = x + layer(F.elu(norm(x)))
         return self.output_layer(self.final_norm(x))
     def __call__(self, *args, **kwds)->Tensor:
         return super().__call__(*args, **kwds)

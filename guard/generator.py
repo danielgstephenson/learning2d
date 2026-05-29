@@ -16,7 +16,7 @@ class DataGenerator:
         self.batch_size = batch_size
         self.world_count = 64*self.batch_size
         self.world = World(self.world_count, self.time_step)
-        self.ring_size = 20
+        self.ring_size = 13
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
         self.agent1 = Agent(self.world, 1)
@@ -131,6 +131,39 @@ class DataGenerator:
         self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
         self.update()
 
+    def get_action_values(self)->Tensor:
+        assert self.batch_size == 1, f'get_action_values requires batch_size=1, got {self.batch_size}'
+        self.value_model.eval()
+        with torch.no_grad():
+            # Save world 0 state
+            saved = [(c.position[0].clone(), c.velocity[0].clone()) for c in self.world.circles]
+            saved_alive0 = self.agent0.alive[0].clone()
+            saved_alive1 = self.agent1.alive[0].clone()
+            # Broadcast world 0 to all 64 worlds
+            for c in self.world.circles:
+                c.position[:] = c.position[0]
+                c.velocity[:] = c.velocity[0]
+            self.agent0.alive[:] = saved_alive0
+            self.agent1.alive[:] = saved_alive1
+            # Step and evaluate
+            self.world.step()
+            self.update()
+            outcome_values = torch.sigmoid(self.value_model(self.state))
+            q = outcome_values.view(8, 8)  # (agent0_actions, agent1_actions)
+            # Restore world 0
+            for c, (pos, vel) in zip(self.world.circles, saved):
+                c.position[0] = pos
+                c.velocity[0] = vel
+            self.agent0.alive[0] = saved_alive0
+            self.agent1.alive[0] = saved_alive1
+            return q
+
+    def get_minimax_actions(self)->tuple[int,int]:
+        q = self.get_action_values()
+        action0 = int(q.amin(dim=1).argmax().item())  # agent0 maximizes worst-case over agent1
+        action1 = int(q.amax(dim=0).argmin().item())  # agent1 minimizes best-case over agent0
+        return action0, action1
+
     def get_simulation_state(self)->Tensor:
         origin = self.world.agents[1].position
         wallPoints = vision_cast(origin,vision_reach,self.world.boundary)   # (n,8,2)
@@ -157,11 +190,16 @@ class DataGenerator:
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
         ring_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
         ring_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
-        inRing0 = ring_dist0 < self.ring_size - self.agent0.radius
-        inRing1 = ring_dist1 < self.ring_size - self.agent1.radius
+        key_dist = self.ring_size - self.agent0.radius
+        inRing0 = ring_dist0 < key_dist
+        inRing1 = ring_dist1 < key_dist
         charging0 = inRing0 & self.agent0.alive
         charging1 = inRing1 & self.agent1.alive
-        self.reward = 0.5 + 0.5*charging0.float() - 0.5*charging1.float()
+        ring_near0 = self.agent0.alive.float()*torch.sigmoid(0.1*(key_dist-ring_dist0))
+        ring_near1 = self.agent1.alive.float()*torch.sigmoid(0.1*(key_dist-ring_dist1))
+        dist_reward = 0.5 + 0.5*ring_near0 - 0.5*ring_near1
+        ring_reward = 0.5 + 0.5*charging0.float() - 0.5*charging1.float()
+        self.reward = 0.9*ring_reward + 0.1*dist_reward
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         p = 0.005 # Discount Rate

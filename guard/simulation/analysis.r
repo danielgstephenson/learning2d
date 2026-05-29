@@ -1,7 +1,7 @@
 source = 'simulation'
 start=0
 end=100
-width=20
+width=10
 sourcePath = paste(source,'.csv',sep='')
 
 simData = read.csv(sourcePath)
@@ -36,6 +36,16 @@ cx = c(c0x,c1x,c2x,c3x,c0x)
 cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
 
+par(cex=2,mar=c(3,3,2,2))
+plot(time,reward,type='l',ylim=c(0,1))
+chargePath = paste(source,'-reward.png',sep='')
+dev.print(png,chargePath,width=1000,height=1000)
+
+par(cex=2,mar=c(3,3,2,2))
+plot(time,value,type='l',ylim=c(0,1))
+valuePath = paste(source,'-value.png',sep='')
+dev.print(png,valuePath,width=1000,height=1000)
+
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)
   xs <- x + radius * cos(theta)
@@ -50,7 +60,7 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
 par(cex=2,mar=c(0,0,1,0))
 tmin = start
 tmax = end #max(time)
-s = (tmin<=time&time<=tmax) & (simData$life1>0)
+s = (tmin<=time&time<=tmax)
 times = time[s]
 tmin = max(tmin,min(times))
 tmax = min(tmax,max(times))
@@ -77,7 +87,7 @@ ymax = max(a0ys,b0ys,a1ys,b1ys) +width
 plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
      xlab='',ylab='',asp=1,axes=FALSE)
 title(main=sprintf("Time %.2f - %.2f", min(times), max(times)))
-drawCircle(0,0,radius=15,col=ringColor)
+drawCircle(0,0,radius=13,col=ringColor,lwd=3)
 lines(cx,cy,col=wallColor,xpd = NA)
 points(a0xs,a0ys,col=a0cols,pch=16,cex=0.5)
 points(b0xs,b0ys,col=b0cols,pch=16,cex=0.5)

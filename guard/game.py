@@ -74,7 +74,7 @@ class Game(arcade.Window):
         self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
-            "frame","time","life0","life1",
+            "horizon","frame","time","life0","life1",
             "a0_x", "a0_y", "a0_vx", "a0_vy",
             "b0_x", "b0_y", "b0_vx", "b0_vy",
             "a1_x", "a1_y", "a1_vx", "a1_vy",
@@ -165,7 +165,7 @@ class Game(arcade.Window):
         generator.agent1.action = torch.argmax(action_values1, dim=1)
         # generator.agent0.action[self.index] = self.get_user_action()
         row = [
-            self.frame_counter+1,self.world.time,
+            horizon,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
             self.generator.agent1.alive[self.index,0].int().item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
@@ -216,11 +216,13 @@ class Game(arcade.Window):
 checkpoint_path = './checkpoints/checkpoint.pt'
 value_model = ValueModel()
 value_model.eval()
+horizon = 0
 
 if os.path.exists(checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(checkpoint_path, weights_only=False)
     value_model.load_state_dict(value_checkpoint['model_state_dict'])
+    horizon = value_checkpoint.get('horizon', 0)
 
 generator = DataGenerator(value_model,batch_size=1,time_step=0.04)
 
