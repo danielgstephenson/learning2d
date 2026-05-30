@@ -1,15 +1,14 @@
 
 setwd(this.path::here())
-source = 'simulation'
 start=0
 end=1000
 width=5
+source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
 simData = read.csv(sourcePath)
 
 graphics.off()
 windows()
-
 
 frame = simData$frame
 time = simData$time
@@ -48,13 +47,14 @@ plot(time,value,type='l')
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
 
-s = 4<ringDist0 & ringDist0<12
-plot(ringDist0[s],value[s])
-distValuePath = paste(source,'-dist0-value.pdf',sep='')
+s = 15<ringDist1 & ringDist1<20
+
+plot(ringDist1[s],value[s])
+distValuePath = paste(source,'-dist-value.pdf',sep='')
 dev.print(pdf,distValuePath)
 
-plot(ringDist0[s],reward[s])
-rewardValuePath = paste(source,'-dist0-reward.pdf',sep='')
+plot(ringDist1[s],reward[s])
+rewardValuePath = paste(source,'-dist-reward.pdf',sep='')
 dev.print(pdf,rewardValuePath)
 
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {

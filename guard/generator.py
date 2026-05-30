@@ -167,6 +167,7 @@ class DataGenerator:
                 c.velocity[0] = vel
             self.agent0.alive[0] = saved_alive0
             self.agent1.alive[0] = saved_alive1
+            self.update()
             return q
 
     def get_minimax_actions(self)->tuple[int,int]:
@@ -188,9 +189,9 @@ class DataGenerator:
         key_dist = self.ring_size - self.agent0.radius
         ringDist0 = center_dist0 - key_dist
         ringDist1 = center_dist1 - key_dist
-        far0 = self.agent0.alive * torch.sigmoid(-0.1*ringDist0)
-        far1 = self.agent1.alive * torch.sigmoid(-0.1*ringDist1)
-        self.reward = far1
+        near0 = self.agent0.alive * torch.sigmoid(-0.1*ringDist0)
+        near1 = self.agent1.alive * torch.sigmoid(-0.1*ringDist1)
+        self.reward = 1 - near1
 
     def get_state(self)->Tensor:
         origin = self.world.agents[1].position
@@ -211,7 +212,7 @@ class DataGenerator:
         return torch.cat(stateTensors,dim=1)
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
-        p = 0.2 # Discount Rate
+        p = 0.1 # Discount Rate
         n = self.batch_size
         self.value_model.eval()
         with torch.no_grad():
@@ -234,6 +235,7 @@ class DataGenerator:
             noise = 0.1
             continuation_value = noise*average_value + (1-noise)*minimax_value
             value = p*reward + (1-p)*continuation_value
+            value = value.clamp(0,1)
             return state, value, action0, action1
 
 def get_random_directions(count: int)->Tensor:
