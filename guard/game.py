@@ -142,7 +142,7 @@ class Game(arcade.Window):
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         state = self.generator.get_state()
-        value_estimate = value_model(state)
+        value_estimate = torch.sigmoid(value_model(state))
         action0_values = action0_model(state)
         action1_values = action1_model(state)
         # costate = get_costate(state)

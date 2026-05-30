@@ -67,10 +67,10 @@ else:
 # horizon = 1
 # batch = 0
 
-batch_size = 3000
+batch_size = 5000
 batch_count = 20
 epoch_count = 1
-minibatch_size = 500
+minibatch_size = 1000
 time_step = 0.1
 minibatch_count = batch_size // minibatch_size
 print('minibatch_count',minibatch_count)
@@ -91,13 +91,14 @@ for _ in range(100000000):
             value_optimizer.zero_grad()
             action0_optimizer.zero_grad()
             action1_optimizer.zero_grad()
-            value_estimate = value_model(state)
+            value_logit = value_model(state)
             action0_logit = action0_model(state)
             action1_logit = action1_model(state)
-            value_loss = F.mse_loss(value_estimate, value)
+            value_loss = F.binary_cross_entropy_with_logits(value_logit, value)
             value_loss.backward()
             value_optimizer.step()
-            # if horizon > 0:
+            # Focus on training the value model for now.
+            # if horizon > 0: 
             #     action0_loss = F.cross_entropy(action0_logit, action0)
             #     action1_loss = F.cross_entropy(action1_logit, action1)
             #     action_loss = action0_loss + action1_loss
@@ -105,9 +106,10 @@ for _ in range(100000000):
             #     action0_optimizer.step()
             #     action1_optimizer.step()
         with torch.no_grad():
-            full_value_estimate = value_model(full_state)
+            full_value_estimate = torch.sigmoid(value_model(full_state))
             full_value_mse = F.mse_loss(full_value_estimate, full_value)
-            null_value_mse = ((full_value - full_value.mean())**2).mean()
+            null_value_estimate = full_value.mean()
+            null_value_mse = ((full_value - null_value_estimate)**2).mean()
             value_quality = 1 - full_value_mse / null_value_mse
             full_action0_logit = action0_model(full_state)
             full_action1_logit = action1_model(full_state)
@@ -119,6 +121,7 @@ for _ in range(100000000):
             message += f'Horizon: {horizon}, '
             message += f'Batch: {batch+1}, '
             message += f'Epoch: {epoch+1}, '
+            message += f'Value: {null_value_estimate:.03f}, '
             message += f'Model: {value_quality:.03f}, '
             message += f'Action0: {action0_quality:.03f}, '
             message += f'Action1: {action1_quality:.03f}, '

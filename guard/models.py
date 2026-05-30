@@ -16,7 +16,7 @@ class ValueModel(nn.Module):
         self.output_layer = nn.Linear(k, 1)
         self.final_norm = nn.LayerNorm(k)
     def forward(self, x: Tensor)->Tensor:
-        x = 0.01 * self.projection(x)
+        x = self.projection(x)
         for norm, layer in zip(self.layer_norms, self.hidden_layers):
             x = x + layer(F.elu(norm(x)))
         return self.output_layer(self.final_norm(x))

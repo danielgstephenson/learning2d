@@ -2,7 +2,9 @@ import torch
 from torch import Tensor
 from torch.func import vmap, grad
 import torch.nn.functional as F
+from torch.linalg import vector_norm
 from math import pi
+
 from models import ValueModel
 from world import Agent, Blade, Boundary, World, physics_dtype, vision_cast, actions, active_actions
 
@@ -175,20 +177,20 @@ class DataGenerator:
 
     def update(self):
         self.state = self.get_state()
-        self.gap0 = torch.norm(self.agent0.position-self.blade1.position,p=2,dim=1,keepdim=True)
-        self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
+        gapVector0 = self.agent0.position-self.blade1.position
+        gapVector1 = self.agent1.position-self.blade0.position
+        self.gap0 = vector_norm(gapVector0,dim=1,keepdim=True)
+        self.gap1 = vector_norm(gapVector1,dim=1,keepdim=True)
         self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
-        center_dist0 = torch.norm(self.agent0.position, p=2, dim=1, keepdim=True)
-        center_dist1 = torch.norm(self.agent1.position, p=2, dim=1, keepdim=True)
+        center_dist0 = vector_norm(self.agent0.position,dim=1,keepdim=True)
+        center_dist1 = vector_norm(self.agent1.position,dim=1,keepdim=True)
         key_dist = self.ring_size - self.agent0.radius
-        inRing0 = center_dist0 < key_dist
-        inRing1 = center_dist1 < key_dist
-        close0 = 100*inRing0 + 0.5*F.relu(200 - center_dist0)
-        close1 = 100*inRing1 + 0.5*F.relu(200 - center_dist1)
-        reward0 = self.agent0.alive * close0
-        reward1 = self.agent1.alive * close1
-        self.reward = reward0 - reward1
+        ringDist0 = center_dist0 - key_dist
+        ringDist1 = center_dist1 - key_dist
+        far0 = self.agent0.alive * torch.sigmoid(-0.1*ringDist0)
+        far1 = self.agent1.alive * torch.sigmoid(-0.1*ringDist1)
+        self.reward = far1
 
     def get_state(self)->Tensor:
         origin = self.world.agents[1].position
@@ -209,7 +211,7 @@ class DataGenerator:
         return torch.cat(stateTensors,dim=1)
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
-        p = 0.02 # Discount Rate
+        p = 0.2 # Discount Rate
         n = self.batch_size
         self.value_model.eval()
         with torch.no_grad():
@@ -221,7 +223,7 @@ class DataGenerator:
                 return state, reward, null_action, null_action
             self.world.step()
             self.update()
-            outcome_values = self.value_model(self.state)
+            outcome_values = torch.sigmoid(self.value_model(self.state))
             q = outcome_values.view(self.batch_size,self.action_count,self.action_count)  
             average_value = q.mean(dim=(1,2)).reshape(n,1)  
             action0_values = q.amin(dim=2)    
