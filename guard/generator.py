@@ -123,7 +123,8 @@ class DataGenerator:
         self.reset()
         r_val = (self.radius[0] - self.agent0.radius).item() * 0.9
         a0p_local = self.box_offset[0] + torch.tensor([r_val, r_val])
-        a1p_local = self.box_offset[0] + torch.tensor([-r_val, -r_val])
+        # a1p_local = self.box_offset[0] + torch.tensor([-r_val, -r_val])
+        a1p_local = torch.zeros(2)
         self.agent0.position[0] = torch.einsum('ij,j->i', self.rotation[0], a0p_local)
         self.agent1.position[0] = torch.einsum('ij,j->i', self.rotation[0], a1p_local)
         self.agent0.velocity[0] = torch.zeros(2)
@@ -135,6 +136,8 @@ class DataGenerator:
         b1_min = torch.max(a1p_local - 65, self.box_offset[0] - blade_bound)
         self.blade0.position[0] = torch.einsum('ij,j->i', self.rotation[0], b0_min + (b0_max - b0_min) * torch.rand(2))
         self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
+        self.agent0.alive = torch.ones_like(self.agent0.alive).bool()
+        self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.update()
         
     def get_action_values(self)->Tensor:

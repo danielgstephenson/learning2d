@@ -128,8 +128,8 @@ class Game(arcade.Window):
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
-        # self.camera.position = self.agentCircles[0].position
-        self.camera.position = (0,0)
+        self.camera.position = self.agentCircles[0].position
+        # self.camera.position = (0,0)
         if self.paused: return
         self.world.step()
         self.generator.update()
