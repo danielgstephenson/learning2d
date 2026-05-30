@@ -35,17 +35,27 @@ c3x = simData$c3x[1]
 c3y = simData$c3y[1]
 cx = c(c0x,c1x,c2x,c3x,c0x)
 cy = c(c0y,c1y,c2y,c3y,c0y)
-ringDist = sqrt(a1x^2+a1y^2)
+ringDist0 = sqrt(a0x^2+a0y^2)
+ringDist1 = sqrt(a1x^2+a1y^2)
 
 par(cex=1,mar=c(5,5,2,2))
+
 plot(time,reward,type='l')
 chargePath = paste(source,'-reward.pdf',sep='')
 dev.print(pdf,chargePath)
 
-par(cex=1,mar=c(5,5,2,2))
 plot(time,value,type='l')
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
+
+s = 4<ringDist0 & ringDist0<12
+plot(ringDist0[s],value[s])
+distValuePath = paste(source,'-dist0-value.pdf',sep='')
+dev.print(pdf,distValuePath)
+
+plot(ringDist0[s],reward[s])
+rewardValuePath = paste(source,'-dist0-reward.pdf',sep='')
+dev.print(pdf,rewardValuePath)
 
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)

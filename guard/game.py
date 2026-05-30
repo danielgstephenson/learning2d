@@ -153,9 +153,9 @@ class Game(arcade.Window):
         # generator.agent0.action = torch.argmax(action0_values, dim=1)
         # generator.agent1.action = torch.argmax(action1_values, dim=1)
         minimax_actions = generator.get_minimax_actions()
-        generator.agent0.action[self.index] = minimax_actions[0]
+        # generator.agent0.action[self.index] = minimax_actions[0]
         generator.agent1.action[self.index] = minimax_actions[1]
-        # generator.agent0.action[self.index] = self.get_user_action()
+        generator.agent0.action[self.index] = self.get_user_action()
         row = [
             horizon,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
