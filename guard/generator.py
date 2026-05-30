@@ -168,7 +168,7 @@ class DataGenerator:
         action1 = int(q[:,1:].amax(dim=0).argmin().item())+1
         return action0, action1
 
-    def get_simulation_state(self)->Tensor:
+    def get_state(self)->Tensor:
         origin = self.world.agents[1].position
         wallPoints = vision_cast(origin,vision_reach,self.world.boundary)   # (n,8,2)
         stateTensors = [
@@ -187,7 +187,7 @@ class DataGenerator:
         return torch.cat(stateTensors,dim=1)
 
     def update(self):
-        self.state = self.get_simulation_state()
+        self.state = self.get_state()
         self.gap0 = torch.norm(self.agent0.position-self.blade1.position,p=2,dim=1,keepdim=True)
         self.gap1 = torch.norm(self.agent1.position-self.blade0.position,p=2,dim=1,keepdim=True)
         self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
@@ -197,11 +197,9 @@ class DataGenerator:
         key_dist = self.ring_size - self.agent0.radius
         inRing0 = center_dist0 < key_dist
         inRing1 = center_dist1 < key_dist
-        charging0 = inRing0 & self.agent0.alive
-        charging1 = inRing1 & self.agent1.alive
-        dist_reward = center_dist1 - center_dist0
-        ring_reward = charging0.float() - charging1.float()
-        self.reward = 100.0*ring_reward + 1.0*dist_reward
+        reward0 = self.agent0.alive * F.relu(200 - center_dist0 + 100*inRing0)
+        reward1 = self.agent1.alive * F.relu(200 - center_dist1 + 100*inRing1)
+        self.reward = reward0 - reward1
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
         p = 0.01 # Discount Rate

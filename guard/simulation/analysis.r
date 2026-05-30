@@ -38,7 +38,7 @@ cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist = sqrt(a1x^2+a1y^2)
 
 par(cex=1,mar=c(5,5,2,2))
-plot(time,reward,type='l',ylim=c(0,1))
+plot(time,reward,type='l')
 chargePath = paste(source,'-reward.pdf',sep='')
 dev.print(pdf,chargePath)
 

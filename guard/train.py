@@ -64,8 +64,8 @@ else:
 # for param_group in value_optimizer.param_groups:
 #     param_group['lr'] = 1e-4
 
-# horizon = 1
-# batch = 0
+horizon = 1
+batch = 0
 
 batch_size = 3000
 batch_count = 20

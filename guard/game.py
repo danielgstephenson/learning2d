@@ -141,7 +141,7 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
-        state = self.generator.get_simulation_state()
+        state = self.generator.get_state()
         value_estimate = value_model(state)
         action0_values = action0_model(state)
         action1_values = action1_model(state)
@@ -153,9 +153,9 @@ class Game(arcade.Window):
         # generator.agent0.action = torch.argmax(action0_values, dim=1)
         # generator.agent1.action = torch.argmax(action1_values, dim=1)
         minimax_actions = generator.get_minimax_actions()
-        # generator.agent0.action[self.index] = minimax_actions[0]
+        generator.agent0.action[self.index] = minimax_actions[0]
         generator.agent1.action[self.index] = minimax_actions[1]
-        generator.agent0.action[self.index] = self.get_user_action()
+        # generator.agent0.action[self.index] = self.get_user_action()
         row = [
             horizon,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
