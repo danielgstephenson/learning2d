@@ -22,11 +22,9 @@ class DataGenerator:
         actionPairs = torch.cartesian_prod(self.actions,self.actions)
         self.pair_count = actionPairs.shape[0]
         actionMatrix = actionPairs.repeat(self.batch_size,1)
-        self.world_count = self.pair_count*self.batch_size
-        self.world = World(self.world_count, self.time_step)
+        world_count = self.pair_count*self.batch_size
+        self.world = World(world_count, self.time_step)
         self.ring_size = 13
-        self.charge = 0
-        self.charge_interval = 4
         self.agent0 = Agent(self.world, 0)
         self.blade0 = Blade(self.world, self.agent0)
         self.agent1 = Agent(self.world, 1)
@@ -109,6 +107,7 @@ class DataGenerator:
         a1v = get_random_vectors(n, 30)
         b0v = get_random_vectors(n, 45)
         b1v = get_random_vectors(n, 45)
+        charge = torch.rand(self.batch_size,1)
         self.agent0.alive = life0.repeat_interleave(self.pair_count,dim=0)
         self.agent1.alive = life1.repeat_interleave(self.pair_count,dim=0)
         self.agent0.position = a0p.repeat_interleave(self.pair_count,dim=0)
@@ -119,6 +118,7 @@ class DataGenerator:
         self.agent1.velocity = a1v.repeat_interleave(self.pair_count,dim=0)
         self.blade0.velocity = b0v.repeat_interleave(self.pair_count,dim=0)
         self.blade1.velocity = b1v.repeat_interleave(self.pair_count,dim=0)
+        self.world.charge = charge.repeat_interleave(self.pair_count,dim=0)
         self.update()
 
     def reset_custom(self): # Only works for batch_size = 1
@@ -140,6 +140,7 @@ class DataGenerator:
         self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
         self.agent0.alive = torch.ones_like(self.agent0.alive).bool()
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
+        self.world.charge = torch.zeros(self.world.count,1)
         self.update()
         
     def get_action_values(self)->Tensor:
@@ -147,27 +148,21 @@ class DataGenerator:
         self.value_model.eval()
         with torch.no_grad():
             # Save world 0 state
-            saved = [(c.position[0].clone(), c.velocity[0].clone()) for c in self.world.circles]
-            saved_alive0 = self.agent0.alive[0].clone()
-            saved_alive1 = self.agent1.alive[0].clone()
+            state = self.get_state()
             # Broadcast world 0 to all worlds
             for c in self.world.circles:
                 c.position[:] = c.position[0]
                 c.velocity[:] = c.velocity[0]
-            self.agent0.alive[:] = saved_alive0
-            self.agent1.alive[:] = saved_alive1
+            self.agent0.alive[:] = self.agent0.alive[0].clone()
+            self.agent1.alive[:] = self.agent1.alive[0].clone()
+            self.world.charge[:] = self.world.charge[0].clone()
             # Step and evaluate
             self.world.step()
             self.update()
             outcome_values = self.value_model(self.state)
             q = outcome_values.view(self.action_count, self.action_count)  # (agent0_actions, agent1_actions)
-            # Restore world 0
-            for c, (pos, vel) in zip(self.world.circles, saved):
-                c.position[0] = pos
-                c.velocity[0] = vel
-            self.agent0.alive[0] = saved_alive0
-            self.agent1.alive[0] = saved_alive1
-            self.update()
+            # Restore saved world
+            self.load_state(state)
             return q
 
     def get_minimax_actions(self)->tuple[int,int]:
@@ -177,26 +172,25 @@ class DataGenerator:
         return action0, action1
 
     def update(self):
-        self.state = self.get_state()
+        self.state = self.get_state_vector()
         gapVector0 = self.agent0.position-self.blade1.position
         gapVector1 = self.agent1.position-self.blade0.position
         self.gap0 = vector_norm(gapVector0,dim=1,keepdim=True)
         self.gap1 = vector_norm(gapVector1,dim=1,keepdim=True)
         self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
-        center_dist0 = vector_norm(self.agent0.position,dim=1,keepdim=True)
         center_dist1 = vector_norm(self.agent1.position,dim=1,keepdim=True)
         key_dist = self.ring_size - self.agent0.radius
-        ringDist0 = center_dist0 - key_dist
         ringDist1 = center_dist1 - key_dist
-        near0 = self.agent0.alive * torch.sigmoid(-0.1*ringDist0)
-        near1 = self.agent1.alive * torch.sigmoid(-0.1*ringDist1)
-        self.reward = 1 - near1
+        inRing1 = ringDist1 < 0
+        B = 0.1
+        L = 0.3
+        nearRing1 = L + (1-L)*torch.sigmoid(-B*ringDist1)
+        self.reward = 1 - self.agent1.alive*nearRing1
+        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
 
-    def get_state(self)->Tensor:
-        origin = self.world.agents[1].position
-        wallPoints = vision_cast(origin,vision_reach,self.world.boundary)   # (n,8,2)
-        stateTensors = [
+    def get_state(self)->list[Tensor]:
+        state = [
             self.world.agents[0].velocity,
             self.world.agents[0].position,
             self.world.blades[0].velocity,
@@ -207,12 +201,33 @@ class DataGenerator:
             self.world.blades[1].position,
             self.agent0.alive.int(),
             self.agent1.alive.int(),
-            wallPoints.reshape(self.world.count, 16)
+            self.world.charge
         ]
-        return torch.cat(stateTensors,dim=1)
+        return state
+    
+    def load_state(self,state: list[Tensor]):
+        self.world.agents[0].velocity = state[0]
+        self.world.agents[0].position = state[1]
+        self.world.blades[0].velocity = state[2]
+        self.world.blades[0].position = state[3]
+        self.world.agents[1].velocity = state[4]
+        self.world.agents[1].position = state[5]
+        self.world.blades[1].velocity = state[6]
+        self.world.blades[1].position = state[7]
+        self.agent0.alive = (state[8]==1)
+        self.agent1.alive = (state[9]==1)
+        self.world.charge = state[10]
+        self.update()
+
+    def get_state_vector(self)->Tensor:
+        state = self.get_state()
+        origin = self.world.agents[1].position
+        wallPoints = vision_cast(origin,vision_reach,self.world.boundary)   # (n,8,2)
+        state.append(wallPoints.reshape(self.world.count, 16))
+        return torch.cat(state,dim=1)
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
-        p = 0.1 # Discount Rate
+        p = 1/300 # Discount Rate
         n = self.batch_size
         self.value_model.eval()
         with torch.no_grad():

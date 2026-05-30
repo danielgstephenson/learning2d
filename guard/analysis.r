@@ -1,7 +1,7 @@
 
 setwd(this.path::here())
-start=0
-end=1000
+start=8
+end=12
 width=5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
@@ -47,15 +47,13 @@ plot(time,value,type='l')
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
 
-s = 15<ringDist1 & ringDist1<20
-
-plot(ringDist1[s],value[s])
-distValuePath = paste(source,'-dist-value.pdf',sep='')
-dev.print(pdf,distValuePath)
-
-plot(ringDist1[s],reward[s])
-rewardValuePath = paste(source,'-dist-reward.pdf',sep='')
-dev.print(pdf,rewardValuePath)
+# s = 15<ringDist1 & ringDist1<20
+# plot(ringDist1[s],value[s])
+# distValuePath = paste(source,'-dist-value.pdf',sep='')
+# dev.print(pdf,distValuePath)
+# plot(ringDist1[s],reward[s])
+# rewardValuePath = paste(source,'-dist-reward.pdf',sep='')
+# dev.print(pdf,rewardValuePath)
 
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)
@@ -101,10 +99,10 @@ plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
 title(main=sprintf("Time %.2f - %.2f", min(times), max(times)))
 drawCircle(0,0,radius=13,col=ringColor,lwd=3)
 lines(cx,cy,col=wallColor,xpd = NA)
-points(a0xs,a0ys,col=a0cols,pch=16,cex=0.1)
-points(b0xs,b0ys,col=b0cols,pch=16,cex=0.1)
-points(a1xs,a1ys,col=a1cols,pch=16,cex=0.1)
-points(b1xs,b1ys,col=b1cols,pch=16,cex=0.1)
+points(a0xs,a0ys,col=a0cols,pch=16,cex=0.4)
+points(b0xs,b0ys,col=b0cols,pch=16,cex=0.4)
+points(a1xs,a1ys,col=a1cols,pch=16,cex=0.4)
+points(b1xs,b1ys,col=b1cols,pch=16,cex=0.4)
 end = times==max(times)
 a0xe = a0xs[end]
 a0ye = a0ys[end]

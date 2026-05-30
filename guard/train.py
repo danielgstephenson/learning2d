@@ -85,7 +85,7 @@ for _ in range(100000000):
     start_time = time.perf_counter()
     full_state, full_value, full_action0, full_action1 = data_generator.generate(horizon)
     dataset = TensorDataset(full_state, full_value, full_action0, full_action1)
-    loader = DataLoader(dataset, batch_size=minibatch_size, shuffle=True, generator=cuda_generator)
+    loader = DataLoader(dataset,batch_size=minibatch_size,shuffle=True,generator=cuda_generator)
     for epoch in range(epoch_count):
         for state, value, action0, action1 in loader:
             value_optimizer.zero_grad()
@@ -120,8 +120,6 @@ for _ in range(100000000):
             message = ''
             message += f'Horizon: {horizon}, '
             message += f'Batch: {batch+1}, '
-            message += f'Epoch: {epoch+1}, '
-            message += f'Value: {null_value_estimate:.03f}, '
             message += f'Model: {value_quality:.03f}, '
             message += f'Action0: {action0_quality:.03f}, '
             message += f'Action1: {action1_quality:.03f}, '
