@@ -1,5 +1,6 @@
 *.pem
-
+*.csv
+*.pdf
 *.bin
 *.pt
 *.onnx
