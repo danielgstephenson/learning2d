@@ -5,4 +5,5 @@
 *.pt
 *.onnx
 *.log
+.vscode/*
 __pycache__
