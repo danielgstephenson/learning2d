@@ -143,6 +143,23 @@ class DataGenerator:
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.world.charge = torch.zeros(self.world.count,1)
         self.update()
+
+    def update(self):
+        self.state = self.get_state_vector()
+        gapVector0 = self.agent0.position-self.blade1.position
+        gapVector1 = self.agent1.position-self.blade0.position
+        self.gap0 = vector_norm(gapVector0,dim=1,keepdim=True)
+        self.gap1 = vector_norm(gapVector1,dim=1,keepdim=True)
+        self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
+        self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
+        center_dist1 = vector_norm(self.agent1.position,dim=1,keepdim=True)
+        key_dist = self.ring_size - self.agent0.radius
+        ringDist1 = center_dist1 - key_dist
+        inRing1 = ringDist1 < 0
+        B = 0.1
+        nearRing1 = torch.sigmoid(-B*ringDist1)
+        self.reward = 1 - self.agent1.alive*nearRing1
+        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
         
     def get_action_values(self)->Tensor:
         assert self.batch_size == 1, f'get_action_values requires batch_size=1, got {self.batch_size}'
@@ -171,24 +188,6 @@ class DataGenerator:
         action0 = int(q[1:,:].amin(dim=1).argmax().item())+1
         action1 = int(q[:,1:].amax(dim=0).argmin().item())+1
         return action0, action1
-
-    def update(self):
-        self.state = self.get_state_vector()
-        gapVector0 = self.agent0.position-self.blade1.position
-        gapVector1 = self.agent1.position-self.blade0.position
-        self.gap0 = vector_norm(gapVector0,dim=1,keepdim=True)
-        self.gap1 = vector_norm(gapVector1,dim=1,keepdim=True)
-        self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
-        self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
-        center_dist1 = vector_norm(self.agent1.position,dim=1,keepdim=True)
-        key_dist = self.ring_size - self.agent0.radius
-        ringDist1 = center_dist1 - key_dist
-        inRing1 = ringDist1 < 0
-        B = 0.1
-        L = 0.3
-        nearRing1 = L + (1-L)*torch.sigmoid(-B*ringDist1)
-        self.reward = 1 - self.agent1.alive*nearRing1
-        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
 
     def get_state(self)->list[Tensor]:
         state = [
@@ -228,7 +227,7 @@ class DataGenerator:
         return torch.cat(state,dim=1)
 
     def generate(self, horizon: int)->tuple[Tensor,...]:
-        p = 1/300 # Discount Rate
+        p = 1/100 # Discount Rate
         n = self.batch_size
         self.value_model_a.eval()
         self.value_model_b.eval()

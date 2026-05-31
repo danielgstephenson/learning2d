@@ -86,7 +86,7 @@ print('minibatch_count',minibatch_count)
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(old_value_model_a,old_value_model_b,batch_size,time_step)
 last_log_time = time.perf_counter()
-quality_threshold = 0.985
+quality_threshold = 0.98
 value_quality_a = 0
 value_quality_b = 0
 
