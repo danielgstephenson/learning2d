@@ -153,9 +153,9 @@ class Game(arcade.Window):
         # generator.agent0.action = torch.argmax(action0_values, dim=1)
         # generator.agent1.action = torch.argmax(action1_values, dim=1)
         minimax_actions = generator.get_minimax_actions()
-        # generator.agent0.action[self.index] = minimax_actions[0]
-        generator.agent1.action[self.index] = minimax_actions[1]
-        generator.agent0.action[self.index] = self.get_user_action()
+        generator.agent0.action[self.index] = minimax_actions[0]
+        # generator.agent1.action[self.index] = minimax_actions[1]
+        generator.agent1.action[self.index] = self.get_user_action()
         row = [
             horizon,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
@@ -227,21 +227,18 @@ action0_model = ActionModel().eval()
 action1_model = ActionModel().eval()
 horizon = 0
 
-def load_checkpoint():
-    global horizon
-    if os.path.exists(checkpoint_path):
-        print('Loading Value Checkpoint...')
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
-        value_model.load_state_dict(checkpoint['value_model'])
-        action0_model.load_state_dict(checkpoint['action0_model'])
-        action1_model.load_state_dict(checkpoint['action1_model'])
-        horizon = checkpoint['horizon']
-        print(f'Horizon: {horizon}')
+if os.path.exists(checkpoint_path):
+    print(f'Loading Checkpoint from {checkpoint_path}...')
+    checkpoint = torch.load(checkpoint_path, weights_only=False)
+    value_model.load_state_dict(checkpoint['value_model_a'])
+    action0_model.load_state_dict(checkpoint['action0_model'])
+    action1_model.load_state_dict(checkpoint['action1_model'])
+    batch = checkpoint['batch']
+    horizon = checkpoint['horizon']
 
-load_checkpoint()
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
-generator = DataGenerator(value_model,batch_size=1,time_step=0.04)
+generator = DataGenerator(value_model,value_model,batch_size=1,time_step=0.04)
 game = Game(generator)
 arcade.enable_timings()
 game.run()

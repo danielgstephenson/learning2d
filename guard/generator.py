@@ -12,8 +12,9 @@ unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(self, value_model: ValueModel, batch_size = 3, time_step=0.1):
-        self.value_model = value_model        
+    def __init__(self, value_model_a: ValueModel, value_model_b: ValueModel, batch_size = 3, time_step=0.1):
+        self.value_model_a = value_model_a
+        self.value_model_b = value_model_b
         self.time_step = time_step
         self.batch_size = batch_size
         self.sample_idxs = torch.arange(self.batch_size)
@@ -145,7 +146,7 @@ class DataGenerator:
         
     def get_action_values(self)->Tensor:
         assert self.batch_size == 1, f'get_action_values requires batch_size=1, got {self.batch_size}'
-        self.value_model.eval()
+        self.value_model_a.eval()
         with torch.no_grad():
             # Save world 0 state
             state = self.get_state()
@@ -159,7 +160,7 @@ class DataGenerator:
             # Step and evaluate
             self.world.step()
             self.update()
-            outcome_values = self.value_model(self.state)
+            outcome_values = self.value_model_a(self.state)
             q = outcome_values.view(self.action_count, self.action_count)  # (agent0_actions, agent1_actions)
             # Restore saved world
             self.load_state(state)
@@ -229,29 +230,35 @@ class DataGenerator:
     def generate(self, horizon: int)->tuple[Tensor,...]:
         p = 1/300 # Discount Rate
         n = self.batch_size
-        self.value_model.eval()
+        self.value_model_a.eval()
+        self.value_model_b.eval()
         with torch.no_grad():
             self.reset()
             state = self.state[::self.pair_count].clone()
             reward = self.reward[::self.pair_count].clone()
             null_action = torch.zeros(n).long()
             if horizon==0:
-                return state, reward, null_action, null_action
+                return state, reward, reward, null_action, null_action
             self.world.step()
             self.update()
-            outcome_values = torch.sigmoid(self.value_model(self.state))
-            q = outcome_values.view(self.batch_size,self.action_count,self.action_count)  
-            average_value = q.mean(dim=(1,2)).reshape(n,1)  
-            action0_values = q.amin(dim=2)    
-            action0 = action0_values.argmax(dim=1)   
-            action1_values = q[self.sample_idxs,action0,:]     
-            action1 = action1_values.argmin(dim=1)    
-            minimax_value = q[self.sample_idxs,action0,action1].reshape(n,1) 
+            outcome_values_a = torch.sigmoid(self.value_model_a(self.state))
+            outcome_values_b = torch.sigmoid(self.value_model_b(self.state))
+            q_a = outcome_values_a.view(self.batch_size,self.action_count,self.action_count)
+            q_b = outcome_values_b.view(self.batch_size,self.action_count,self.action_count)
+            average_value_a = q_a.mean(dim=(1,2)).reshape(n,1)
+            average_value_b = q_b.mean(dim=(1,2)).reshape(n,1)
+            action0_a = q_b.amin(dim=2).argmax(dim=1)
+            action0_b = q_a.amin(dim=2).argmax(dim=1)
+            action1_a = q_b[self.sample_idxs,action0_a,:].argmin(dim=1)
+            action1_b = q_a[self.sample_idxs,action0_b,:].argmin(dim=1)
+            minimax_value_a = q_a[self.sample_idxs,action0_a,action1_a].reshape(n,1) 
+            minimax_value_b = q_b[self.sample_idxs,action0_b,action1_b].reshape(n,1) 
             noise = 0.1
-            continuation_value = noise*average_value + (1-noise)*minimax_value
-            value = p*reward + (1-p)*continuation_value
-            value = value.clamp(0,1)
-            return state, value, action0, action1
+            continuation_value_a = noise*average_value_a + (1-noise)*minimax_value_a
+            continuation_value_b = noise*average_value_b + (1-noise)*minimax_value_b
+            value_a = p*reward + (1-p)*continuation_value_a
+            value_b = p*reward + (1-p)*continuation_value_b
+            return state, value_a, value_b, action0_a, action1_a
 
 def get_random_directions(count: int)->Tensor:
     normals = torch.randn(count, 2)
