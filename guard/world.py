@@ -38,7 +38,7 @@ class Agent(Circle):
         self.align = align
         self.drag = 0.7
         self.move_power = 20
-        self.action = torch.zeros(world.count).int()
+        self.action = torch.zeros(world.count,1).int()
 
 class Blade(Circle):
     def __init__(self, world: World, agent: Agent):
@@ -66,8 +66,7 @@ for i in range(8):
     action_vector_list.append(vision_dir)
 action_tensor = torch.tensor(action_vector_list,dtype=physics_dtype)
 actions = torch.tensor([i for i in range(9)])
-active_actions = actions[1:]
-active_action_tensor = action_tensor[1:,:]
+action_count = actions.shape[0]
 
 vision_dir_list: list[list[float]] = []
 for i in range(8):
@@ -102,7 +101,8 @@ class World:
             blade.impulse.fill_(0.0)
             blade.shift.fill_(0.0)
         for agent in self.agents:
-            agent.force = agent.move_power * action_tensor[agent.action,:]
+            action = agent.action[:,0]
+            agent.force = agent.move_power * action_tensor[action,:]
         for blade in self.blades:
             blade.force = blade.agent.position - blade.position
             magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)

@@ -152,9 +152,9 @@ class Game(arcade.Window):
         # action1_values = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
         # generator.agent0.action = torch.argmax(action0_values, dim=1)
         # generator.agent1.action = torch.argmax(action1_values, dim=1)
-        minimax_actions = generator.get_minimax_actions()
+        # minimax_actions = generator.get_minimax_actions()
         # generator.agent0.action[self.index] = minimax_actions[0]
-        generator.agent1.action[self.index] = minimax_actions[1]
+        # generator.agent1.action[self.index] = minimax_actions[1]
         generator.agent0.action[self.index] = self.get_user_action()
         row = [
             horizon,self.frame_counter+1,self.world.time,
@@ -238,7 +238,7 @@ if os.path.exists(checkpoint_path):
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
-generator = DataGenerator(value_model,value_model,batch_size=1,time_step=0.04)
+generator = DataGenerator(value_model,action0_model,action1_model,batch_size=1,step_count=1,time_step=0.04)
 game = Game(generator)
 arcade.enable_timings()
 game.run()
