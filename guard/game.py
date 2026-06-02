@@ -11,7 +11,7 @@ from collections import defaultdict
 from torch.func import vmap, grad
 
 from generator import DataGenerator
-from models import ActionModel, ValueModel
+from models import ValueModel
 import world as world
 from world import Agent, Blade, action_tensor
 
@@ -141,23 +141,15 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
-        state = self.generator.get_state_vector()
+        state = self.generator.get_state()
         value_estimate = torch.sigmoid(value_model(state))
-        action0_values = action0_model(state)
-        action1_values = action1_model(state)
-        # costate = get_costate(state)
-        # velocity_grad0 = +costate[:,[0,1]]
-        # velocity_grad1 = -costate[:,[8,9]]
-        # action0_values = torch.einsum('ij,kj->ik',velocity_grad0,action_tensor)
-        # action1_values = torch.einsum('ij,kj->ik',velocity_grad1,action_tensor)
-        # generator.agent0.action = torch.argmax(action0_values, dim=1)
-        # generator.agent1.action = torch.argmax(action1_values, dim=1)
-        # minimax_actions = generator.get_minimax_actions()
-        # generator.agent0.action[self.index] = minimax_actions[0]
-        # generator.agent1.action[self.index] = minimax_actions[1]
-        generator.agent0.action[self.index] = self.get_user_action()
+        action_values = self.generator.get_action_values(state)
+        actions = self.generator.get_actions(action_values)
+        generator.agent0.action = actions[0]
+        generator.agent1.action = actions[1]
+        # generator.agent0.action[self.index] = self.get_user_action()
         row = [
-            horizon,self.frame_counter+1,self.world.time,
+            stage,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
             self.generator.agent1.alive[self.index,0].int().item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
@@ -173,8 +165,8 @@ class Game(arcade.Window):
             generator.agent0.action[self.index].detach().item(),
             generator.agent1.action[self.index].detach().item()
         ]
-        row += action0_values[self.index].tolist()
-        row += action1_values[self.index].tolist()
+        row += action_values[0][self.index].tolist()
+        row += action_values[1][self.index].tolist()
         c0 = self.world.boundary.wall_starts[self.index,0,:].detach()
         row += [c0[0].item(),c0[1].item()]
         c1 = self.world.boundary.wall_starts[self.index,1,:].detach()
@@ -191,7 +183,7 @@ class Game(arcade.Window):
         self.log_file = open("./simulation/simulation.csv", mode='w', newline="")
         self.log_writer = csv.writer(self.log_file)
         self.log_writer.writerow([
-            "horizon","frame","time","life0","life1",
+            "stage","frame","time","life0","life1",
             "a0x","a0y","a0vx","a0vy",
             "b0x","b0y","b0vx","b0vy",
             "a1x","a1y","a1vx","a1vy",
@@ -223,22 +215,17 @@ class Game(arcade.Window):
         
 checkpoint_path = './checkpoints/checkpoint.pt'
 value_model = ValueModel().eval()
-action0_model = ActionModel().eval()
-action1_model = ActionModel().eval()
-horizon = 0
+stage = 0
 
 if os.path.exists(checkpoint_path):
     print(f'Loading Checkpoint from {checkpoint_path}...')
     checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(checkpoint['value_model_a'])
-    action0_model.load_state_dict(checkpoint['action0_model'])
-    action1_model.load_state_dict(checkpoint['action1_model'])
-    batch = checkpoint['batch']
-    horizon = checkpoint['horizon']
+    value_model.load_state_dict(checkpoint['value_model'])
+    stage = checkpoint['stage']
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
-generator = DataGenerator(value_model,action0_model,action1_model,batch_size=1,step_count=1,time_step=0.04)
+generator = DataGenerator(value_model,action_noise=0,batch_size=1,step_count=1,time_step=0.1)
 game = Game(generator)
 arcade.enable_timings()
 game.run()
