@@ -54,12 +54,12 @@ else:
 # for param_group in value_optimizer.param_groups:
 #     param_group['lr'] = 1e-4
 
-# stage = 1
-# batch = 0
+stage = 1
+batch = 0
 
 batch_size = 5000
-discount_rate = 1/5
-state_noise = 3
+discount_rate = 1/100
+state_noise = 1
 action_noise = 0.1
 step_count = 10
 batch_count = 10
@@ -74,7 +74,7 @@ data_generator = DataGenerator(
     discount_rate,state_noise,action_noise,time_step
 )
 last_log_time = time.perf_counter()
-quality_threshold = 0.9
+quality_threshold = 0.8
 
 targets = []
 estimates = []

@@ -145,9 +145,9 @@ class Game(arcade.Window):
         value_estimate = torch.sigmoid(value_model(state))
         action_values = self.generator.get_action_values(state)
         actions = self.generator.get_actions(action_values)
-        generator.agent0.action = actions[0]
+        # generator.agent0.action = actions[0]
         generator.agent1.action = actions[1]
-        # generator.agent0.action[self.index] = self.get_user_action()
+        generator.agent0.action[self.index] = self.get_user_action()
         row = [
             stage,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
@@ -162,8 +162,8 @@ class Game(arcade.Window):
             bladeVelocity1[0].detach().item(), bladeVelocity1[1].detach().item(),
             generator.reward[self.index].detach().item(),
             value_estimate[self.index,0].detach().item(),
-            generator.agent0.action[self.index].detach().item(),
-            generator.agent1.action[self.index].detach().item()
+            generator.agent0.action[self.index,0].detach().item(),
+            generator.agent1.action[self.index,0].detach().item()
         ]
         row += action_values[0][self.index].tolist()
         row += action_values[1][self.index].tolist()
@@ -225,7 +225,7 @@ if os.path.exists(checkpoint_path):
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
-generator = DataGenerator(value_model,action_noise=0,batch_size=1,step_count=1,time_step=0.1)
+generator = DataGenerator(value_model,action_noise=0,batch_size=1,step_count=1,time_step=0.03)
 game = Game(generator)
 arcade.enable_timings()
 game.run()

@@ -1,7 +1,7 @@
 
 setwd(this.path::here())
-start=0
-end=1000
+start=13
+end=14.7
 width=5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
@@ -39,11 +39,11 @@ ringDist1 = sqrt(a1x^2+a1y^2)
 
 par(cex=1,mar=c(5,5,2,2))
 
-plot(time,reward,type='l')
+plot(time,reward,type='l',ylim=c(0,1))
 chargePath = paste(source,'-reward.pdf',sep='')
 dev.print(pdf,chargePath)
 
-plot(time,value,type='l')
+plot(time,value,type='l',ylim=c(0,1))
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
 

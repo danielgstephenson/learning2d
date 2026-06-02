@@ -142,19 +142,26 @@ class DataGenerator:
         self.state = self.get_state()
         gapVector0 = self.agent0.position-self.blade1.position
         gapVector1 = self.agent1.position-self.blade0.position
-        self.gap0 = torch.norm(gapVector0,dim=1,keepdim=True)
-        self.gap1 = torch.norm(gapVector1,dim=1,keepdim=True)
-        self.agent0.alive = self.agent0.alive & (self.gap0 > 15)
-        self.agent1.alive = self.agent1.alive & (self.gap1 > 15)
+        self.gap0 = torch.norm(gapVector0,dim=1,keepdim=True)-15
+        self.gap1 = torch.norm(gapVector1,dim=1,keepdim=True)-15
+        self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
+        self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
         center_dist0 = torch.norm(self.agent0.position,dim=1,keepdim=True)
         center_dist1 = torch.norm(self.agent1.position,dim=1,keepdim=True)
         key_dist = self.ring_size - self.agent0.radius
         ringDist0 = center_dist0 - key_dist
         ringDist1 = center_dist1 - key_dist
-        inRing0 = ringDist0 < 0
         inRing1 = ringDist1 < 0
-        reward0 = (self.agent0.alive*inRing0).float()
-        reward1 = (self.agent1.alive*inRing1).float()
+        nearRing0 = torch.sigmoid(-0.3*ringDist0)
+        nearRing1 = torch.sigmoid(-0.3*ringDist1)
+        charging0 = (self.agent0.alive*nearRing0).float()
+        charging1 = (self.agent1.alive*nearRing1).float()
+        life0 = 0.5*self.agent0.alive.float()
+        life1 = 0.5*self.agent1.alive.float()
+        safe0 = 0.5*life0 + 0.5*torch.sigmoid(0.3*self.gap0)
+        safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.3*self.gap1)
+        reward0 = 0.8*charging0 + 0.2*safe0
+        reward1 = 0.8*charging1 + 0.2*safe1
         self.reward = 0.5 + 0.5*reward0 - 0.5*reward1
         self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
     
@@ -192,9 +199,9 @@ class DataGenerator:
         action0 = torch.argmax(action0_values,dim=1,keepdim=True)
         action1 = torch.argmin(action1_values,dim=1,keepdim=True)
         random0 = torch.randint_like(action0,low=0,high=action_count)
-        random1 = torch.randint_like(action0,low=0,high=action_count)
-        explore0 = torch.rand_like(action0) < self.action_noise
-        explore1 = torch.rand_like(action0) < self.action_noise
+        random1 = torch.randint_like(action1,low=0,high=action_count)
+        explore0 = torch.rand_like(action0_values) < self.action_noise
+        explore1 = torch.rand_like(action1_values) < self.action_noise
         action0 = torch.where(explore0, random0, action0)
         action1 = torch.where(explore1, random1, action1)
         return action0, action1
