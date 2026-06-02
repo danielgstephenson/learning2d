@@ -24,8 +24,6 @@ value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
 stage = 0
 batch = 0
 
-# ADD target action models like the target value model
-
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
         'value_model': value_model.state_dict(),
@@ -76,7 +74,7 @@ data_generator = DataGenerator(
     discount_rate,state_noise,action_noise,time_step
 )
 last_log_time = time.perf_counter()
-quality_threshold = 0.5
+quality_threshold = 0.9
 
 targets = []
 estimates = []
@@ -113,8 +111,6 @@ for _ in range(100000000):
         message = ''
         message += f'stage: {stage}, '
         message += f'batch: {batch+1}, '
-        message += f'target: {np.mean(targets):.03f}, '
-        message += f'estimate: {np.mean(estimates):.03f}, '
         message += f'R2: {np.mean(qualities):.03f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
