@@ -27,8 +27,8 @@ current = rows[frame - 1] if frame > 0 else rows[frame]
 
 # State order: a0vel(0:2), a1vel(2:4), b0vel(4:6), b1vel(6:8),
 #              a0pos(8:10), a1pos(10:12), b0pos(12:14), b1pos(14:16),
-#              charge(16), alive0(17), alive1(18), wallpoints(19:35)
-ref_state = torch.zeros(1, 35, device=device)
+#              alive0(16), alive1(17), wp0(18:26), wp1(26:34)
+ref_state = torch.zeros(1, 34, device=device)
 ref_state[0, 0]  = float(current['a0vx'])
 ref_state[0, 1]  = float(current['a0vy'])
 ref_state[0, 2]  = float(current['a1vx'])
@@ -45,14 +45,13 @@ ref_state[0, 12] = float(current['b0x'])
 ref_state[0, 13] = float(current['b0y'])
 ref_state[0, 14] = float(current['b1x'])
 ref_state[0, 15] = float(current['b1y'])
-ref_state[0, 16] = 0.0  # charge
-ref_state[0, 17] = float(current['life0'])
-ref_state[0, 18] = float(current['life1'])
+ref_state[0, 16] = float(current['life0'])
+ref_state[0, 17] = float(current['life1'])
 
 wp_keys = ['wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
            'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y']
 for i, key in enumerate(wp_keys):
-    ref_state[0, 19 + i] = float(current[key])
+    ref_state[0, 18 + i] = float(current[key])
 
 # Compute fresh gradients for both agents
 gradient_fn = vmap(fgrad(lambda x: value_model(x).sum()))

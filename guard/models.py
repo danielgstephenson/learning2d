@@ -3,7 +3,7 @@ from torch import nn, Tensor
 from math import log
 import torch.nn.functional as F
 
-state_size = 35
+state_size = 34
 
 a0vel  = list(range(0,  2))
 a1vel  = list(range(2,  4))
@@ -13,14 +13,13 @@ a0pos  = list(range(8,  10))
 a1pos  = list(range(10, 12))
 b0pos  = list(range(12, 14))
 b1pos  = list(range(14, 16))
-charge = [16]
-alive0 = [17]
-alive1 = [18]
-wp0    = list(range(19, 27))
-wp1    = list(range(27, 35))
+alive0 = [16]
+alive1 = [17]
+wp0    = list(range(18, 26))
+wp1    = list(range(26, 34))
 swap_idx = \
     a1vel + a0vel + b1vel + b0vel + a1pos + a0pos + \
-    b1pos + b0pos + charge + alive1 + alive0 + wp1 + wp0
+    b1pos + b0pos + alive1 + alive0 + wp1 + wp0
 
 class SwapState(nn.Module):
     idx: Tensor

@@ -149,7 +149,6 @@ class DataGenerator:
             self.world.agents[1].position,
             self.world.blades[0].position,
             self.world.blades[1].position,
-            self.world.charge,
             self.agent0.alive.int(),
             self.agent1.alive.int(),
         ]
