@@ -153,9 +153,12 @@ class DataGenerator:
             self.agent0.alive.int(),
             self.agent1.alive.int(),
         ]
-        origin = self.world.agents[1].position
-        wallPoints = vision_cast(origin,vision_reach,self.world.boundary)
-        tensors.append(wallPoints.reshape(self.world.count, 16))
+        origin0 = self.world.agents[0].position
+        origin1 = self.world.agents[1].position
+        wallPoints0 = vision_cast(origin0,vision_reach,self.world.boundary)
+        wallPoints1 = vision_cast(origin1,vision_reach,self.world.boundary)
+        tensors.append(wallPoints0.reshape(self.world.count, 8))
+        tensors.append(wallPoints1.reshape(self.world.count, 8))
         return torch.cat(tensors,dim=1)
     
     def blur(self,state:Tensor,noise: float)->Tensor:

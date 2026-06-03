@@ -69,8 +69,8 @@ actions = torch.tensor([i for i in range(9)])
 action_count = actions.shape[0]
 
 vision_dir_list: list[list[float]] = []
-for i in range(8):
-    angle = 2 * pi * i / 8
+for i in range(4):
+    angle = 2 * pi * i / 4
     vision_dir = [cos(angle), sin(angle)]
     vision_dir_list.append(vision_dir)
 vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list])
@@ -215,10 +215,8 @@ def raycast_segment(ray_start: Tensor, ray_vector: Tensor, segment_start: Tensor
     return torch.where(hit, ray_factor, inf_tensor)
 
 def vision_cast(origin: Tensor, reach: float, boundary: Boundary) -> Tensor:
-    # origin: (n, 2)
-    # returns hitpoints: (n, 8, 2)
     n = origin.shape[0]
-    ray_vectors = (reach * vision_dirs.to(physics_dtype)).unsqueeze(0).expand(n, -1, -1)  # (n, 8, 2)
+    ray_vectors = (reach * vision_dirs.to(physics_dtype)).unsqueeze(0).expand(n, -1, -1) 
     vmap_raycast = torch.vmap(
         torch.vmap(
             torch.vmap(
@@ -229,9 +227,8 @@ def vision_cast(origin: Tensor, reach: float, boundary: Boundary) -> Tensor:
         ),
         in_dims=(0, 0, 0, 0)
     )
-    # ray_factors: (n, 8, num_walls)
     ray_factors = vmap_raycast(origin, ray_vectors, boundary.wall_starts, boundary.wall_ends)
-    min_ray_factors = torch.amin(ray_factors, dim=-1)                        # (n, 8)
-    clamp_ray_factors = torch.clamp(min_ray_factors, min=0.0, max=1.0)       # (n, 8)
-    hitpoints = origin.unsqueeze(1) + clamp_ray_factors.unsqueeze(-1) * ray_vectors  # (n, 8, 2)
+    min_ray_factors = torch.amin(ray_factors, dim=-1) 
+    clamp_ray_factors = torch.clamp(min_ray_factors, min=0.0, max=1.0)    
+    hitpoints = origin.unsqueeze(1) + clamp_ray_factors.unsqueeze(-1) * ray_vectors
     return hitpoints
