@@ -160,8 +160,8 @@ class DataGenerator:
         life1 = 0.5*self.agent1.alive.float()
         safe0 = 0.5*life0 + 0.5*torch.sigmoid(0.3*self.gap0)
         safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.3*self.gap1)
-        reward0 = 0.8*charging0 + 0.2*safe0
-        reward1 = 0.8*charging1 + 0.2*safe1
+        reward0 = 0.2*charging0 + 0.8*safe0
+        reward1 = 0.2*charging1 + 0.8*safe1
         self.reward = 0.5 + 0.5*reward0 - 0.5*reward1
         self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
     
@@ -193,15 +193,15 @@ class DataGenerator:
         action1_values = torch.einsum('ij,kj->ik',vgrad1,action_tensor)
         return action0_values, action1_values
 
-    def get_actions(self,action_values:tuple[Tensor,Tensor])->tuple[Tensor,Tensor]:
+    def get_actions(self,action_values:tuple[Tensor,Tensor],noise:float)->tuple[Tensor,Tensor]:
         action0_values = action_values[0]
         action1_values = action_values[1]
         action0 = torch.argmax(action0_values,dim=1,keepdim=True)
         action1 = torch.argmin(action1_values,dim=1,keepdim=True)
         random0 = torch.randint_like(action0,low=0,high=action_count)
         random1 = torch.randint_like(action1,low=0,high=action_count)
-        explore0 = torch.rand_like(action0_values) < self.action_noise
-        explore1 = torch.rand_like(action1_values) < self.action_noise
+        explore0 = torch.rand_like(action0_values) < noise
+        explore1 = torch.rand_like(action1_values) < noise
         action0 = torch.where(explore0, random0, action0)
         action1 = torch.where(explore1, random1, action1)
         return action0, action1
@@ -222,7 +222,7 @@ class DataGenerator:
                 state[step,:,:] = noisy_state
                 if stage > 0:
                     action_values = self.get_action_values(noisy_state)
-                    actions = self.get_actions(action_values)
+                    actions = self.get_actions(action_values,self.action_noise)
                     self.agent0.action = actions[0]
                     self.agent1.action = actions[1]
                 else:

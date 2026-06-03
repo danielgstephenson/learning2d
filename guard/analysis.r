@@ -1,7 +1,7 @@
 
 setwd(this.path::here())
-start=13
-end=14.7
+start=4
+end=9.72
 width=5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
