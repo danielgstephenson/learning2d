@@ -74,8 +74,6 @@ class Game(arcade.Window):
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
-        if symbol == arcade.key.SPACE:
-            self.paused = not self.paused
         if symbol == arcade.key.ENTER:
             self.generator.reset()
             self.frame_counter = 0
@@ -89,6 +87,8 @@ class Game(arcade.Window):
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.pressed[symbol] = False
+        if symbol == arcade.key.SPACE:
+            self.paused = not self.paused
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: float, scroll_y: float):
        self.camera.zoom *= 1 + 0.1*scroll_y
