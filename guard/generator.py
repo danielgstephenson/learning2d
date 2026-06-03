@@ -120,8 +120,8 @@ class DataGenerator:
     def reset_custom(self): # Only works for batch_size = 1
         self.reset()
         r_val = (self.radius[0] - self.agent0.radius).item() * 0.9
-        a0p_local = self.box_offset[0] + torch.tensor([r_val, r_val])
-        a1p_local = torch.zeros(2)
+        a0p_local = torch.zeros(2)
+        a1p_local = self.box_offset[0] + torch.tensor([r_val, r_val])
         self.agent0.position[0] = torch.einsum('ij,j->i', self.rotation[0], a0p_local)
         self.agent1.position[0] = torch.einsum('ij,j->i', self.rotation[0], a1p_local)
         self.agent0.velocity[0] = torch.zeros(2)
@@ -160,8 +160,8 @@ class DataGenerator:
         life1 = 0.5*self.agent1.alive.float()
         safe0 = 0.5*life0 + 0.5*torch.sigmoid(0.3*self.gap0)
         safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.3*self.gap1)
-        reward0 = 0.2*charging0 + 0.8*safe0
-        reward1 = 0.2*charging1 + 0.8*safe1
+        reward0 = 0.01*charging0 + 0.99*safe0
+        reward1 = 0.99*charging1 + 0.01*safe1
         self.reward = 0.5 + 0.5*reward0 - 0.5*reward1
         self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
     
