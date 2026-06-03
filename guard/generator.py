@@ -137,44 +137,17 @@ class DataGenerator:
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.world.charge = torch.zeros(self.world.count,1)
         self.update()
-
-    def update(self):
-        self.state = self.get_state()
-        gapVector0 = self.agent0.position-self.blade1.position
-        gapVector1 = self.agent1.position-self.blade0.position
-        self.gap0 = torch.norm(gapVector0,dim=1,keepdim=True)-15
-        self.gap1 = torch.norm(gapVector1,dim=1,keepdim=True)-15
-        self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
-        self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
-        center_dist0 = torch.norm(self.agent0.position,dim=1,keepdim=True)
-        center_dist1 = torch.norm(self.agent1.position,dim=1,keepdim=True)
-        key_dist = self.ring_size - self.agent0.radius
-        ringDist0 = center_dist0 - key_dist
-        ringDist1 = center_dist1 - key_dist
-        inRing1 = ringDist1 < 0
-        nearRing0 = torch.sigmoid(-0.3*ringDist0)
-        nearRing1 = torch.sigmoid(-0.3*ringDist1)
-        charging0 = (self.agent0.alive*nearRing0).float()
-        charging1 = (self.agent1.alive*nearRing1).float()
-        life0 = 0.5*self.agent0.alive.float()
-        life1 = 0.5*self.agent1.alive.float()
-        safe0 = 0.8*life0 + 0.2*torch.sigmoid(0.2*self.gap0)
-        safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.2*self.gap1)
-        reward0 = 0.5*charging0 + 0.5*safe0
-        reward1 = 0.5*charging1 + 0.5*safe1
-        self.reward = 0.5 + 0.5*reward0 - 0.5*reward1
-        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
     
 
     def get_state(self)->Tensor:
         tensors = [
             self.world.agents[0].velocity,
-            self.world.agents[0].position,
-            self.world.blades[0].velocity,
-            self.world.blades[0].position,
             self.world.agents[1].velocity,
-            self.world.agents[1].position,
+            self.world.blades[0].velocity,
             self.world.blades[1].velocity,
+            self.world.agents[0].position,
+            self.world.agents[1].position,
+            self.world.blades[0].position,
             self.world.blades[1].position,
             self.world.charge,
             self.agent0.alive.int(),
@@ -185,10 +158,20 @@ class DataGenerator:
         tensors.append(wallPoints.reshape(self.world.count, 16))
         return torch.cat(tensors,dim=1)
     
-    def get_action_values(self,state:Tensor)->tuple[Tensor,Tensor]:
+    def blur(self,state:Tensor,noise: float)->Tensor:
+        n = self.batch_size
+        noisy_state = state.clone()
+        noisy_state[:,8:16] += noise*(2*torch.rand(n,8)-1)
+        return noisy_state
+    
+    def get_vgrads(self,state:Tensor)->tuple[Tensor,Tensor]:
         grad = self.gradient(state)
         vgrad0 = grad[:,[0,1]]
-        vgrad1 = grad[:,[8,9]]
+        vgrad1 = grad[:,[2,3]]
+        return vgrad0, vgrad1
+
+    def get_action_values(self,vgrads:tuple[Tensor,Tensor])->tuple[Tensor,Tensor]:
+        vgrad0, vgrad1 = vgrads
         action0_values = torch.einsum('ij,kj->ik',vgrad0,action_tensor)
         action1_values = torch.einsum('ij,kj->ik',vgrad1,action_tensor)
         return action0_values, action1_values
@@ -200,11 +183,32 @@ class DataGenerator:
         action1 = torch.argmin(action1_values,dim=1,keepdim=True)
         random0 = torch.randint_like(action0,low=0,high=action_count)
         random1 = torch.randint_like(action1,low=0,high=action_count)
-        explore0 = torch.rand_like(action0_values) < noise
-        explore1 = torch.rand_like(action1_values) < noise
+        explore0 = torch.rand(action0.shape) < noise
+        explore1 = torch.rand(action1.shape) < noise
         action0 = torch.where(explore0, random0, action0)
         action1 = torch.where(explore1, random1, action1)
         return action0, action1
+    
+    def update(self):
+        self.state = self.get_state()
+        gapVector0 = self.agent0.position-self.blade1.position
+        gapVector1 = self.agent1.position-self.blade0.position
+        self.gap0 = torch.norm(gapVector0,dim=1,keepdim=True)-15
+        self.gap1 = torch.norm(gapVector1,dim=1,keepdim=True)-15
+        self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
+        self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
+        life0 = self.agent0.alive.float()
+        life1 = self.agent1.alive.float()
+        center_dist0 = torch.norm(self.agent0.position,dim=1,keepdim=True)
+        center_dist1 = torch.norm(self.agent1.position,dim=1,keepdim=True)
+        key_dist = self.ring_size - self.agent0.radius
+        inRing1 = center_dist1 < key_dist
+        nearRing0 = life0*(1-torch.tanh(0.02*center_dist0))
+        nearRing1 = life1*(1-torch.tanh(0.02*center_dist1))
+        # safe0 = 0.8*life0 + 0.2*torch.sigmoid(0.2*self.gap0)
+        # safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.2*self.gap1)
+        self.reward = 0.5*nearRing0 + 0.5*(1-nearRing1)
+        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount_rate
@@ -217,11 +221,11 @@ class DataGenerator:
             self.reset()
             for step in range(k):
                 # if step % 10 == 0: print('.', end='', flush=True)
-                noisy_state = self.state.clone()
-                noisy_state[:,0:17] += self.state_noise*torch.rand(n,17)
+                noisy_state = self.blur(self.state,self.state_noise)
                 state[step,:,:] = noisy_state
                 if stage > 0:
-                    action_values = self.get_action_values(noisy_state)
+                    vgrads = self.get_vgrads(noisy_state)
+                    action_values = self.get_action_values(vgrads)
                     actions = self.get_actions(action_values,self.action_noise)
                     self.agent0.action = actions[0]
                     self.agent1.action = actions[1]

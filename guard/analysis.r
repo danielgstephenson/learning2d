@@ -1,7 +1,7 @@
 
 setwd(this.path::here())
-start=4
-end=9.72
+start=0
+end=5000
 width=5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
@@ -39,11 +39,11 @@ ringDist1 = sqrt(a1x^2+a1y^2)
 
 par(cex=1,mar=c(5,5,2,2))
 
-plot(time,reward,type='l',ylim=c(0,1))
+plot(frame,reward,type='l',ylim=c(0,1))
 chargePath = paste(source,'-reward.pdf',sep='')
 dev.print(pdf,chargePath)
 
-plot(time,value,type='l',ylim=c(0,1))
+plot(frame,value,type='l',ylim=c(0,1))
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
 
@@ -66,16 +66,17 @@ drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   }
 }
 
-tmin = start
-tmax = end #max(time)
-s = (tmin<=time&time<=tmax)
+fmin = start
+fmax = end
+s = (fmin<=frame&frame<=fmax)
 times = time[s]
-tmin = max(tmin,min(times))
-tmax = min(tmax,max(times))
-a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-tmin)/(tmax-tmin)))
-b0cols = sapply(times,function(x)rgb(0,0.9,0.0,(x-tmin)/(tmax-tmin)))
-a1cols = sapply(times,function(x)rgb(0,0.0,0.9,(x-tmin)/(tmax-tmin)))
-b1cols = sapply(times,function(x)rgb(0,0.5,1.0,(x-tmin)/(tmax-tmin)))
+frames = frame[s]
+fmin = max(fmin,min(times))
+fmax = min(fmax,max(times))
+a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-fmin)/(fmax-fmin)))
+b0cols = sapply(times,function(x)rgb(0,0.9,0.0,(x-fmin)/(fmax-fmin)))
+a1cols = sapply(times,function(x)rgb(0,0.0,0.9,(x-fmin)/(fmax-fmin)))
+b1cols = sapply(times,function(x)rgb(0,0.5,1.0,(x-fmin)/(fmax-fmin)))
 ringColor = rgb(0,0,0)
 wallColor = rgb(0,0,0)
 life0 = simData$life0[s]
@@ -96,7 +97,7 @@ ymax = max(a0ys,b0ys,a1ys,b1ys) + width
 par(cex=2,mar=c(0,0,1,0))
 plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
      xlab='',ylab='',asp=1,axes=FALSE)
-title(main=sprintf("Time %.2f - %.2f", min(times), max(times)))
+title(main=sprintf("Frame %.0f - %.0f", min(frames), max(frames)))
 drawCircle(0,0,radius=13,col=ringColor,lwd=3)
 lines(cx,cy,col=wallColor,xpd = NA)
 points(a0xs,a0ys,col=a0cols,pch=16,cex=0.4)

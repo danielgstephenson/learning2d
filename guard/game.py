@@ -44,10 +44,13 @@ class BladeCircle(arcade.SpriteCircle):
 
 class Game(arcade.Window):
     def __init__(self, generator: DataGenerator):
-        super().__init__(900, 900, 'learning2d')
+        window_size = 900
+        super().__init__(window_size, window_size, 'learning2d')
         arcade.set_background_color((20,20,20,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
+        self.hud_camera = arcade.Camera2D()
+        self.hud_camera.position = (0,0)
         self.index = 0
         self.set_update_rate(1 / 40)
         self.generator = generator
@@ -105,6 +108,18 @@ class Game(arcade.Window):
         y = SCALE * point[self.index,1].item()
         arcade.draw_circle_filled(x,y,radius,color)
 
+    def draw_text(self):
+        self.hud_camera.use()
+        text = f'Time: {self.world.time:.1f}, '
+        text += f'FPS: {arcade.get_fps():.1f}, '
+        text += f'Reward: {self.generator.reward[self.index].item():0.3f}'
+        x = 0
+        y = 400
+        color = arcade.color.WHITE
+        font_size = 16
+        arcade.draw_text(text,x,y,color,font_size,anchor_x="center")
+        self.camera.use()
+
     def on_draw(self):
         self.clear()
         self.camera.use()
@@ -113,8 +128,6 @@ class Game(arcade.Window):
         self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
         arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY, SCALE*1)
-        text = f'FPS: {arcade.get_fps():.1f}, Time: {self.world.time:.1f}'
-        arcade.draw_text(text,x=SCALE*0,y=SCALE*150,color=arcade.color.WHITE,font_size=SCALE*16)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -126,9 +139,10 @@ class Game(arcade.Window):
             if circle.blade.agent.alive[self.index,0].item():
                 self.draw_line(circle.blade.position, circle.blade.agent.position, circle._color,10)
         self.sprites.draw()
+        self.draw_text()
 
     def on_update(self, delta_time: float) -> bool | None:
-        # self.camera.position = self.agentCircles[1].position
+        # self.camera.position = self.agentCircles[0].position
         self.camera.position = (0,0)
         if self.paused: return
         self.world.step()
@@ -141,10 +155,14 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
+        state_noise = self.generator.state_noise
+        action_noise = self.generator.action_noise
         state = self.generator.get_state()
-        value_estimate = torch.sigmoid(value_model(state))
-        action_values = self.generator.get_action_values(state)
-        actions = self.generator.get_actions(action_values,noise=0)
+        noisy_state = self.generator.blur(state,state_noise)
+        value_estimate = torch.sigmoid(value_model(noisy_state))
+        vgrads = self.generator.get_vgrads(noisy_state)
+        action_values = self.generator.get_action_values(vgrads)
+        actions = self.generator.get_actions(action_values,action_noise)
         generator.agent0.action = actions[0]
         generator.agent1.action = actions[1]
         # generator.agent1.action[self.index] = self.get_user_action()
@@ -175,6 +193,10 @@ class Game(arcade.Window):
         row += [c2[0].item(),c2[1].item()]
         c3 = self.world.boundary.wall_starts[self.index,3,:].detach()
         row += [c3[0].item(),c3[1].item()]
+        row += state[self.index, 19:35].detach().tolist()
+        vgrad0, vgrad1 = vgrads
+        row += vgrad0[self.index].detach().tolist()
+        row += vgrad1[self.index].detach().tolist()
         self.log_writer.writerow(row)
         self.log_file.flush()
         self.frame_counter += 1
@@ -192,7 +214,10 @@ class Game(arcade.Window):
             "action0","action1",
             "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
             "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
-            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y'
+            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y',
+            'wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
+            'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y',
+            'vg0x','vg0y','vg1x','vg1y'
         ])
 
     def get_user_action(self):
