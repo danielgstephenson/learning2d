@@ -58,7 +58,7 @@ stage = 1
 batch = 0
 
 batch_size = 5000
-discount_rate = 1/100
+discount_rate = 1/300
 state_noise = 1
 action_noise = 0.1
 step_count = 10

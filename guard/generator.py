@@ -158,10 +158,10 @@ class DataGenerator:
         charging1 = (self.agent1.alive*nearRing1).float()
         life0 = 0.5*self.agent0.alive.float()
         life1 = 0.5*self.agent1.alive.float()
-        safe0 = 0.5*life0 + 0.5*torch.sigmoid(0.3*self.gap0)
-        safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.3*self.gap1)
-        reward0 = 0.01*charging0 + 0.99*safe0
-        reward1 = 0.99*charging1 + 0.01*safe1
+        safe0 = 0.8*life0 + 0.2*torch.sigmoid(0.2*self.gap0)
+        safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.2*self.gap1)
+        reward0 = 0.5*charging0 + 0.5*safe0
+        reward1 = 0.5*charging1 + 0.5*safe1
         self.reward = 0.5 + 0.5*reward0 - 0.5*reward1
         self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
     

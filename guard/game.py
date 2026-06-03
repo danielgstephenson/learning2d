@@ -128,8 +128,8 @@ class Game(arcade.Window):
         self.sprites.draw()
 
     def on_update(self, delta_time: float) -> bool | None:
-        self.camera.position = self.agentCircles[1].position
-        # self.camera.position = (0,0)
+        # self.camera.position = self.agentCircles[1].position
+        self.camera.position = (0,0)
         if self.paused: return
         self.world.step()
         self.generator.update()
@@ -146,8 +146,8 @@ class Game(arcade.Window):
         action_values = self.generator.get_action_values(state)
         actions = self.generator.get_actions(action_values,noise=0)
         generator.agent0.action = actions[0]
-        # generator.agent1.action = actions[1]
-        generator.agent1.action[self.index] = self.get_user_action()
+        generator.agent1.action = actions[1]
+        # generator.agent1.action[self.index] = self.get_user_action()
         row = [
             stage,self.frame_counter+1,self.world.time,
             self.generator.agent0.alive[self.index,0].int().item(),
