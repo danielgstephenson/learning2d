@@ -16,7 +16,7 @@ checkpoint = torch.load(checkpoint_path, weights_only=False)
 value_model.load_state_dict(checkpoint['value_model'])
 
 # Read simulation CSV — set frame=-1 for last frame, or a specific frame index
-frame = 2100
+frame = 300
 
 rows = []
 with open('./simulation/simulation.csv') as f:
@@ -48,8 +48,8 @@ ref_state[0, 15] = float(current['b1y'])
 ref_state[0, 16] = float(current['life0'])
 ref_state[0, 17] = float(current['life1'])
 
-wp_keys = ['wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
-           'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y']
+wp_keys = ['a0wp0x','a0wp0y','a0wp1x','a0wp1y','a0wp2x','a0wp2y','a0wp3x','a0wp3y',
+           'a1wp0x','a1wp0y','a1wp1x','a1wp1y','a1wp2x','a1wp2y','a1wp3x','a1wp3y']
 for i, key in enumerate(wp_keys):
     ref_state[0, 18 + i] = float(current[key])
 
@@ -70,8 +70,15 @@ blade_r = 10
 lim_pos = 40
 lim_vel = 1
 
-# --- Plot 0,0: Value vs Agent0 position ---
+# Reference positions for both agents (used across multiple plots)
 a0x_ref, a0y_ref = float(current['a0x']), float(current['a0y'])
+a1x_ref, a1y_ref = float(current['a1x']), float(current['a1y'])
+
+# Arena walls
+cx = [float(current[k]) for k in ['c0x','c1x','c2x','c3x','c0x']]
+cy = [float(current[k]) for k in ['c0y','c1y','c2y','c3y','c0y']]
+
+# --- Plot 0,0: Value vs Agent0 position ---
 xs = np.linspace(a0x_ref - lim_pos, a0x_ref + lim_pos, N)
 ys = np.linspace(a0y_ref - lim_pos, a0y_ref + lim_pos, N)
 XX, YY = np.meshgrid(xs, ys)
@@ -91,20 +98,40 @@ im = ax.imshow(val_pos0, extent=[a0x_ref-lim_pos, a0x_ref+lim_pos, a0y_ref-lim_p
                origin='lower', cmap='RdYlGn', vmin=vmin, vmax=vmax)
 plt.colorbar(im, ax=ax, label='Value')
 ax.plot(ring_r * np.cos(theta), ring_r * np.sin(theta), 'k-', lw=2)
-ax.plot(a0x_ref + agent_r * np.cos(theta), a0y_ref + agent_r * np.sin(theta),
-        color='blue', lw=1.5, linestyle='--')
+# Own blade (blade0) — dotted
+b0x_ref, b0y_ref = float(current['b0x']), float(current['b0y'])
+ax.plot(b0x_ref + blade_r * np.cos(theta), b0y_ref + blade_r * np.sin(theta),
+        color='blue', lw=1.5, linestyle=':', label='Blade0')
+b0vx_val, b0vy_val = float(current['b0vx']), float(current['b0vy'])
+b0_scale = lim_pos * 0.3 / max(abs(b0vx_val), abs(b0vy_val), 1e-9)
+ax.annotate('', xy=(b0x_ref + b0vx_val * b0_scale, b0y_ref + b0vy_val * b0_scale),
+            xytext=(b0x_ref, b0y_ref), annotation_clip=False,
+            arrowprops=dict(arrowstyle='->', color='blue', lw=1.5, linestyle='dotted'))
+# Enemy blade (blade1) — solid
 b1x_ref, b1y_ref = float(current['b1x']), float(current['b1y'])
 ax.plot(b1x_ref + blade_r * np.cos(theta), b1y_ref + blade_r * np.sin(theta), 'b-', lw=1.5, label='Blade1')
 b1vx_val, b1vy_val = float(current['b1vx']), float(current['b1vy'])
 b1_scale = lim_pos * 0.3 / max(abs(b1vx_val), abs(b1vy_val), 1e-9)
 ax.annotate('', xy=(b1x_ref + b1vx_val * b1_scale, b1y_ref + b1vy_val * b1_scale),
-            xytext=(b1x_ref, b1y_ref),
-            annotation_clip=False,
+            xytext=(b1x_ref, b1y_ref), annotation_clip=False,
             arrowprops=dict(arrowstyle='->', color='blue', lw=1.5))
+# Self
+ax.plot([a0x_ref, b0x_ref], [a0y_ref, b0y_ref], color='blue', lw=1.0, linestyle=':')
+ax.plot(a0x_ref + agent_r * np.cos(theta), a0y_ref + agent_r * np.sin(theta),
+        color='blue', lw=1.5, linestyle='--')
 ax.plot(a0x_ref, a0y_ref, 'bo', ms=8, markeredgecolor='k', label='Agent0')
 ax.annotate('', xy=(a0x_ref + float(current['a0vx']), a0y_ref + float(current['a0vy'])),
             xytext=(a0x_ref, a0y_ref),
             arrowprops=dict(arrowstyle='->', color='blue', lw=2))
+# Other agent (agent1)
+ax.plot([a1x_ref, b1x_ref], [a1y_ref, b1y_ref], color='blue', lw=1.0, linestyle='-')
+ax.plot(a1x_ref + agent_r * np.cos(theta), a1y_ref + agent_r * np.sin(theta),
+        color='blue', lw=1.0, linestyle='-')
+ax.plot(a1x_ref, a1y_ref, 'b^', ms=8, markeredgecolor='k', label='Agent1')
+ax.annotate('', xy=(a1x_ref + float(current['a1vx']), a1y_ref + float(current['a1vy'])),
+            xytext=(a1x_ref, a1y_ref),
+            arrowprops=dict(arrowstyle='->', color='blue', lw=1.5))
+ax.plot(cx, cy, 'k-', lw=1.5, zorder=0)
 ax.set_xlabel('Agent0 x'); ax.set_ylabel('Agent0 y')
 ax.set_title(f'Value vs Agent0 Position (frame {current["frame"]})')
 ax.set_xlim(a0x_ref-lim_pos, a0x_ref+lim_pos)
@@ -156,7 +183,6 @@ ax2.set_title(f'Value vs Agent0 Velocity (pos=({a0x_ref:.1f},{a0y_ref:.1f}), fra
 ax2.set_aspect('equal')
 
 # --- Plot 1,0: Value vs Agent1 position ---
-a1x_ref, a1y_ref = float(current['a1x']), float(current['a1y'])
 xs1 = np.linspace(a1x_ref - lim_pos, a1x_ref + lim_pos, N)
 ys1 = np.linspace(a1y_ref - lim_pos, a1y_ref + lim_pos, N)
 XX1, YY1 = np.meshgrid(xs1, ys1)
@@ -176,20 +202,40 @@ im3 = ax3.imshow(val_pos1, extent=[a1x_ref-lim_pos, a1x_ref+lim_pos, a1y_ref-lim
                  origin='lower', cmap='RdYlGn_r', vmin=vmin3, vmax=vmax3)
 plt.colorbar(im3, ax=ax3, label='Value')
 ax3.plot(ring_r * np.cos(theta), ring_r * np.sin(theta), 'k-', lw=2)
-ax3.plot(a1x_ref + agent_r * np.cos(theta), a1y_ref + agent_r * np.sin(theta),
-         color='blue', lw=1.5, linestyle='--')
+# Own blade (blade1) — dotted
+b1x_ref2, b1y_ref2 = float(current['b1x']), float(current['b1y'])
+ax3.plot(b1x_ref2 + blade_r * np.cos(theta), b1y_ref2 + blade_r * np.sin(theta),
+         color='blue', lw=1.5, linestyle=':', label='Blade1')
+b1vx_val2, b1vy_val2 = float(current['b1vx']), float(current['b1vy'])
+b1_scale2 = lim_pos * 0.3 / max(abs(b1vx_val2), abs(b1vy_val2), 1e-9)
+ax3.annotate('', xy=(b1x_ref2 + b1vx_val2 * b1_scale2, b1y_ref2 + b1vy_val2 * b1_scale2),
+             xytext=(b1x_ref2, b1y_ref2), annotation_clip=False,
+             arrowprops=dict(arrowstyle='->', color='blue', lw=1.5, linestyle='dotted'))
+# Enemy blade (blade0) — solid
 b0x_ref, b0y_ref = float(current['b0x']), float(current['b0y'])
 ax3.plot(b0x_ref + blade_r * np.cos(theta), b0y_ref + blade_r * np.sin(theta), 'b-', lw=1.5, label='Blade0')
 b0vx_val, b0vy_val = float(current['b0vx']), float(current['b0vy'])
 b0_scale = lim_pos * 0.3 / max(abs(b0vx_val), abs(b0vy_val), 1e-9)
 ax3.annotate('', xy=(b0x_ref + b0vx_val * b0_scale, b0y_ref + b0vy_val * b0_scale),
-             xytext=(b0x_ref, b0y_ref),
-             annotation_clip=False,
+             xytext=(b0x_ref, b0y_ref), annotation_clip=False,
              arrowprops=dict(arrowstyle='->', color='blue', lw=1.5))
+# Self
+ax3.plot([a1x_ref, b1x_ref2], [a1y_ref, b1y_ref2], color='blue', lw=1.0, linestyle=':')
+ax3.plot(a1x_ref + agent_r * np.cos(theta), a1y_ref + agent_r * np.sin(theta),
+         color='blue', lw=1.5, linestyle='--')
 ax3.plot(a1x_ref, a1y_ref, 'bo', ms=8, markeredgecolor='k', label='Agent1')
 ax3.annotate('', xy=(a1x_ref + float(current['a1vx']), a1y_ref + float(current['a1vy'])),
              xytext=(a1x_ref, a1y_ref),
              arrowprops=dict(arrowstyle='->', color='blue', lw=2))
+# Other agent (agent0)
+ax3.plot([a0x_ref, b0x_ref], [a0y_ref, b0y_ref], color='blue', lw=1.0, linestyle='-')
+ax3.plot(a0x_ref + agent_r * np.cos(theta), a0y_ref + agent_r * np.sin(theta),
+         color='blue', lw=1.0, linestyle='-')
+ax3.plot(a0x_ref, a0y_ref, 'b^', ms=8, markeredgecolor='k', label='Agent0')
+ax3.annotate('', xy=(a0x_ref + float(current['a0vx']), a0y_ref + float(current['a0vy'])),
+             xytext=(a0x_ref, a0y_ref),
+             arrowprops=dict(arrowstyle='->', color='blue', lw=1.5))
+ax3.plot(cx, cy, 'k-', lw=1.5, zorder=0)
 ax3.set_xlabel('Agent1 x'); ax3.set_ylabel('Agent1 y')
 ax3.set_title(f'Value vs Agent1 Position (frame {current["frame"]})')
 ax3.set_xlim(a1x_ref-lim_pos, a1x_ref+lim_pos)

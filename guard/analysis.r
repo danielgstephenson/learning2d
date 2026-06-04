@@ -1,8 +1,8 @@
 
 setwd(this.path::here())
-start=0
-end=5000
-width=5
+start = 100
+end = 300
+width = 5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
 simData = read.csv(sourcePath)
@@ -71,12 +71,13 @@ fmax = end
 s = (fmin<=frame&frame<=fmax)
 times = time[s]
 frames = frame[s]
-fmin = max(fmin,min(times))
-fmax = min(fmax,max(times))
-a0cols = sapply(times,function(x)rgb(0,0.5,0.0,(x-fmin)/(fmax-fmin)))
-b0cols = sapply(times,function(x)rgb(0,0.9,0.0,(x-fmin)/(fmax-fmin)))
-a1cols = sapply(times,function(x)rgb(0,0.0,0.9,(x-fmin)/(fmax-fmin)))
-b1cols = sapply(times,function(x)rgb(0,0.5,1.0,(x-fmin)/(fmax-fmin)))
+fmin = max(fmin,min(frames))
+fmax = min(fmax,max(frames))
+sapply(frames,function(x)(x-fmin)/(fmax-fmin))
+a0cols = sapply(frames,function(x)rgb(0,0.5,0.0,(x-fmin)/(fmax-fmin)))
+b0cols = sapply(frames,function(x)rgb(0,0.9,0.0,(x-fmin)/(fmax-fmin)))
+a1cols = sapply(frames,function(x)rgb(0,0.0,0.9,(x-fmin)/(fmax-fmin)))
+b1cols = sapply(frames,function(x)rgb(0,0.5,1.0,(x-fmin)/(fmax-fmin)))
 ringColor = rgb(0,0,0)
 wallColor = rgb(0,0,0)
 life0 = simData$life0[s]

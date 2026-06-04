@@ -193,7 +193,7 @@ class Game(arcade.Window):
         row += [c2[0].item(),c2[1].item()]
         c3 = self.world.boundary.wall_starts[self.index,3,:].detach()
         row += [c3[0].item(),c3[1].item()]
-        row += state[self.index, 19:35].detach().tolist()
+        row += state[self.index, 18:34].detach().tolist()
         vgrad0, vgrad1 = vgrads
         row += vgrad0[self.index].detach().tolist()
         row += vgrad1[self.index].detach().tolist()
@@ -215,8 +215,8 @@ class Game(arcade.Window):
             "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
             "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
             'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y',
-            'wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
-            'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y',
+            'a0wp0x','a0wp0y','a0wp1x','a0wp1y','a0wp2x','a0wp2y','a0wp3x','a0wp3y',
+            'a1wp0x','a1wp0y','a1wp1x','a1wp1y','a1wp2x','a1wp2y','a1wp3x','a1wp3y',
             'vg0x','vg0y','vg1x','vg1y'
         ])
 
