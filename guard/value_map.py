@@ -16,7 +16,7 @@ checkpoint = torch.load(checkpoint_path, weights_only=False)
 value_model.load_state_dict(checkpoint['value_model'])
 
 # Read simulation CSV — set frame=-1 for last frame, or a specific frame index
-frame = 300
+frame = 250
 
 rows = []
 with open('./simulation/simulation.csv') as f:

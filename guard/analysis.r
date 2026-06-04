@@ -1,6 +1,6 @@
 
 setwd(this.path::here())
-start = 100
+start = 200
 end = 300
 width = 5
 source = 'simulation/simulation'
@@ -73,7 +73,6 @@ times = time[s]
 frames = frame[s]
 fmin = max(fmin,min(frames))
 fmax = min(fmax,max(frames))
-sapply(frames,function(x)(x-fmin)/(fmax-fmin))
 a0cols = sapply(frames,function(x)rgb(0,0.5,0.0,(x-fmin)/(fmax-fmin)))
 b0cols = sapply(frames,function(x)rgb(0,0.9,0.0,(x-fmin)/(fmax-fmin)))
 a1cols = sapply(frames,function(x)rgb(0,0.0,0.9,(x-fmin)/(fmax-fmin)))
