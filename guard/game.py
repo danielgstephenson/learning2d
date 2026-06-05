@@ -250,7 +250,14 @@ if os.path.exists(checkpoint_path):
 
 get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
-generator = DataGenerator(value_model,action_noise=0,batch_size=1,step_count=1,time_step=0.03)
+generator = DataGenerator(
+    value_model,
+    action_noise=0,
+    state_noise=0,
+    batch_size=1,
+    step_count=1,
+    time_step=0.03
+)
 game = Game(generator)
 arcade.enable_timings()
 game.run()
