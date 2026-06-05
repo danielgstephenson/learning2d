@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.fx.experimental.proxy_tensor import make_fx
 import torch.nn.functional as F
 import torch.onnx
-from onnxruntime.quantization import quantize_dynamic, QuantType
+from onnxruntime.quantization import quantize_dynamic, QuantType, shape_inference
 import os
 from models import ValueModel, state_size
 
@@ -24,7 +24,7 @@ checkpoint_path = './checkpoints/checkpoint.pt'
 if os.path.exists(checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(value_checkpoint['model_state_dict'])
+    value_model.load_state_dict(value_checkpoint['value_model'])
 
 def value_sum(state: Tensor)->Tensor:
     return value_model(state).sum()
@@ -32,16 +32,13 @@ def value_sum(state: Tensor)->Tensor:
 def compute_grad(state: Tensor) -> Tensor:
     return torch.func.grad(value_sum)(state)[:,0:2]
 
-test_input = torch.randn(1, state_size).cpu()
-test_grad = compute_grad(test_input)
-print('test_input:',test_input)
-print('test_grad:',test_grad)
-
 dummy_input = torch.randn(1, state_size).cpu()
 traced_graph = make_fx(compute_grad)(dummy_input)
+traced_graph.eval()
 
 base_path = 'onnx/grad_model.onnx'
-quant_path = 'onnx/grad_model_quant.onnx'
+prep_path  = 'onnx/grad_model_prep.onnx'
+quant_path = 'onnx/grad_model_int8.onnx'
 
 print("Starting ONNX Export...")
 try:
@@ -54,14 +51,20 @@ try:
         input_names=['state'],
         output_names=['grad']
     )
-    print(f"Export successful: {base_path}")
     onnx_program.save(base_path)
+    shape_inference.quant_pre_process(base_path,prep_path,skip_optimization=False)
     quantize_dynamic(
-        model_input=base_path,
+        model_input=prep_path,
         model_output=quant_path,
-        weight_type=QuantType.QInt8
+        weight_type=QuantType.QInt8,
+        op_types_to_quantize=['MatMul', 'Gemm'],
     )
+    os.remove(prep_path)
     print(f"Quantization successful: {quant_path}")
+    orig_size = os.path.getsize(base_path)
+    int8_size = os.path.getsize(quant_path)
+    print(f'Original: {orig_size/1e6:.3f} MB')
+    print(f'INT8:     {int8_size/1e6:.3f} MB  ({100*int8_size/orig_size:.1f}%)')
 except Exception as e:
     import traceback
     traceback.print_exc()
