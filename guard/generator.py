@@ -53,7 +53,7 @@ class DataGenerator:
         xs = torch.stack((cos_angle, -sin_angle), dim=-1)
         ys = torch.stack((sin_angle,  cos_angle), dim=-1)
         self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
-        self.radius = (40 + 100 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
+        self.radius = (40 + 200 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
         max_offset = (self.radius.squeeze(-1) - self.ring_size).clamp(min=0)   # (n,1)
         offset_scale = torch.rand(n, 2) ** 2
         self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
@@ -200,12 +200,12 @@ class DataGenerator:
         life1 = self.agent1.alive.float()
         center_dist0 = torch.norm(self.agent0.position,dim=1,keepdim=True)
         center_dist1 = torch.norm(self.agent1.position,dim=1,keepdim=True)
-        key_dist = self.ring_size - self.agent0.radius
-        inRing1 = center_dist1 < key_dist
-        nearRing0 = life0*(1-torch.tanh(0.02*center_dist0))
-        nearRing1 = life1*(1-torch.tanh(0.02*center_dist1))
-        self.reward = 0.5*nearRing0 + 0.5*(1-nearRing1)
-        self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
+        key_dist = self.ring_size + self.agent0.radius
+        inRing0 = life0*(center_dist0< key_dist)
+        inRing1 = life1*(center_dist1 < key_dist)
+        charging = inRing1*(1-inRing0)
+        self.reward = 1-charging
+        self.world.charging = charging>0
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount_rate

@@ -24,7 +24,7 @@ value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
 stage = 0
 batch = 0
 discount_rate = 1/5
-target_discount_rate = 1/1000
+target_discount_rate = 1/1500
 
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
@@ -61,6 +61,7 @@ else:
 # stage = 0
 # batch = 0
 # discount_rate = 1/5
+# value_optimizer = torch.optim.AdamW(value_model.parameters(), lr=1e-4)
 
 batch_size = 5000
 state_noise = 1
