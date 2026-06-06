@@ -152,12 +152,9 @@ class DataGenerator:
             self.agent0.alive.int(),
             self.agent1.alive.int(),
         ]
-        origin0 = self.world.agents[0].position
         origin1 = self.world.agents[1].position
-        wallPoints0 = vision_cast(origin0,vision_reach,self.world.boundary)
-        wallPoints1 = vision_cast(origin1,vision_reach,self.world.boundary)
-        tensors.append(wallPoints0.reshape(self.world.count, 8))
-        tensors.append(wallPoints1.reshape(self.world.count, 8))
+        wallPoints = vision_cast(origin1,vision_reach,self.world.boundary)
+        tensors.append(wallPoints.reshape(self.world.count, 16))
         return torch.cat(tensors,dim=1)
     
     def blur(self,state:Tensor,noise: float)->Tensor:
@@ -207,8 +204,6 @@ class DataGenerator:
         inRing1 = center_dist1 < key_dist
         nearRing0 = life0*(1-torch.tanh(0.02*center_dist0))
         nearRing1 = life1*(1-torch.tanh(0.02*center_dist1))
-        # safe0 = 0.8*life0 + 0.2*torch.sigmoid(0.2*self.gap0)
-        # safe1 = 0.5*life1 + 0.5*torch.sigmoid(0.2*self.gap1)
         self.reward = 0.5*nearRing0 + 0.5*(1-nearRing1)
         self.world.charging = (self.world.charge==1) | (inRing1 & self.agent1.alive)
 

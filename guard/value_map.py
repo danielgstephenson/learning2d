@@ -48,8 +48,8 @@ ref_state[0, 15] = float(current['b1y'])
 ref_state[0, 16] = float(current['life0'])
 ref_state[0, 17] = float(current['life1'])
 
-wp_keys = ['a0wp0x','a0wp0y','a0wp1x','a0wp1y','a0wp2x','a0wp2y','a0wp3x','a0wp3y',
-           'a1wp0x','a1wp0y','a1wp1x','a1wp1y','a1wp2x','a1wp2y','a1wp3x','a1wp3y']
+wp_keys = ['wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
+           'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y']
 for i, key in enumerate(wp_keys):
     ref_state[0, 18 + i] = float(current[key])
 

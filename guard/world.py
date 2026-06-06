@@ -69,8 +69,8 @@ actions = torch.tensor([i for i in range(9)])
 action_count = actions.shape[0]
 
 vision_dir_list: list[list[float]] = []
-for i in range(4):
-    angle = 2 * pi * i / 4
+for i in range(8):
+    angle = 2 * pi * i / 8
     vision_dir = [cos(angle), sin(angle)]
     vision_dir_list.append(vision_dir)
 vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list])

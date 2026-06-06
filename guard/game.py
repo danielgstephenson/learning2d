@@ -9,6 +9,7 @@ from arcade import csscolor
 from arcade.types import Point2List, Color
 from collections import defaultdict
 from torch.func import vmap, grad
+import onnxruntime as ort
 
 from generator import DataGenerator
 from models import ValueModel
@@ -160,7 +161,11 @@ class Game(arcade.Window):
         state = self.generator.get_state()
         noisy_state = self.generator.blur(state,state_noise)
         value_estimate = torch.sigmoid(value_model(noisy_state))
-        vgrads = self.generator.get_vgrads(noisy_state)
+        # vgrads = self.generator.get_vgrads(noisy_state)
+        state_np = noisy_state.cpu().numpy()
+        vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
+        vgrad1 = torch.tensor([[0.0,0.0]])
+        vgrads = (vgrad0,vgrad1)
         action_values = self.generator.get_action_values(vgrads)
         actions = self.generator.get_actions(action_values,action_noise)
         generator.agent0.action = actions[0]
@@ -215,8 +220,8 @@ class Game(arcade.Window):
             "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
             "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
             'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y',
-            'a0wp0x','a0wp0y','a0wp1x','a0wp1y','a0wp2x','a0wp2y','a0wp3x','a0wp3y',
-            'a1wp0x','a1wp0y','a1wp1x','a1wp1y','a1wp2x','a1wp2y','a1wp3x','a1wp3y',
+            'wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
+            'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y',
             'vg0x','vg0y','vg1x','vg1y'
         ])
 
@@ -240,6 +245,7 @@ class Game(arcade.Window):
         
 checkpoint_path = './checkpoints/checkpoint.pt'
 value_model = ValueModel().eval()
+session = ort.InferenceSession('./onnx/guard.onnx')
 stage = 0
 
 if os.path.exists(checkpoint_path):
@@ -256,7 +262,7 @@ generator = DataGenerator(
     state_noise=0,
     batch_size=1,
     step_count=1,
-    time_step=0.03
+    time_step=0.02
 )
 game = Game(generator)
 arcade.enable_timings()

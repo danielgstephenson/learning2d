@@ -24,7 +24,7 @@ value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
 stage = 0
 batch = 0
 discount_rate = 1/5
-target_discount_rate = 1/300
+target_discount_rate = 1/1000
 
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
@@ -58,17 +58,18 @@ else:
 # for param_group in value_optimizer.param_groups:
 #     param_group['lr'] = 1e-4
 
-# stage = 1
+# stage = 0
 # batch = 0
+# discount_rate = 1/5
 
 batch_size = 5000
 state_noise = 1
 action_noise = 0.1
-step_count = 10
+step_count = 50
 batch_count = 10
 epoch_count = 1
 minibatch_size = 2000
-time_step = 0.1
+time_step = 0.02
 
 minibatch_count = (batch_size*step_count) // minibatch_size
 print('minibatch_count',minibatch_count)
