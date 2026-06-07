@@ -161,15 +161,15 @@ class Game(arcade.Window):
         state = self.generator.get_state()
         noisy_state = self.generator.blur(state,state_noise)
         value_estimate = torch.sigmoid(value_model(noisy_state))
-        # vgrads = self.generator.get_vgrads(noisy_state)
-        state_np = noisy_state.cpu().numpy()
-        vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
-        vgrad1 = torch.tensor([[0.0,0.0]])
-        vgrads = (vgrad0,vgrad1)
+        vgrads = self.generator.get_vgrads(noisy_state)
+        # state_np = noisy_state.cpu().numpy()
+        # vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
+        # vgrad1 = torch.tensor([[0.0,0.0]])
+        # vgrads = (vgrad0,vgrad1)
         action_values = self.generator.get_action_values(vgrads)
         actions = self.generator.get_actions(action_values,action_noise)
         generator.agent0.action = actions[0]
-        #generator.agent1.action = actions[1]
+        # generator.agent1.action = actions[1]
         generator.agent1.action[self.index] = self.get_user_action()
         row = [
             stage,self.frame_counter+1,self.world.time,

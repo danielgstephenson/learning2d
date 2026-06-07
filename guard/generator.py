@@ -17,7 +17,7 @@ class DataGenerator:
             batch_size = 1,
             step_count=10,
             discount_rate=1/100,
-            state_noise=3,
+            state_noise=3.0,
             action_noise=0.1,
             time_step=0.1):
         self.value_model = value_model
@@ -101,8 +101,8 @@ class DataGenerator:
         b1p = torch.einsum('bij,bj->bi', self.rotation, b1p_local)
         a0v = get_random_vectors(n, 30)
         a1v = get_random_vectors(n, 30)
-        b0v = get_random_vectors(n, 45)
-        b1v = get_random_vectors(n, 45)
+        b0v = get_random_vectors(n, 50)
+        b1v = get_random_vectors(n, 50)
         charge = torch.rand(self.batch_size,1)
         self.agent0.alive = life0
         self.agent1.alive = life1
@@ -201,7 +201,7 @@ class DataGenerator:
         center_dist0 = torch.norm(self.agent0.position,dim=1,keepdim=True)
         center_dist1 = torch.norm(self.agent1.position,dim=1,keepdim=True)
         key_dist = self.ring_size + self.agent0.radius
-        inRing0 = life0*(center_dist0< key_dist)
+        inRing0 = life0*(center_dist0 < key_dist)
         inRing1 = life1*(center_dist1 < key_dist)
         charging = inRing1*(1-inRing0)
         self.reward = 1-charging

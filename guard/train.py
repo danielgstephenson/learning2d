@@ -23,8 +23,10 @@ target_value_model = ValueModel()
 value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
 stage = 0
 batch = 0
-discount_rate = 1/5
+discount_rate = 1/2
 target_discount_rate = 1/1500
+state_noise = 1
+action_noise = 0.1
 
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
@@ -34,6 +36,8 @@ def save_checkpoint():
         'batch': batch,
         'stage': stage,
         'discount_rate': discount_rate,
+        'state_noise': state_noise,
+        'action_noise': action_noise,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -52,21 +56,20 @@ if os.path.exists(checkpoint_path):
     batch = checkpoint['batch']
     stage = checkpoint['stage']
     discount_rate = checkpoint['discount_rate']
+    state_noise = checkpoint['state_noise']
+    action_noise = checkpoint['action_noise']
 else:
     save_checkpoint()
-
-# for param_group in value_optimizer.param_groups:
-#     param_group['lr'] = 1e-4
 
 # stage = 0
 # batch = 0
 # discount_rate = 1/5
+# state_noise = 1
+# action_noise = 0.1
 # value_optimizer = torch.optim.AdamW(value_model.parameters(), lr=1e-4)
 
-batch_size = 5000
-state_noise = 1
-action_noise = 0.1
-step_count = 50
+batch_size = 25000
+step_count = 10
 batch_count = 10
 epoch_count = 1
 minibatch_size = 2000
@@ -120,6 +123,8 @@ for _ in range(100000000):
         message += f'batch: {batch+1}, '
         message += f'R2: {np.mean(qualities):.03f}, '
         message += f'p: {discount_rate:.05f}, '
+        message += f'state: {state_noise:.05f}, '
+        message += f'action: {action_noise:.05f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
         last_log_time = now
@@ -133,7 +138,11 @@ for _ in range(100000000):
         target_value_model.load_state_dict(value_model.state_dict())
         if meanQuality > discount_quality_threshold:
             discount_rate = 0.95*discount_rate + 0.05*target_discount_rate
+            state_noise = 0.95*state_noise
+            action_noise = 0.95*action_noise
             data_generator.discount_rate = discount_rate
+            data_generator.state_noise = state_noise
+            data_generator.action_noise = action_noise
         save_checkpoint()
         print(f'Beginning Stage {stage}...')
         continue

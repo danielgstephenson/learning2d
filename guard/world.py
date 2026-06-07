@@ -76,7 +76,7 @@ for i in range(8):
 vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list])
 
 class World:
-    def __init__(self, count: int, time_step):
+    def __init__(self, count: int, time_step: float):
         self.count = count
         self.device = device
         self.time_step = time_step
@@ -105,7 +105,7 @@ class World:
             agent.force = agent.move_power * action_tensor[action,:]
         for blade in self.blades:
             blade.force = blade.agent.position - blade.position
-            magnitude = torch.norm(blade.force, p=2, dim=1, keepdim=True)
+            magnitude = torch.norm(blade.force, dim=1, keepdim=True)
             max_force = 50*F.normalize(blade.force, p=2, dim=1)
             force = torch.where(magnitude > 50, max_force, blade.force)
             blade.force = torch.where(blade.agent.alive, force, 0)
@@ -127,6 +127,9 @@ class World:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity
             circle.velocity = circle.velocity + dt / circle.mass * circle.force
             circle.velocity = circle.velocity + circle.impulse / circle.mass
+            speed = torch.norm(circle.velocity, dim=1, keepdim=True)
+            max_velocity = 50*F.normalize(circle.velocity, dim=1)
+            circle.velocity = torch.where(speed>50,max_velocity,circle.velocity)
             newPosition = circle.position + dt * circle.velocity + circle.shift
             circle.position = torch.where(circle.alive, newPosition, circle.position)
 
