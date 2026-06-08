@@ -87,7 +87,6 @@ class World:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
-        self.boundary: Boundary
         self.charging = torch.zeros(self.count,1).bool()
         self.charge = torch.zeros(self.count,1)
 
@@ -117,8 +116,6 @@ class World:
             for otherAgent in self.agents:
                 if agent.index < otherAgent.index:
                     collide_circle_circle(agent, otherAgent)
-        for circle in self.circles:
-            collide_circle_boundary(circle, self.boundary)
         dt = self.time_step
         self.time += dt
         self.charge = torch.where(self.charging,self.charge+dt/self.charge_interval,0)

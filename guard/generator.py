@@ -17,16 +17,15 @@ class DataGenerator:
             batch_size = 1,
             step_count=10,
             discount_rate=1/100,
-            state_noise=3.0,
-            action_noise=0.1,
+            noise=0.1,
             time_step=0.1):
+        self.radius = 200
         self.value_model = value_model
         self.gradient = vmap(grad(lambda x: self.value_model(x).sum()))
         self.batch_size = batch_size
         self.step_count = step_count
         self.discount_rate = discount_rate
-        self.state_noise = state_noise
-        self.action_noise = action_noise
+        self.noise = noise
         self.time_step = time_step
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size, self.time_step)
@@ -35,70 +34,34 @@ class DataGenerator:
         self.blade0 = Blade(self.world, self.agent0)
         self.agent1 = Agent(self.world, 1)
         self.blade1 = Blade(self.world, self.agent1)
-        self.world.boundary = Boundary(self.world)
-        self.rotation: Tensor
-        self.radius: Tensor
         self.box_offset: Tensor
         self.state: Tensor
         self.gap0: Tensor
         self.gap1: Tensor
         self.reward: Tensor
         self.reset()
-    
-    def setup_boundary(self):
-        n = self.batch_size
-        angle = torch.rand(n) * 2 * pi
-        cos_angle = torch.cos(angle)
-        sin_angle = torch.sin(angle)
-        xs = torch.stack((cos_angle, -sin_angle), dim=-1)
-        ys = torch.stack((sin_angle,  cos_angle), dim=-1)
-        self.rotation = torch.stack((xs, ys), dim=1).to(physics_dtype)   # (n,2,2)
-        self.radius = (40 + 150 * torch.rand(n, 1, 1)).to(physics_dtype)  # (n,1,1)
-        max_offset = (self.radius.squeeze(-1) - self.ring_size).clamp(min=0)   # (n,1)
-        offset_scale = torch.rand(n, 2) ** 2
-        self.box_offset = max_offset * (1 - 2 * torch.rand(n, 2)) * offset_scale  # (n,2)
-        corners_local = unit_square.unsqueeze(0) * self.radius + self.box_offset.unsqueeze(1) # (n,4,2)
-        rotated_corners = torch.einsum('bij,bkj->bki', self.rotation, corners_local)
-        self.world.boundary.setup(rotated_corners)
 
     def reset(self):
         self.world.time = 0
         n = self.batch_size
-        self.setup_boundary()
-        radiusColumn = self.radius.squeeze(-1)
-        a0p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
-        a1p_local = self.box_offset + radiusColumn * (1 - 2 * torch.rand(n, 2))
+        a0p = get_random_vectors(n, self.radius)
+        a1p = get_random_vectors(n, self.radius)
         ring_radius = self.ring_size - self.agent1.radius
         # Oversample near ring states
         a0p_near = get_random_vectors(n, 5*ring_radius)
-        a0p_local = torch.where(torch.rand(n,1) < 0.5, a0p_near, a0p_local)
+        a0p = torch.where(torch.rand(n,1) < 0.5, a0p_near, a0p)
         a1p_near = get_random_vectors(n, 5*ring_radius)
-        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_near, a1p_local)
+        a1p = torch.where(torch.rand(n,1) < 0.5, a1p_near, a1p)
         # Oversample inside ring states
         a0p_inside = get_random_vectors(n, ring_radius)
-        a0p_local = torch.where(torch.rand(n,1) < 0.5, a0p_inside, a0p_local)
+        a0p = torch.where(torch.rand(n,1) < 0.5, a0p_inside, a0p)
         a1p_inside = get_random_vectors(n, ring_radius)
-        a1p_local = torch.where(torch.rand(n,1) < 0.5, a1p_inside, a1p_local)
-        # Clamp to bounds
-        agent_bound = radiusColumn - self.agent1.radius
-        min_ap = self.box_offset - agent_bound
-        max_ap = self.box_offset + agent_bound
-        a0p_local = torch.clamp(a0p_local, min_ap, max_ap)
-        a1p_local = torch.clamp(a1p_local, min_ap, max_ap)
+        a1p = torch.where(torch.rand(n,1) < 0.5, a1p_inside, a1p)
         # Position Blades
-        blade_bound = radiusColumn - self.blade0.radius  # (n,1)
-        b0_max = torch.min(a0p_local + 65, self.box_offset + blade_bound)
-        b0_min = torch.max(a0p_local - 65, self.box_offset - blade_bound)
-        b0p_local = b0_min + (b0_max - b0_min) * torch.rand(n, 2)
-        b1_max = torch.min(a1p_local + 65, self.box_offset + blade_bound)
-        b1_min = torch.max(a1p_local - 65, self.box_offset - blade_bound)
-        b1p_local = b1_min + (b1_max - b1_min) * torch.rand(n, 2)
+        b0p = a0p + get_random_vectors(n, 70)
+        b1p = a1p + get_random_vectors(n, 70)
         life0 = torch.rand(n, 1) < 0.5
         life1 = torch.rand(n, 1) < 0.5
-        a0p = torch.einsum('bij,bj->bi', self.rotation, a0p_local)
-        a1p = torch.einsum('bij,bj->bi', self.rotation, a1p_local)
-        b0p = torch.einsum('bij,bj->bi', self.rotation, b0p_local)
-        b1p = torch.einsum('bij,bj->bi', self.rotation, b1p_local)
         a0v = get_random_vectors(n, 30)
         a1v = get_random_vectors(n, 30)
         b0v = get_random_vectors(n, 50)
@@ -119,20 +82,11 @@ class DataGenerator:
 
     def reset_custom(self): # Only works for batch_size = 1
         self.reset()
-        r_val = (self.radius[0] - self.agent0.radius).item() * 0.9
-        a0p_local = torch.zeros(2)
-        a1p_local = self.box_offset[0] + torch.tensor([r_val, r_val])
-        self.agent0.position[0] = torch.einsum('ij,j->i', self.rotation[0], a0p_local)
-        self.agent1.position[0] = torch.einsum('ij,j->i', self.rotation[0], a1p_local)
-        self.agent0.velocity[0] = torch.zeros(2)
-        self.agent1.velocity[0] = torch.zeros(2)
-        blade_bound = (self.radius[0] - self.blade0.radius).squeeze()
-        b0_max = torch.min(a0p_local + 65, self.box_offset[0] + blade_bound)
-        b0_min = torch.max(a0p_local - 65, self.box_offset[0] - blade_bound)
-        b1_max = torch.min(a1p_local + 65, self.box_offset[0] + blade_bound)
-        b1_min = torch.max(a1p_local - 65, self.box_offset[0] - blade_bound)
-        self.blade0.position[0] = torch.einsum('ij,j->i', self.rotation[0], b0_min + (b0_max - b0_min) * torch.rand(2))
-        self.blade1.position[0] = torch.einsum('ij,j->i', self.rotation[0], b1_min + (b1_max - b1_min) * torch.rand(2))
+        n = self.batch_size
+        a0p = torch.zeros(2)
+        b0p = a0p + get_random_vectors(n, 70)
+        self.agent0.position = a0p
+        self.agent1.position = b0p
         self.agent0.alive = torch.ones_like(self.agent0.alive).bool()
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.world.charge = torch.zeros(self.world.count,1)
@@ -152,16 +106,7 @@ class DataGenerator:
             self.agent0.alive.int(),
             self.agent1.alive.int(),
         ]
-        origin1 = self.world.agents[1].position
-        wallPoints = vision_cast(origin1,vision_reach,self.world.boundary)
-        tensors.append(wallPoints.reshape(self.world.count, 16))
         return torch.cat(tensors,dim=1)
-    
-    def blur(self,state:Tensor,noise: float)->Tensor:
-        n = self.batch_size
-        noisy_state = state.clone()
-        noisy_state[:,8:16] += noise*(2*torch.rand(n,8)-1)
-        return noisy_state
     
     def get_vgrads(self,state:Tensor)->tuple[Tensor,Tensor]:
         grad = self.gradient(state)
@@ -178,8 +123,8 @@ class DataGenerator:
     def get_actions(self,action_values:tuple[Tensor,Tensor],noise:float)->tuple[Tensor,Tensor]:
         action0_values = action_values[0]
         action1_values = action_values[1]
-        action0 = torch.argmax(action0_values,dim=1,keepdim=True)
-        action1 = torch.argmin(action1_values,dim=1,keepdim=True)
+        action0 = torch.argmin(action0_values,dim=1,keepdim=True)
+        action1 = torch.argmax(action1_values,dim=1,keepdim=True)
         random0 = torch.randint_like(action0,low=0,high=action_count)
         random1 = torch.randint_like(action1,low=0,high=action_count)
         explore0 = torch.rand(action0.shape) < noise
@@ -203,9 +148,8 @@ class DataGenerator:
         key_dist = self.ring_size + self.agent0.radius
         near_ring0 = life0*torch.tanh(0.05*center_dist0)
         near_ring1 = life1*torch.tanh(0.05*center_dist1)
-        charging = near_ring1*(1-near_ring0)
-        self.reward = 1-charging
-        self.world.charging = charging>0
+        self.reward = near_ring1*(1-near_ring0)
+        self.world.charging = (self.reward > 0)
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount_rate
@@ -217,13 +161,11 @@ class DataGenerator:
         with torch.no_grad():
             self.reset()
             for step in range(k):
-                # if step % 10 == 0: print('.', end='', flush=True)
-                noisy_state = self.blur(self.state,self.state_noise)
-                state[step,:,:] = noisy_state
+                state[step,:,:] = self.state
                 if stage > 0:
-                    vgrads = self.get_vgrads(noisy_state)
+                    vgrads = self.get_vgrads(self.state)
                     action_values = self.get_action_values(vgrads)
-                    actions = self.get_actions(action_values,self.action_noise)
+                    actions = self.get_actions(action_values,self.noise)
                     self.agent0.action = actions[0]
                     self.agent1.action = actions[1]
                 else:

@@ -24,10 +24,10 @@ value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
 stage = 0
 batch = 0
 time_step = 0.02
-discount_rate = 1/2
-target_discount_rate = 1/500
-state_noise = 0
-action_noise = 0.1
+discount = 1/2
+noise = 1
+target_discount = 1/1000
+target_noise = 1/100
 
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
@@ -36,9 +36,8 @@ def save_checkpoint():
         'value_optimizer': value_optimizer.state_dict(),
         'batch': batch,
         'stage': stage,
-        'discount_rate': discount_rate,
-        'state_noise': state_noise,
-        'action_noise': action_noise,
+        'discount': discount,
+        'noise': noise,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -56,17 +55,15 @@ if os.path.exists(checkpoint_path):
     value_optimizer.load_state_dict(checkpoint['value_optimizer'])
     batch = checkpoint['batch']
     stage = checkpoint['stage']
-    discount_rate = checkpoint['discount_rate']
-    state_noise = checkpoint['state_noise']
-    action_noise = checkpoint['action_noise']
+    discount = checkpoint['discount']
+    noise = checkpoint['noise']
 else:
     save_checkpoint()
 
 # stage = 0
 # batch = 0
-# discount_rate = 1/2
-# state_noise = 0
-# action_noise = 0.1
+# discount = 1/2
+# noise = 1
 # value_optimizer = torch.optim.AdamW(value_model.parameters(), lr=1e-4)
 
 batch_size = 25000
@@ -80,7 +77,7 @@ print('minibatch_count',minibatch_count)
 cuda_generator = torch.Generator(device='cuda')
 data_generator = DataGenerator(
     target_value_model,batch_size,step_count,
-    discount_rate,state_noise,action_noise,time_step
+    discount,noise,time_step
 )
 last_log_time = time.perf_counter()
 quality_threshold = 0.99
@@ -121,8 +118,8 @@ for _ in range(100000000):
         message += f'stage: {stage}, '
         message += f'batch: {batch+1}, '
         message += f'R2: {np.mean(qualities):.03f}, '
-        message += f'p: {discount_rate:.05f}, '
-        message += f'noise: {action_noise:.05f}, '
+        message += f'p: {discount:.05f}, '
+        message += f'noise: {noise:.05f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
         last_log_time = now
@@ -134,12 +131,10 @@ for _ in range(100000000):
         stage += 1
         batch = 0
         target_value_model.load_state_dict(value_model.state_dict())
-        discount_rate = 0.95*discount_rate + 0.05*target_discount_rate
-        # state_noise = 0.95*state_noise
-        # action_noise = 0.95*action_noise
-        data_generator.discount_rate = discount_rate
-        data_generator.state_noise = state_noise
-        data_generator.action_noise = action_noise
+        discount = 0.95*discount + 0.05*target_discount
+        noise = 0.95*noise + 0.05*target_noise
+        data_generator.discount_rate = discount
+        data_generator.noise = noise
         save_checkpoint()
         print(f'Beginning Stage {stage}...')
         continue

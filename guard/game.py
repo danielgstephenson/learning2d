@@ -47,7 +47,7 @@ class Game(arcade.Window):
     def __init__(self, generator: DataGenerator):
         window_size = 900
         super().__init__(window_size, window_size, 'learning2d')
-        arcade.set_background_color((20,20,20,255))
+        arcade.set_background_color((0,0,0,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
         self.hud_camera = arcade.Camera2D()
@@ -124,10 +124,6 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        corner_count = self.world.boundary.num_walls
-        corners = [SCALE * self.world.boundary.wall_starts[self.index,i,:] for i in range(corner_count)]
-        self.boundaryPolygon: Point2List = tuple( (p[0].item(), p[1].item()) for p in corners)
-        arcade.draw_polygon_filled(self.boundaryPolygon, color=csscolor.BLACK)
         arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY, SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
@@ -156,13 +152,11 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
-        state_noise = self.generator.state_noise
-        action_noise = self.generator.action_noise
+        action_noise = self.generator.noise
         state = self.generator.get_state()
-        noisy_state = self.generator.blur(state,state_noise)
-        value_estimate = torch.sigmoid(value_model(noisy_state))
-        # vgrads = self.generator.get_vgrads(noisy_state)
-        state_np = noisy_state.cpu().numpy()
+        value_estimate = torch.sigmoid(value_model(state))
+        # vgrads = self.generator.get_vgrads(state)
+        state_np = state.cpu().numpy()
         vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
         vgrad1 = torch.tensor([[0.0,0.0]])
         vgrads = (vgrad0,vgrad1)
@@ -190,14 +184,6 @@ class Game(arcade.Window):
         ]
         row += action_values[0][self.index].tolist()
         row += action_values[1][self.index].tolist()
-        c0 = self.world.boundary.wall_starts[self.index,0,:].detach()
-        row += [c0[0].item(),c0[1].item()]
-        c1 = self.world.boundary.wall_starts[self.index,1,:].detach()
-        row += [c1[0].item(),c1[1].item()]
-        c2 = self.world.boundary.wall_starts[self.index,2,:].detach()
-        row += [c2[0].item(),c2[1].item()]
-        c3 = self.world.boundary.wall_starts[self.index,3,:].detach()
-        row += [c3[0].item(),c3[1].item()]
         row += state[self.index, 18:34].detach().tolist()
         vgrad0, vgrad1 = vgrads
         row += vgrad0[self.index].detach().tolist()
@@ -258,8 +244,7 @@ get_costate = vmap(grad(lambda x: value_model(x).sum()))
 
 generator = DataGenerator(
     value_model,
-    action_noise=0,
-    state_noise=0,
+    noise=0,
     batch_size=1,
     step_count=1,
     time_step=0.02
