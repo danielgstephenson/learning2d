@@ -2,12 +2,10 @@
 import sys
 from typing import Any
 from math import log
-from matplotlib.pylab import permutation
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.utils.data import TensorDataset, DataLoader, Dataset
 from torch.func import vmap, grad
 import os
 import time
@@ -18,27 +16,42 @@ from models import ValueModel
 sys.stdout = open('train.log', 'w', buffering=1)
 
 checkpoint_path = './checkpoints/checkpoint.pt'
-value_model = ValueModel()
-target_value_model = ValueModel()
-value_optimizer = torch.optim.AdamW(value_model.parameters(),lr=1e-4)
-stage = 0
+model0 = ValueModel()
+model1 = ValueModel()
 batch = 0
-time_step = 0.02
-discount = 1/2
-noise = 1
+stage = 0
+
+batch_size = 25000
+epoch_count = 1
+minibatch_size = 2000
 target_discount = 1/1000
 target_noise = 1/100
-quality_threshold = 0.9
+quality_threshold = 0.98
+
+gen = DataGenerator(batch_size)
+gen.discount = 1/2
+gen.model0.noise = 1.0
+gen.model1.noise = 1.0
+opt0 = torch.optim.AdamW(gen.model0.parameters(),lr=1e-4)
+opt1 = torch.optim.AdamW(gen.model1.parameters(),lr=1e-4)
+step_count = gen.step_count
+minibatch_count = (batch_size*gen.step_count) // minibatch_size
+print('minibatch_count',minibatch_count)
+cuda_generator = torch.Generator(device='cuda')
 
 def save_checkpoint():
-    checkpoint: dict[str, Any] = { 
-        'value_model': value_model.state_dict(),
-        'target_value_model': target_value_model.state_dict(),
-        'value_optimizer': value_optimizer.state_dict(),
+    checkpoint: dict[str, Any] = {
+        'model0': model0.state_dict(),
+        'model1': model1.state_dict(),
+        'gen_model0': gen.model0.state_dict(),
+        'gen_model1': gen.model1.state_dict(),
+        'discount': gen.discount,
+        'noise0': gen.model0.noise,
+        'noise1': gen.model1.noise,
+        'opt0': opt0.state_dict(),
+        'opt1': opt1.state_dict(),
         'batch': batch,
         'stage': stage,
-        'discount': discount,
-        'noise': noise,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -51,15 +64,28 @@ def save_checkpoint():
 if os.path.exists(checkpoint_path):
     print(f'Loading Checkpoint from {checkpoint_path}...')
     checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(checkpoint['value_model'])
-    target_value_model.load_state_dict(checkpoint['target_value_model'])
-    value_optimizer.load_state_dict(checkpoint['value_optimizer'])
+    model0.load_state_dict(checkpoint['model0'])
+    model1.load_state_dict(checkpoint['model1'])
+    gen.model0.load_state_dict(checkpoint['gen_model0'])
+    gen.model1.load_state_dict(checkpoint['gen_model1'])
+    gen.discount = checkpoint['discount']
+    gen.model0.noise = checkpoint['noise0']
+    gen.model1.noise = checkpoint['noise1']
+    opt0.load_state_dict(checkpoint['opt0'])
+    opt1.load_state_dict(checkpoint['opt1'])
     batch = checkpoint['batch']
     stage = checkpoint['stage']
-    discount = checkpoint['discount']
-    noise = checkpoint['noise']
 else:
     save_checkpoint()
+
+def reset(phase: int):
+    model = gen.model0 if phase==0 else gen.model1
+    opt = opt0 if phase==0 else opt1
+    model.load_state_dict(ValueModel().state_dict())
+    model.noise = 1.0
+    gen.discount = 1/2
+    fresh_opt = torch.optim.AdamW(model.parameters(),lr=1e-4)
+    opt.load_state_dict(fresh_opt.state_dict())
 
 # stage = 0
 # batch = 0
@@ -67,29 +93,18 @@ else:
 # noise = 1
 # value_optimizer = torch.optim.AdamW(value_model.parameters(), lr=1e-4)
 
-batch_size = 25000
-step_count = 10
-batch_count = 10
-epoch_count = 1
-minibatch_size = 2000
-
-minibatch_count = (batch_size*step_count) // minibatch_size
-print('minibatch_count',minibatch_count)
-cuda_generator = torch.Generator(device='cuda')
-data_generator = DataGenerator(
-    target_value_model,batch_size,step_count,
-    discount,noise,time_step
-)
-last_log_time = time.perf_counter()
-
 targets = []
 estimates = []
 qualities = []
 
+last_log_time = time.perf_counter()
 print('Training...')
 for _ in range(100000000):
     start_time = time.perf_counter()
-    data = data_generator.generate(stage)
+    data = gen.generate()
+    phase = stage % 2
+    model = gen.model0 if phase==0 else gen.model1    
+    opt = opt0 if phase==0 else opt1
     for epoch in range(epoch_count):
         targets = []
         estimates = []
@@ -100,41 +115,46 @@ for _ in range(100000000):
             idx = perm[s:s+minibatch_size]
             state = data[0][idx]
             value = data[1][idx]
-            value_optimizer.zero_grad()
-            value_logit = value_model(state)
-            value_loss = F.binary_cross_entropy_with_logits(value_logit, value)
-            value_loss.backward()
-            value_optimizer.step()
+            opt.zero_grad()
+            logit = model(state)
+            loss = F.binary_cross_entropy_with_logits(logit, value)
+            loss.backward()
+            opt.step()
             with torch.no_grad():
-                value_estimate = torch.sigmoid(value_model(state))
-                value_mse = F.mse_loss(value_estimate, value)
-                null_value_estimate = value.mean()
-                null_value_mse = ((value - null_value_estimate)**2).mean()
-                r2 = 1 - value_mse / null_value_mse
+                estimate = torch.sigmoid(model(state))
+                mse = F.mse_loss(estimate, value)
+                null_estimate = value.mean()
+                null_mse = ((value - null_estimate)**2).mean()
+                r2 = 1 - mse/null_mse
                 targets.append(value.mean().item())
-                estimates.append(value_estimate.mean().item())
+                estimates.append(estimate.mean().item())
                 qualities.append(r2.item())
+        charge = torch.mean(gen.world.charge).item()
         message = ''
         message += f'stage: {stage}, '
         message += f'batch: {batch+1}, '
         message += f'R2: {np.mean(qualities):.03f}, '
-        message += f'p: {discount:.05f}, '
-        message += f'noise: {noise:.05f}, '
+        message += f'p: {gen.discount:.05f}, '
+        message += f'noise: {model.noise:.05f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
         last_log_time = now
         print(message)
     save_checkpoint()
     meanQuality = np.mean(qualities)
-    if batch + 1 >= batch_count and meanQuality > quality_threshold:
+    gen.discount = max(0.99*gen.discount, target_discount)
+    model.noise = max(0.99*model.noise, target_noise)
+    ready = meanQuality > quality_threshold
+    ready = ready and (gen.discount == target_discount)
+    ready = ready and (model.noise == target_noise)
+    if ready:
         print(f'Stage {stage} Complete.')
+        learner = model0 if phase==0 else model1 
+        learner.load_state_dict(model.state_dict())
         stage += 1
+        phase = stage % 2
         batch = 0
-        target_value_model.load_state_dict(value_model.state_dict())
-        discount = 0.95*discount + 0.05*target_discount
-        noise = 0.95*noise + 0.05*target_noise
-        data_generator.discount = discount
-        data_generator.noise = noise
+        reset(phase)
         save_checkpoint()
         print(f'Beginning Stage {stage}...')
         continue

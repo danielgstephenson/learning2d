@@ -1,8 +1,6 @@
 import torch
 from torch import Tensor
-from torch.func import vmap, grad
 import torch.nn.functional as F
-from math import pi
 
 from models import ValueModel, state_size
 from world import Agent,Blade,Boundary,World,physics_dtype,vision_cast,action_tensor,action_count
@@ -11,22 +9,14 @@ unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
 vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
-    def __init__(
-            self, 
-            value_model: ValueModel,
-            batch_size = 1,
-            step_count=10,
-            discount=1/100,
-            noise=0.1,
-            time_step=0.1):
+    def __init__(self,batch_size = 1,time_step=0.02):
         self.radius = 200
-        self.value_model = value_model
-        self.gradient = vmap(grad(lambda x: self.value_model(x).sum()))
+        self.model0 = ValueModel()
+        self.model1 = ValueModel()
         self.batch_size = batch_size
-        self.step_count = step_count
-        self.discount = discount
-        self.noise = noise
         self.time_step = time_step
+        self.step_count = 10
+        self.discount = 1/2
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size, self.time_step)
         self.ring_size = 13
@@ -92,7 +82,6 @@ class DataGenerator:
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.world.charge = 0*self.world.charge
         self.update()
-    
 
     def get_state(self)->Tensor:
         tensors = [
@@ -110,31 +99,6 @@ class DataGenerator:
         ]
         return torch.cat(tensors,dim=1)
     
-    def get_vgrads(self,state:Tensor)->tuple[Tensor,Tensor]:
-        grad = self.gradient(state)
-        vgrad0 = grad[:,[0,1]]
-        vgrad1 = grad[:,[2,3]]
-        return vgrad0, vgrad1
-
-    def get_action_values(self,vgrads:tuple[Tensor,Tensor])->tuple[Tensor,Tensor]:
-        vgrad0, vgrad1 = vgrads
-        action0_values = torch.einsum('ij,kj->ik',vgrad0,action_tensor)
-        action1_values = torch.einsum('ij,kj->ik',vgrad1,action_tensor)
-        return action0_values, action1_values
-
-    def get_actions(self,action_values:tuple[Tensor,Tensor],noise:float)->tuple[Tensor,Tensor]:
-        action0_values = action_values[0]
-        action1_values = action_values[1]
-        action0 = torch.argmax(action0_values,dim=1,keepdim=True)
-        action1 = torch.argmin(action1_values,dim=1,keepdim=True)
-        random0 = torch.randint_like(action0,low=0,high=action_count)
-        random1 = torch.randint_like(action1,low=0,high=action_count)
-        explore0 = torch.rand(action0.shape) < noise
-        explore1 = torch.rand(action1.shape) < noise
-        action0 = torch.where(explore0, random0, action0)
-        action1 = torch.where(explore1, random1, action1)
-        return action0, action1
-    
     def update(self):
         self.world.charge.clamp_(0,1)
         self.state = self.get_state()
@@ -150,12 +114,12 @@ class DataGenerator:
         in_ring0 = self.agent0.alive & (center_dist0<key_dist)
         in_ring1 = self.agent1.alive & (center_dist1<key_dist)
         self.victory0 = ~self.agent1.alive & (self.world.charge == 0) 
-        self.victory1 = self.world.charge == 1
+        self.victory1 = (self.world.charge == 1)
         charging = self.victory1 | (in_ring1 & ~in_ring0)
         self.world.d_charge = torch.where(charging, 1, -1)
         self.reward = 1 - self.world.charge
 
-    def generate(self,stage: int)->tuple[Tensor,Tensor]:
+    def generate(self)->tuple[Tensor,Tensor]:
         p = self.discount
         n = self.batch_size
         k = self.step_count
@@ -169,15 +133,8 @@ class DataGenerator:
             self.reset()
             for step in range(2*k):
                 state[step,:,:] = self.state
-                if stage > 0:
-                    vgrads = self.get_vgrads(self.state)
-                    action_values = self.get_action_values(vgrads)
-                    actions = self.get_actions(action_values,self.noise)
-                    self.agent0.action = actions[0]
-                    self.agent1.action = actions[1]
-                else:
-                    self.agent0.action = torch.randint_like(self.agent0.action,0,action_count)
-                    self.agent1.action = torch.randint_like(self.agent0.action,0,action_count)
+                self.agent0.action = self.model0.actions(self.state)[0]
+                self.agent1.action = self.model1.actions(self.state)[1]
                 self.world.step()
                 self.update()
                 reward[step,:,:] = self.reward
@@ -187,7 +144,7 @@ class DataGenerator:
             for back in range(2*k):
                 step = 2*k - back - 1
                 if back==0:
-                    logit = self.value_model(self.state)
+                    logit = self.model0(self.state)
                     continuation_value = torch.sigmoid(logit)
                 else:
                     continuation_value = value[step+1,:,:]
