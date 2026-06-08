@@ -38,6 +38,8 @@ class DataGenerator:
         self.state: Tensor
         self.gap0: Tensor
         self.gap1: Tensor
+        self.victory0: Tensor
+        self.victory1: Tensor
         self.reward: Tensor
         self.reset()
 
@@ -76,7 +78,7 @@ class DataGenerator:
         self.agent1.velocity = a1v
         self.blade0.velocity = b0v
         self.blade1.velocity = b1v
-        self.world.charge = 2*torch.rand(n,1)
+        self.world.charge = 2*torch.rand(n,1) - 0.5
         self.update()
 
     def reset_custom(self): # Only works for batch_size = 1
@@ -147,8 +149,9 @@ class DataGenerator:
         key_dist = self.ring_size + self.agent0.radius
         in_ring0 = self.agent0.alive & (center_dist0<key_dist)
         in_ring1 = self.agent1.alive & (center_dist1<key_dist)
-        full = self.world.charge == 1
-        charging = full | (in_ring1 & ~in_ring0)
+        self.victory0 = ~self.agent1.alive & (self.world.charge == 0) 
+        self.victory1 = self.world.charge == 1
+        charging = self.victory1 | (in_ring1 & ~in_ring0)
         self.world.d_charge = torch.where(charging, 1, -1)
         self.reward = 1 - self.world.charge
 
@@ -160,6 +163,8 @@ class DataGenerator:
         reward = torch.zeros(2*k,n,1)
         value = torch.zeros(2*k,n,1)
         charge = torch.zeros(2*k,n,1)
+        victory0 = torch.zeros(2*k,n,1).bool()
+        victory1 = torch.zeros(2*k,n,1).bool()
         with torch.no_grad():
             self.reset()
             for step in range(2*k):
@@ -177,6 +182,8 @@ class DataGenerator:
                 self.update()
                 reward[step,:,:] = self.reward
                 charge[step,:,:] = self.world.charge
+                victory0[step,:,:] = self.victory0
+                victory1[step,:,:] = self.victory1
             for back in range(2*k):
                 step = 2*k - back - 1
                 if back==0:
@@ -184,8 +191,10 @@ class DataGenerator:
                     continuation_value = torch.sigmoid(logit)
                 else:
                     continuation_value = value[step+1,:,:]
-                full = charge[step,:,:] == 1
-                continuation_value = torch.where(full, 0, continuation_value)
+                v0 = victory0[step,:,:]
+                v1 = victory1[step,:,:]
+                continuation_value = torch.where(v0, 1, continuation_value)
+                continuation_value = torch.where(v1, 0, continuation_value)
                 value[step,:,:] = p*reward[step] + (1-p)*continuation_value
             state = state[:k,...]
             value = value[:k,...]
