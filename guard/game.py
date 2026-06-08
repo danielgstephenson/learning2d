@@ -124,7 +124,9 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY, SCALE*1)
+        charge = self.world.charge[self.index,0].item()
+        arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY,SCALE*1)
+        arcade.draw_arc_outline(0,0,SCALE*35,SCALE*35,arcade.color.GRAY,0,360*charge,SCALE*2)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -180,11 +182,11 @@ class Game(arcade.Window):
             generator.reward[self.index].detach().item(),
             value_estimate[self.index,0].detach().item(),
             generator.agent0.action[self.index,0].detach().item(),
-            generator.agent1.action[self.index,0].detach().item()
+            generator.agent1.action[self.index,0].detach().item(),
+            self.world.charge[self.index,0].detach().item(),
         ]
         row += action_values[0][self.index].tolist()
         row += action_values[1][self.index].tolist()
-        row += state[self.index, 18:34].detach().tolist()
         vgrad0, vgrad1 = vgrads
         row += vgrad0[self.index].detach().tolist()
         row += vgrad1[self.index].detach().tolist()
@@ -202,12 +204,9 @@ class Game(arcade.Window):
             "a1x","a1y","a1vx","a1vy",
             "b1x","b1y","b1vx","b1vy",
             "reward","value",
-            "action0","action1",
+            "action0","action1","charge",
             "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
             "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
-            'c0x','c0y','c1x','c1y','c2x','c2y','c3x','c3y',
-            'wp0x','wp0y','wp1x','wp1y','wp2x','wp2y','wp3x','wp3y',
-            'wp4x','wp4y','wp5x','wp5y','wp6x','wp6y','wp7x','wp7y',
             'vg0x','vg0y','vg1x','vg1y'
         ])
 

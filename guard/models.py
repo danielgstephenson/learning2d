@@ -3,7 +3,7 @@ from torch import nn, Tensor
 from math import log
 import torch.nn.functional as F
 
-state_size = 18
+state_size = 19
 
 class ValueModel(nn.Module):
     def __init__(self):

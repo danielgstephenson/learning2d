@@ -28,6 +28,7 @@ discount = 1/2
 noise = 1
 target_discount = 1/1000
 target_noise = 1/100
+quality_threshold = 0.9
 
 def save_checkpoint():
     checkpoint: dict[str, Any] = { 
@@ -80,7 +81,6 @@ data_generator = DataGenerator(
     discount,noise,time_step
 )
 last_log_time = time.perf_counter()
-quality_threshold = 0.99
 
 targets = []
 estimates = []
@@ -133,7 +133,7 @@ for _ in range(100000000):
         target_value_model.load_state_dict(value_model.state_dict())
         discount = 0.95*discount + 0.05*target_discount
         noise = 0.95*noise + 0.05*target_noise
-        data_generator.discount_rate = discount
+        data_generator.discount = discount
         data_generator.noise = noise
         save_checkpoint()
         print(f'Beginning Stage {stage}...')

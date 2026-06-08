@@ -1,7 +1,7 @@
 
 setwd(this.path::here())
-start = 1800
-end = 1898
+start = 0
+end = 9000
 width = 5
 source = 'simulation/simulation'
 sourcePath = paste(source,'.csv',sep='')
@@ -24,16 +24,6 @@ reward = simData$reward
 value = simData$value
 act0 = simData$action0
 act1 = simData$action1
-c0x = simData$c0x[1]
-c0y = simData$c0y[1]
-c1x = simData$c1x[1]
-c1y = simData$c1y[1]
-c2x = simData$c2x[1]
-c2y = simData$c2y[1]
-c3x = simData$c3x[1]
-c3y = simData$c3y[1]
-cx = c(c0x,c1x,c2x,c3x,c0x)
-cy = c(c0y,c1y,c2y,c3y,c0y)
 ringDist0 = sqrt(a0x^2+a0y^2)
 ringDist1 = sqrt(a1x^2+a1y^2)
 
@@ -46,14 +36,6 @@ dev.print(pdf,chargePath)
 plot(frame,value,type='l',ylim=c(0,1))
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
-
-# s = 15<ringDist1 & ringDist1<20
-# plot(ringDist1[s],value[s])
-# distValuePath = paste(source,'-dist-value.pdf',sep='')
-# dev.print(pdf,distValuePath)
-# plot(ringDist1[s],reward[s])
-# rewardValuePath = paste(source,'-dist-reward.pdf',sep='')
-# dev.print(pdf,rewardValuePath)
 
 drawCircle <- function(x, y, radius, fill = FALSE, n_points = 50, ...) {
   theta <- seq(0, 2 * pi, length.out = n_points)
@@ -78,7 +60,6 @@ b0cols = sapply(frames,function(x)rgb(0,0.9,0.0,(x-fmin)/(fmax-fmin)))
 a1cols = sapply(frames,function(x)rgb(0,0.0,0.9,(x-fmin)/(fmax-fmin)))
 b1cols = sapply(frames,function(x)rgb(0,0.5,1.0,(x-fmin)/(fmax-fmin)))
 ringColor = rgb(0,0,0)
-wallColor = rgb(0,0,0)
 life0 = simData$life0[s]
 life1 = simData$life1[s]
 a0xs = a0x[s]
@@ -99,7 +80,6 @@ plot(x=NA,y=NA,xlim=c(xmin,xmax),ylim=c(ymin,ymax),
      xlab='',ylab='',asp=1,axes=FALSE)
 title(main=sprintf("Frame %.0f - %.0f", min(frames), max(frames)))
 drawCircle(0,0,radius=13,col=ringColor,lwd=3)
-lines(cx,cy,col=wallColor,xpd = NA)
 points(a0xs,a0ys,col=a0cols,pch=16,cex=0.4)
 points(b0xs,b0ys,col=b0cols,pch=16,cex=0.4)
 points(a1xs,a1ys,col=a1cols,pch=16,cex=0.4)
