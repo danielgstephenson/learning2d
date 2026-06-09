@@ -70,10 +70,14 @@ class DataGenerator:
     def reset_custom(self): # Only works for batch_size = 1
         self.reset()
         n = self.batch_size
-        a0p = torch.zeros(n, 2)
-        b0p = a0p + get_random_vectors(n, 20)
-        self.agent0.position = a0p
-        self.blade0.position = b0p
+        self.agent0.position = torch.zeros(n, 2)
+        self.blade0.position = 1*self.agent0.position
+        self.agent1.position = 60*get_random_directions(n)
+        self.blade1.position = 1*self.agent1.position
+        self.agent0.velocity = torch.zeros(n, 2)
+        self.agent1.velocity = torch.zeros(n, 2)
+        self.blade0.velocity = torch.zeros(n, 2)
+        self.blade1.velocity = torch.zeros(n, 2)
         self.agent0.alive = torch.ones_like(self.agent0.alive).bool()
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
         self.update()
@@ -101,11 +105,16 @@ class DataGenerator:
         self.gap1 = norm(gapVector1)-15
         self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
-        life1 = self.agent0.alive.float()
+        life0 = self.agent0.alive.float()
+        life1 = self.agent1.alive.float()
         dist0 = norm(self.agent0.position)
         dist1 = norm(self.agent1.position)
-        d_dist = dist0-dist1
-        self.reward = 1.0 - life1*torch.sigmoid(0.05*unguarded)
+        key_dist = self.ring_size + self.agent0.radius
+        in_ring0 = life0*(dist0 < key_dist).float()
+        in_ring1 = life1*(dist1 < key_dist).float()
+        near_ring0 = life0*torch.tanh(0.02*dist0)
+        near_ring1 = life1*torch.tanh(0.02*dist1)
+        self.reward = 0.5*near_ring0 + 0.5*(1-near_ring1)
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount

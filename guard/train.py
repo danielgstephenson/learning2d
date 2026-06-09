@@ -18,10 +18,12 @@ batch = 0
 stage = 0
 
 batch_size = 25000
+batch_count = 10
 epoch_count = 1
 minibatch_size = 2000
 target_discount = 1/1000
 target_noise = 1/100
+quality_threshold = 0.95
 
 gen = DataGenerator(batch_size)
 gen.discount = 1/2
@@ -108,8 +110,7 @@ for _ in range(100000000):
         print(message)
     save_checkpoint()
     meanQuality = np.mean(qualities)
-    quality_threshold = 0.95
-    if meanQuality > quality_threshold:
+    if meanQuality > quality_threshold and batch >= batch_count:
         print(f'Stage {stage} Complete.')
         gen.model.load_state_dict(model.state_dict())
         stage += 1
