@@ -154,7 +154,7 @@ class Game(arcade.Window):
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         state = self.gen.get_state()
-        value_estimate = torch.sigmoid(gen.model(state))
+        value_estimate = gen.model(state)
         # state_np = state.cpu().numpy()
         # vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
         # vgrad1 = torch.tensor([[0.0,0.0]])

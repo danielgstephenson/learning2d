@@ -85,12 +85,12 @@ for _ in range(100000000):
             state = data[0][idx]
             value = data[1][idx]
             opt.zero_grad()
-            logit = model(state)
-            loss = F.binary_cross_entropy_with_logits(logit, value)
+            estimate = model(state)
+            loss = F.mse_loss(estimate, value)
             loss.backward()
             opt.step()
             with torch.no_grad():
-                estimate = torch.sigmoid(model(state))
+                estimate = model(state)
                 mse = F.mse_loss(estimate, value)
                 null_estimate = value.mean()
                 null_mse = ((value - null_estimate)**2).mean()
