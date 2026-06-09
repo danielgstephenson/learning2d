@@ -1,12 +1,10 @@
 
 import sys
 from typing import Any
-from math import log
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.func import vmap, grad
 import os
 import time
 
@@ -101,8 +99,8 @@ last_log_time = time.perf_counter()
 print('Training...')
 for _ in range(100000000):
     start_time = time.perf_counter()
-    data = gen.generate()
     phase = stage % 2
+    data = gen.generate(phase)
     model = gen.model0 if phase==0 else gen.model1    
     opt = opt0 if phase==0 else opt1
     for epoch in range(epoch_count):
@@ -149,8 +147,8 @@ for _ in range(100000000):
     ready = ready and (model.noise == target_noise)
     if ready:
         print(f'Stage {stage} Complete.')
-        learner = model0 if phase==0 else model1 
-        learner.load_state_dict(model.state_dict())
+        model0.load_state_dict(gen.model0.state_dict())
+        model1.load_state_dict(gen.model1.state_dict())
         stage += 1
         phase = stage % 2
         batch = 0

@@ -119,7 +119,7 @@ class DataGenerator:
         self.world.d_charge = torch.where(charging, 1, -1)
         self.reward = 1 - self.world.charge
 
-    def generate(self)->tuple[Tensor,Tensor]:
+    def generate(self,phase:int)->tuple[Tensor,Tensor]:
         p = self.discount
         n = self.batch_size
         k = self.step_count
@@ -144,7 +144,8 @@ class DataGenerator:
             for back in range(2*k):
                 step = 2*k - back - 1
                 if back==0:
-                    logit = self.model0(self.state)
+                    model = self.model0 if phase==0 else self.model1
+                    logit = model(self.state)
                     continuation_value = torch.sigmoid(logit)
                 else:
                     continuation_value = value[step+1,:,:]
