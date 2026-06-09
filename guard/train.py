@@ -108,7 +108,7 @@ for _ in range(100000000):
         print(message)
     save_checkpoint()
     meanQuality = np.mean(qualities)
-    quality_threshold = 0.95 if stage==0 else 0.985
+    quality_threshold = 0.95
     if meanQuality > quality_threshold:
         print(f'Stage {stage} Complete.')
         gen.model.load_state_dict(model.state_dict())

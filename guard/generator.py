@@ -101,13 +101,11 @@ class DataGenerator:
         self.gap1 = norm(gapVector1)-15
         self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
-        center_dist0 = norm(self.agent0.position)
-        center_dist1 = norm(self.agent1.position)
-        key_dist = self.ring_size + self.agent0.radius
-        in_ring0 = self.agent0.alive & (center_dist0<key_dist)
-        in_ring1 = self.agent1.alive & (center_dist1<key_dist)
-        charging = (in_ring1 & ~in_ring0).float()
-        self.reward = 1.0 - charging
+        life1 = self.agent0.alive.float()
+        dist0 = norm(self.agent0.position)
+        dist1 = norm(self.agent1.position)
+        d_dist = dist0-dist1
+        self.reward = 1.0 - life1*torch.sigmoid(0.05*unguarded)
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount
