@@ -44,7 +44,7 @@ class BladeCircle(arcade.SpriteCircle):
         self.blade = blade
 
 class Game(arcade.Window):
-    def __init__(self, generator: DataGenerator):
+    def __init__(self, gen: DataGenerator):
         window_size = 900
         super().__init__(window_size, window_size, 'learning2d')
         arcade.set_background_color((0,0,0,255))
@@ -54,8 +54,8 @@ class Game(arcade.Window):
         self.hud_camera.position = (0,0)
         self.index = 0
         self.set_update_rate(1 / 40)
-        self.generator = generator
-        self.world = generator.world
+        self.gen = gen
+        self.world = gen.world
         self.pressed = defaultdict(lambda: False)
         self.agentCircles: list[AgentCircle] = []
         self.bladeCircles: list[BladeCircle] = []
@@ -79,12 +79,12 @@ class Game(arcade.Window):
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
         if symbol == arcade.key.ENTER:
-            self.generator.reset()
+            self.gen.reset()
             self.frame_counter = 0
             self.paused = True
             self.reset_log_file()
         if symbol == arcade.key.L:
-            self.generator.reset_custom()
+            self.gen.reset_custom()
             self.frame_counter = 0
             self.paused = True
             self.reset_log_file()
@@ -113,7 +113,7 @@ class Game(arcade.Window):
         self.hud_camera.use()
         text = f'Time: {self.world.time:.1f}, '
         text += f'FPS: {arcade.get_fps():.1f}, '
-        text += f'Reward: {self.generator.reward[self.index].item():0.3f}'
+        text += f'Reward: {self.gen.reward[self.index].item():0.3f}'
         x = 0
         y = 400
         color = arcade.color.WHITE
@@ -124,9 +124,8 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        charge = self.world.charge[self.index,0].item()
-        arcade.draw_circle_outline(0, 0, SCALE*generator.ring_size, arcade.color.GRAY,SCALE*1)
-        arcade.draw_arc_outline(0,0,SCALE*35,SCALE*35,arcade.color.GRAY,0,360*charge,SCALE*2)
+        arcade.draw_circle_outline(0, 0, SCALE*gen.ring_size, arcade.color.GRAY,SCALE*1)
+        # arcade.draw_arc_outline(0,0,SCALE*35,SCALE*35,arcade.color.GRAY,0,360*charge,SCALE*2)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -145,7 +144,7 @@ class Game(arcade.Window):
         # self.camera.position = (0,0)
         if self.paused: return
         self.world.step()
-        self.generator.update()
+        self.gen.update()
         agentPosition0 = self.world.agents[0].position[self.index,:]
         agentVelocity0 = self.world.agents[0].velocity[self.index,:]
         bladePosition0 = self.world.blades[0].position[self.index,:]
@@ -154,23 +153,20 @@ class Game(arcade.Window):
         agentVelocity1 = self.world.agents[1].velocity[self.index,:]
         bladePosition1 = self.world.blades[1].position[self.index,:]
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
-        action_noise = self.generator.noise
-        state = self.generator.get_state()
-        value_estimate = torch.sigmoid(value_model(state))
-        # vgrads = self.generator.get_vgrads(state)
-        state_np = state.cpu().numpy()
-        vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
-        vgrad1 = torch.tensor([[0.0,0.0]])
-        vgrads = (vgrad0,vgrad1)
-        action_values = self.generator.get_action_values(vgrads)
-        actions = self.generator.get_actions(action_values,action_noise)
-        generator.agent0.action = actions[0]
-        # generator.agent1.action = actions[1]
-        generator.agent1.action[self.index] = self.get_user_action()
+        state = self.gen.get_state()
+        value_estimate = torch.sigmoid(gen.model(state))
+        # state_np = state.cpu().numpy()
+        # vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
+        # vgrad1 = torch.tensor([[0.0,0.0]])
+        # vgrads = (vgrad0,vgrad1)
+        actions = gen.model.actions(state)
+        gen.agent0.action = actions[0]
+        # gen.agent1.action = actions[1]
+        gen.agent1.action[self.index] = self.get_user_action()
         row = [
             stage,self.frame_counter+1,self.world.time,
-            self.generator.agent0.alive[self.index,0].int().item(),
-            self.generator.agent1.alive[self.index,0].int().item(),
+            self.gen.agent0.alive[self.index,0].int().item(),
+            self.gen.agent1.alive[self.index,0].int().item(),
             agentPosition0[0].detach().item(), agentPosition0[1].detach().item(), 
             agentVelocity0[0].detach().item(), agentVelocity0[1].detach().item(),
             bladePosition0[0].detach().item(), bladePosition0[1].detach().item(), 
@@ -179,17 +175,11 @@ class Game(arcade.Window):
             agentVelocity1[0].detach().item(), agentVelocity1[1].detach().item(),
             bladePosition1[0].detach().item(), bladePosition1[1].detach().item(), 
             bladeVelocity1[0].detach().item(), bladeVelocity1[1].detach().item(),
-            generator.reward[self.index].detach().item(),
+            gen.reward[self.index].detach().item(),
             value_estimate[self.index,0].detach().item(),
-            generator.agent0.action[self.index,0].detach().item(),
-            generator.agent1.action[self.index,0].detach().item(),
-            self.world.charge[self.index,0].detach().item(),
+            gen.agent0.action[self.index,0].detach().item(),
+            gen.agent1.action[self.index,0].detach().item(),
         ]
-        row += action_values[0][self.index].tolist()
-        row += action_values[1][self.index].tolist()
-        vgrad0, vgrad1 = vgrads
-        row += vgrad0[self.index].detach().tolist()
-        row += vgrad1[self.index].detach().tolist()
         self.log_writer.writerow(row)
         self.log_file.flush()
         self.frame_counter += 1
@@ -204,10 +194,7 @@ class Game(arcade.Window):
             "a1x","a1y","a1vx","a1vy",
             "b1x","b1y","b1vx","b1vy",
             "reward","value",
-            "action0","action1","charge",
-            "a0v0","a0v1","a0v2","a0v3","a0v4","a0v5","a0v6","a0v7","a0v8",
-            "a1v0","a1v1","a1v2","a1v3","a1v4","a1v5","a1v6","a1v7","a1v8",
-            'vg0x','vg0y','vg1x','vg1y'
+            "action0","action1",
         ])
 
     def get_user_action(self):
@@ -228,26 +215,19 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
         
+
 checkpoint_path = './checkpoints/checkpoint.pt'
-value_model = ValueModel().eval()
-session = ort.InferenceSession('./onnx/guard.onnx')
+# session = ort.InferenceSession('./onnx/guard.onnx')
+gen = DataGenerator(batch_size=1)
+gen.model.noise = 0.0
 stage = 0
 
 if os.path.exists(checkpoint_path):
     print(f'Loading Checkpoint from {checkpoint_path}...')
     checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(checkpoint['value_model'])
+    gen.model.load_state_dict(checkpoint['gen_model'])
     stage = checkpoint['stage']
 
-get_costate = vmap(grad(lambda x: value_model(x).sum()))
-
-generator = DataGenerator(
-    value_model,
-    noise=0,
-    batch_size=1,
-    step_count=1,
-    time_step=0.02
-)
-game = Game(generator)
+game = Game(gen)
 arcade.enable_timings()
 game.run()

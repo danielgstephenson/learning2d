@@ -86,9 +86,6 @@ class World:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
-        self.charge_interval = 4.0
-        self.charge = torch.zeros(self.count, 1)
-        self.d_charge = torch.zeros(self.count, 1)
 
     def step(self):
         for agent in self.agents:
@@ -118,8 +115,6 @@ class World:
                     collide_circle_circle(agent, otherAgent)
         dt = self.time_step
         self.time += dt
-        self.charge += self.d_charge*dt / self.charge_interval
-        self.charge.clamp_(0,1)
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity
             circle.velocity = circle.velocity + dt / circle.mass * circle.force

@@ -11,8 +11,7 @@ vision_reach = 400.0  # maximum raycast distance
 class DataGenerator:
     def __init__(self,batch_size = 1,time_step=0.02):
         self.radius = 200
-        self.model0 = ValueModel()
-        self.model1 = ValueModel()
+        self.model = ValueModel()
         self.batch_size = batch_size
         self.time_step = time_step
         self.step_count = 10
@@ -28,8 +27,6 @@ class DataGenerator:
         self.state: Tensor
         self.gap0: Tensor
         self.gap1: Tensor
-        self.victory0: Tensor
-        self.victory1: Tensor
         self.reward: Tensor
         self.reset()
 
@@ -68,19 +65,17 @@ class DataGenerator:
         self.agent1.velocity = a1v
         self.blade0.velocity = b0v
         self.blade1.velocity = b1v
-        self.world.charge = 2*torch.rand(n,1) - 0.5
         self.update()
 
     def reset_custom(self): # Only works for batch_size = 1
         self.reset()
         n = self.batch_size
         a0p = torch.zeros(n, 2)
-        b0p = a0p + get_random_vectors(n, 70)
+        b0p = a0p + get_random_vectors(n, 20)
         self.agent0.position = a0p
         self.blade0.position = b0p
         self.agent0.alive = torch.ones_like(self.agent0.alive).bool()
         self.agent1.alive = torch.ones_like(self.agent1.alive).bool()
-        self.world.charge = 0*self.world.charge
         self.update()
 
     def get_state(self)->Tensor:
@@ -95,12 +90,10 @@ class DataGenerator:
             self.world.blades[1].position,
             self.agent0.alive.int(),
             self.agent1.alive.int(),
-            self.world.charge,
         ]
         return torch.cat(tensors,dim=1)
     
     def update(self):
-        self.world.charge.clamp_(0,1)
         self.state = self.get_state()
         gapVector0 = self.agent0.position-self.blade1.position
         gapVector1 = self.agent1.position-self.blade0.position
@@ -113,46 +106,37 @@ class DataGenerator:
         key_dist = self.ring_size + self.agent0.radius
         in_ring0 = self.agent0.alive & (center_dist0<key_dist)
         in_ring1 = self.agent1.alive & (center_dist1<key_dist)
-        self.victory0 = ~self.agent1.alive & (self.world.charge == 0) 
-        self.victory1 = (self.world.charge == 1)
-        charging = self.victory1 | (in_ring1 & ~in_ring0)
-        self.world.d_charge = torch.where(charging, 1, -1)
-        self.reward = 1 - self.world.charge
+        charging = (in_ring1 & ~in_ring0).float()
+        self.reward = 1.0 - charging
 
-    def generate(self,phase:int)->tuple[Tensor,Tensor]:
+    def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount
         n = self.batch_size
         k = self.step_count
         state = torch.zeros(2*k,n,state_size)
         reward = torch.zeros(2*k,n,1)
         value = torch.zeros(2*k,n,1)
-        charge = torch.zeros(2*k,n,1)
-        victory0 = torch.zeros(2*k,n,1).bool()
-        victory1 = torch.zeros(2*k,n,1).bool()
         with torch.no_grad():
             self.reset()
             for step in range(2*k):
                 state[step,:,:] = self.state
-                self.agent0.action = self.model0.actions(self.state)[0]
-                self.agent1.action = self.model1.actions(self.state)[1]
+                if stage == 0:
+                    self.agent0.action = torch.randint_like(self.agent0.action,0,action_count)
+                    self.agent1.action = torch.randint_like(self.agent1.action,0,action_count)
+                else:
+                    actions = self.model.actions(self.state)
+                    self.agent0.action = actions[0]
+                    self.agent1.action = actions[1]
                 self.world.step()
                 self.update()
                 reward[step,:,:] = self.reward
-                charge[step,:,:] = self.world.charge
-                victory0[step,:,:] = self.victory0
-                victory1[step,:,:] = self.victory1
             for back in range(2*k):
                 step = 2*k - back - 1
                 if back==0:
-                    model = self.model0 if phase==0 else self.model1
-                    logit = model(self.state)
+                    logit = self.model(self.state)
                     continuation_value = torch.sigmoid(logit)
                 else:
                     continuation_value = value[step+1,:,:]
-                v0 = victory0[step,:,:]
-                v1 = victory1[step,:,:]
-                continuation_value = torch.where(v0, 1, continuation_value)
-                continuation_value = torch.where(v1, 0, continuation_value)
                 value[step,:,:] = p*reward[step] + (1-p)*continuation_value
             state = state[:k,...]
             value = value[:k,...]

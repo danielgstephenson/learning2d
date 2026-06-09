@@ -4,7 +4,7 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 from world import action_tensor, action_count
 
-state_size = 19
+state_size = 18
 
 class ValueModel(nn.Module):
     def __init__(self):
