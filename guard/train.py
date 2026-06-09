@@ -115,8 +115,8 @@ for _ in range(100000000):
         gen.model.load_state_dict(model.state_dict())
         stage += 1
         batch = 0
-        gen.discount = max(0.9*gen.discount, target_discount)
-        gen.model.noise = max(0.9*gen.model.noise, target_noise)
+        gen.discount = 1/(stage+1)
+        gen.model.noise = 0.1
         save_checkpoint()
         print(f'Beginning Stage {stage}...')
         continue

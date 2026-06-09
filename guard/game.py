@@ -161,8 +161,8 @@ class Game(arcade.Window):
         # vgrads = (vgrad0,vgrad1)
         actions = gen.model.actions(state)
         gen.agent0.action = actions[0]
-        gen.agent1.action = actions[1]
-        # gen.agent1.action[self.index] = self.get_user_action()
+        # gen.agent1.action = actions[1]
+        gen.agent1.action[self.index] = self.get_user_action()
         row = [
             stage,self.frame_counter+1,self.world.time,
             self.gen.agent0.alive[self.index,0].int().item(),

@@ -29,11 +29,11 @@ ringDist1 = sqrt(a1x^2+a1y^2)
 
 par(cex=1,mar=c(5,5,2,2))
 
-plot(frame,reward,type='l',ylim=c(0,1))
+plot(frame,reward,type='l')
 chargePath = paste(source,'-reward.pdf',sep='')
 dev.print(pdf,chargePath)
 
-plot(frame,value,type='l',ylim=c(0,1))
+plot(frame,value,type='l')
 valuePath = paste(source,'-value.pdf',sep='')
 dev.print(pdf,valuePath)
 

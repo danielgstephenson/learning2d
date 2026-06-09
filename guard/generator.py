@@ -109,7 +109,10 @@ class DataGenerator:
         life1 = self.agent1.alive.float()
         dist0 = norm(self.agent0.position)
         dist1 = norm(self.agent1.position)
-        self.reward = 100*(life0-life1) + life0*life1*(dist1-dist0)
+        key_dist = self.ring_size + self.agent0.radius
+        in_ring0 = life0*(dist0<key_dist).float()
+        in_ring1 = life1*(dist1<key_dist).float()
+        self.reward = 1-in_ring1*(1-in_ring0)
 
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.discount
