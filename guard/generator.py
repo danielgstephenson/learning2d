@@ -99,10 +99,10 @@ class DataGenerator:
     
     def update(self):
         self.state = self.get_state()
-        gapVector0 = self.agent0.position-self.blade1.position
-        gapVector1 = self.agent1.position-self.blade0.position
-        self.gap0 = norm(gapVector0)-15
-        self.gap1 = norm(gapVector1)-15
+        gap_vector0 = self.agent0.position-self.blade1.position
+        gap_vector1 = self.agent1.position-self.blade0.position
+        self.gap0 = norm(gap_vector0)-15
+        self.gap1 = norm(gap_vector1)-15
         self.agent0.alive = self.agent0.alive & (self.gap0 > 0)
         self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
         life0 = self.agent0.alive.float()

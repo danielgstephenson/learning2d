@@ -18,7 +18,7 @@ checkpoint_path = './checkpoints/checkpoint.pt'
 if os.path.exists(checkpoint_path):
     print('Loading Value Checkpoint...')
     value_checkpoint = torch.load(checkpoint_path, weights_only=False)
-    value_model.load_state_dict(value_checkpoint['value_model'])
+    value_model.load_state_dict(value_checkpoint['gen_model'])
 
 def value_sum(state: Tensor) -> Tensor:
     return value_model(state).sum()

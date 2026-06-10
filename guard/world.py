@@ -135,6 +135,7 @@ def collide_circle_circle(circle1: Circle, circle2: Circle):
     normal = F.normalize(vector, dim=1)
     relative_velocity = circle1.velocity - circle2.velocity
     impact_speed = torch.linalg.vecdot(relative_velocity, normal).unsqueeze(1)
+    impact_speed = torch.where(impact_speed > 0, impact_speed, 0)
     mass_factor = 1 / circle1.mass + 1 / circle2.mass
     impulse = torch.where(overlap > 0, impact_speed / mass_factor * normal, 0)
     shift = torch.where(overlap > 0, 0.5 * overlap * normal, 0)

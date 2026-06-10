@@ -21,8 +21,7 @@ batch_size = 25000
 batch_count = 10
 epoch_count = 1
 minibatch_size = 2000
-target_discount = 1/1000
-target_noise = 1/100
+target_discount = 1/4000
 quality_threshold = 0.95
 
 gen = DataGenerator(batch_size)
@@ -102,8 +101,8 @@ for _ in range(100000000):
         message += f'stage: {stage}, '
         message += f'batch: {batch+1}, '
         message += f'R2: {np.mean(qualities):.03f}, '
-        message += f'p: {gen.discount:.05f}, '
-        message += f'noise: {gen.model.noise:.05f}, '
+        message += f'p: {gen.discount:.07f}, '
+        message += f'noise: {gen.model.noise:.02f}, '
         now = time.perf_counter()
         message += f'Time: {now - last_log_time:.03f}, '
         last_log_time = now
@@ -115,7 +114,7 @@ for _ in range(100000000):
         gen.model.load_state_dict(model.state_dict())
         stage += 1
         batch = 0
-        gen.discount = 1/(stage+1)
+        gen.discount = max(target_discount, 1/(stage+1))
         gen.model.noise = 0.1
         save_checkpoint()
         print(f'Beginning Stage {stage}...')

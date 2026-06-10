@@ -155,12 +155,12 @@ class Game(arcade.Window):
         bladeVelocity1 = self.world.blades[1].velocity[self.index,:]
         state = self.gen.get_state()
         value_estimate = gen.model(state)
-        # state_np = state.cpu().numpy()
-        # vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
-        # vgrad1 = torch.tensor([[0.0,0.0]])
-        # vgrads = (vgrad0,vgrad1)
-        actions = gen.model.actions(state)
-        gen.agent0.action = actions[0]
+        state_np = state.cpu().numpy()
+        vgrad0 = torch.tensor(session.run(['grad'], {'state': state_np})[0])
+        action0_values = torch.einsum('ij,kj->ik',vgrad0,action_tensor)
+        gen.agent0.action = torch.argmax(action0_values,dim=1,keepdim=True)
+        # actions = gen.model.actions(state)
+        # gen.agent0.action = actions[0]
         # gen.agent1.action = actions[1]
         gen.agent1.action[self.index] = self.get_user_action()
         row = [
@@ -217,7 +217,7 @@ class Game(arcade.Window):
         
 
 checkpoint_path = './checkpoints/checkpoint.pt'
-# session = ort.InferenceSession('./onnx/guard.onnx')
+session = ort.InferenceSession('./onnx/guard.onnx')
 gen = DataGenerator(batch_size=1)
 gen.model.noise = 0.0
 stage = 0
