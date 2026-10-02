@@ -76,17 +76,14 @@ class World:
     def __init__(self, count: int):
         self.count = count
         self.device = device
-        self.time_step = time_step
         self.dtype = dtype
-        self.time = 0.0
+        self.time = torch.zeros(self.count,1,dtype=physics_dtype)
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
 
-    def step(self):
-        for agent in self.agents:
-            if agent.alive == False: return
+    def step(self,dt: Tensor):
         for agent in self.agents:
             agent.force.fill_(0.0)
             agent.impulse.fill_(0.0)
@@ -108,7 +105,6 @@ class World:
             for otherAgent in self.agents:
                 if agent.index < otherAgent.index:
                     collide_circle_circle(agent, otherAgent)
-        dt = self.time_step
         self.time += dt
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity

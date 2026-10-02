@@ -10,7 +10,6 @@ vision_reach = 400.0  # maximum raycast distance
 
 class DataGenerator:
     def __init__(self,batch_size = 1):
-        self.spawn_radius = 200
         self.model = ValueModel()
         self.batch_size = batch_size
         self.step_count = 10
@@ -26,16 +25,16 @@ class DataGenerator:
         self.reset()
 
     def reset(self):
-        self.world.time = 0
+        self.world.time = torch.zeros(self.world.count,1,dtype=physics_dtype)
         n = self.batch_size
-        a0p = get_random_vectors(n, self.spawn_radius)
-        a1p = get_random_vectors(n, self.spawn_radius)
-        b0p = a0p + get_random_vectors(n, 70)
-        b1p = a1p + get_random_vectors(n, 70)
-        a0v = get_random_vectors(n, 30)
-        a1v = get_random_vectors(n, 30)
-        b0v = get_random_vectors(n, 50)
-        b1v = get_random_vectors(n, 50)
+        a0p = get_random_vectors(n, 150)
+        a1p = get_random_vectors(n, 150)
+        b0p = a0p + get_random_vectors(n, 160)
+        b1p = a1p + get_random_vectors(n, 160)
+        a0v = get_random_vectors(n, 120)
+        a1v = get_random_vectors(n, 120)
+        b0v = get_random_vectors(n, 200)
+        b1v = get_random_vectors(n, 200)
         self.agent0.position = a0p
         self.agent1.position = a1p
         self.blade0.position = b0p
@@ -90,7 +89,9 @@ class DataGenerator:
                     self.agent0.action[:] = 0
                 else:
                     self.agent0.action = self.model.action(self.state)
-                self.world.step()
+                ongoing = self.agent0.alive & self.agent1.alive
+                dt = torch.where(ongoing, time_step, 0)
+                self.world.step(dt)
                 self.update()
             value += (1-p)*self.step_count*self.reward
             return state, value

@@ -6,7 +6,7 @@ from arcade.types import Color
 from collections import defaultdict
 
 from generator import DataGenerator
-from physics import Agent, Blade, action_tensor, device
+from physics import Agent, Blade, action_tensor, device, time_step
 
 SCALE = 10
 
@@ -94,7 +94,8 @@ class Game(arcade.Window):
 
     def draw_text(self):
         self.hud_camera.use()
-        text = f'Time: {self.world.time:.1f}, '
+        time = self.world.time[0].item()
+        text = f'Time: {time:.1f}, '
         text += f'FPS: {arcade.get_fps():.1f}, '
         text += f'Reward: {self.gen.reward[self.index].item():0.3f}'
         x = 0
@@ -123,7 +124,9 @@ class Game(arcade.Window):
         self.camera.position = self.agentCircles[1].position
         # self.camera.position = (0,0)
         if self.paused: return
-        self.world.step()
+        ongoing = self.gen.agent0.alive & self.gen.agent1.alive
+        dt = torch.where(ongoing, time_step, 0)
+        self.world.step(dt)
         self.gen.update()
         gen.agent1.action[self.index] = self.get_user_action()
         self.frame_counter += 1
