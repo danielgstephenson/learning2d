@@ -103,14 +103,15 @@ class World:
                 if agent.index < otherAgent.index:
                     collide_circle_circle(agent, otherAgent)
         self.time += dt
+        ongoing = torch.where(dt>0,1,0)
         for circle in self.circles:
             circle.velocity = (1 - circle.drag * dt) * circle.velocity
             circle.velocity = circle.velocity + dt / circle.mass * circle.force
-            circle.velocity = circle.velocity + circle.impulse / circle.mass
+            circle.velocity = circle.velocity + ongoing*circle.impulse / circle.mass
             speed = torch.norm(circle.velocity, dim=1, keepdim=True)
             max_velocity = max_speed*F.normalize(circle.velocity, dim=1)
             circle.velocity = torch.where(speed>max_speed,max_velocity,circle.velocity)
-            circle.position = circle.position + dt * circle.velocity + circle.shift
+            circle.position = circle.position + dt * circle.velocity + ongoing*circle.shift
 
 def collide_circle_circle(circle1: Circle, circle2: Circle):
     if circle1.index >= circle2.index: return

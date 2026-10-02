@@ -14,7 +14,6 @@ sys.stdout = open('train.log', 'w', buffering=1)
 
 checkpoint_path = './checkpoints/checkpoint.pt'
 model = ValueModel()
-batch = 0
 stage = 0
 
 epoch_size = 100_000
@@ -60,26 +59,32 @@ else:
 
 last_log_time = time.perf_counter()
 print('Training...')
-for epoch in range(100000000):
-    state_data, value_data = gen.generate(stage)
-    dataset = TensorDataset(state_data, value_data)
-    dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
-    with torch.no_grad():
-        estimate = model(state_data)
-        mse = torch.mean((estimate-value_data)**2)
-        null_estimate = value_data.mean()
-        null_mse = torch.mean((null_estimate-value_data)**2)
-        r2 = (1 - mse/null_mse).item()
-    for batch in dataloader:
-        data: tuple[Tensor,Tensor] = batch
-        state, value = data
-        opt.zero_grad()
-        estimate = model(state)
-        mse = torch.mean((estimate-value)**2)
-        mse.backward()
-        opt.step()
-    message = ''
-    message += f'epoch: {epoch+1}, '
-    message += f'R2: {r2:.03f}, '
-    print(message)
+for _ in range(100000000):
+    for epoch in range(100000000): # Eventually have a smaller number of epochs per stage
+        state_data, value_data = gen.generate(stage)
+        dataset = TensorDataset(state_data, value_data)
+        dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
+        with torch.no_grad():
+            estimate = model(state_data)
+            mse = torch.mean((estimate-value_data)**2)
+            null_estimate = value_data.mean()
+            null_mse = torch.mean((null_estimate-value_data)**2)
+            r2 = (1 - mse/null_mse).item()
+        for batch in dataloader:
+            data: tuple[Tensor,Tensor] = batch
+            state, value = data
+            opt.zero_grad()
+            estimate = model(state)
+            mse = torch.mean((estimate-value)**2)
+            mse.backward()
+            opt.step()
+        message = ''
+        message += f'stage: {stage+1}, '
+        message += f'epoch: {epoch+1}, '
+        message += f'R2: {r2:.03f}, '
+        print(message)
+        save_checkpoint()
+    stage += 1
+    gen.model.load_state_dict(model.state_dict())
+    gen.horizon += 0.1
     save_checkpoint()

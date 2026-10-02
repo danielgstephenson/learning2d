@@ -10,7 +10,7 @@ class DataGenerator:
         self.model = ValueModel()
         self.batch_size = batch_size
         self.step_count = 10
-        self.horizon = 0
+        self.horizon = 0.0
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size)
         self.agent0 = Agent(self.world, 0)
@@ -89,7 +89,10 @@ class DataGenerator:
                 dt = torch.where(ongoing, time_step, 0)
                 self.world.step(dt)
                 self.update()
-            value += (1-p)**self.step_count*self.model(self.state)
+            ongoing = self.agent0.alive & self.agent1.alive
+            estimate = self.model(self.state)
+            continuation_value = torch.where(ongoing,estimate,self.reward)
+            value += (1-p)**self.step_count*continuation_value
             return state, value
 
 def get_random_directions(count: int)->Tensor:

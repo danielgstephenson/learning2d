@@ -122,7 +122,6 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
-        # self.camera.position = (0,0)
         if self.paused: return
         ongoing = self.gen.agent0.alive & self.gen.agent1.alive
         dt = torch.where(ongoing, time_step, 0)
