@@ -2,11 +2,8 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from value import ValueModel, state_size
-from physics import Agent,Blade,World,physics_dtype,action_count,time_step,agent_radius,blade_radius
-
-unit_square = torch.tensor([[-1,-1],[1,-1],[1,1],[-1,1]]).to(physics_dtype)
-vision_reach = 400.0  # maximum raycast distance
+from value import ValueModel
+from physics import Agent,World,physics_dtype,time_step,agent_radius,blade_radius
 
 class DataGenerator:
     def __init__(self,batch_size = 1):
@@ -73,10 +70,9 @@ class DataGenerator:
         self.reward = life0 - life1
 
     def get_end_prob(self)->float:
-        if self.horizon == 0: return 0
-        return max(0, 1 - time_step/self.horizon)
+        if self.horizon == 0: return 1
+        return max(0, min(1, time_step/self.horizon))
         
-
     def generate(self,stage: int)->tuple[Tensor,Tensor]:
         p = self.get_end_prob()
         self.reset()
@@ -93,7 +89,7 @@ class DataGenerator:
                 dt = torch.where(ongoing, time_step, 0)
                 self.world.step(dt)
                 self.update()
-            value += (1-p)*self.step_count*self.reward
+            value += (1-p)**self.step_count*self.model(self.state)
             return state, value
 
 def get_random_directions(count: int)->Tensor:
@@ -103,7 +99,7 @@ def get_random_directions(count: int)->Tensor:
 
 def get_random_vectors(count: int, max_scale=1.0) ->Tensor:
     directions = get_random_directions(count)
-    scales = max_scale*torch.rand(count).unsqueeze(1)
+    scales = max_scale*torch.sqrt(torch.rand(count)).unsqueeze(1)
     return scales*directions
 
 def norm(x: Tensor)->Tensor:

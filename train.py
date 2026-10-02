@@ -1,10 +1,7 @@
 
-from ast import mod
 import sys
 from typing import Any
-import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 import os
@@ -21,7 +18,7 @@ batch = 0
 stage = 0
 
 epoch_size = 100_000
-batch_size = 5000
+batch_size = 1000
 target_discount = 1/4000
 quality_threshold = 0.95
 
@@ -67,6 +64,12 @@ for epoch in range(100000000):
     state_data, value_data = gen.generate(stage)
     dataset = TensorDataset(state_data, value_data)
     dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
+    with torch.no_grad():
+        estimate = model(state_data)
+        mse = torch.mean((estimate-value_data)**2)
+        null_estimate = value_data.mean()
+        null_mse = torch.mean((null_estimate-value_data)**2)
+        r2 = (1 - mse/null_mse).item()
     for batch in dataloader:
         data: tuple[Tensor,Tensor] = batch
         state, value = data
@@ -75,12 +78,6 @@ for epoch in range(100000000):
         mse = torch.mean((estimate-value)**2)
         mse.backward()
         opt.step()
-    with torch.no_grad():
-        estimate = model(state_data)
-        mse = torch.mean((estimate-value_data)**2)
-        null_estimate = value_data.mean()
-        null_mse = torch.mean((null_estimate-value_data)**2)
-        r2 = (1 - mse/null_mse).item()
     message = ''
     message += f'epoch: {epoch+1}, '
     message += f'R2: {r2:.03f}, '

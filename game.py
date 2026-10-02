@@ -116,7 +116,7 @@ class Game(arcade.Window):
             circle.center_x = SCALE * circle.agent.position[self.index,0].item()
             circle.center_y = SCALE * circle.agent.position[self.index,1].item()
         for circle in self.bladeCircles:
-            self.draw_line(circle.blade.position, circle.blade.agent.position, circle._color,10)
+            self.draw_line(circle.blade.position, circle.blade.agent.position, circle.color,10)
         self.sprites.draw()
         self.draw_text()
 
@@ -128,7 +128,7 @@ class Game(arcade.Window):
         dt = torch.where(ongoing, time_step, 0)
         self.world.step(dt)
         self.gen.update()
-        gen.agent1.action[self.index] = self.get_user_action()
+        self.gen.agent1.action[self.index] = self.get_user_action()
         self.frame_counter += 1
 
     def get_user_action(self):

@@ -1,6 +1,4 @@
 from __future__ import annotations
-from numpy import dtype
-from sympy import false
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -76,7 +74,6 @@ class World:
     def __init__(self, count: int):
         self.count = count
         self.device = device
-        self.dtype = dtype
         self.time = torch.zeros(self.count,1,dtype=physics_dtype)
         self.entities: list[Entity] = []
         self.circles: list[Circle] = []
@@ -138,6 +135,7 @@ def collide_circle_point(circle: Circle, point: Tensor):
     overlap = (circle.radius - distance)
     normal = F.normalize(vector)
     impact_speed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
+    impact_speed = torch.where(impact_speed > 0, impact_speed, 0)
     circle.impulse += torch.where(overlap > 0, 1.2 * impact_speed * circle.mass * normal, 0)
     circle.shift += torch.where(overlap > 0, overlap * normal, 0)
 
@@ -159,6 +157,7 @@ def collide_circle_segment(circle: Circle, segment: list[Tensor]):
     hit = (side_dot0 > 0) & (side_dot1 > 0) & (circle.radius > normal_dot)
     overlap = torch.where(hit, circle.radius - normal_dot, 0)
     impact_speed = torch.einsum('ij,ij->i',circle.velocity,-normal).unsqueeze(1)
+    impact_speed = torch.where(impact_speed > 0, impact_speed, 0)
     impulse = 1.2 * impact_speed * circle.mass * normal
     circle.impulse += torch.where(overlap > 0, impulse, 0)
     shift = overlap * normal
