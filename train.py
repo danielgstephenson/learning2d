@@ -87,7 +87,7 @@ for _ in range(100000000):
     message = ''
     message += f'stage: {stage+1}, '
     message += f'epoch: {epoch+1}, '
-    message += f'horizon: {gen.horizon}, '
+    message += f'horizon: {gen.horizon:.01f}, '
     message += f'R2: {r2:.03f}, '
     print(message)
     epoch += 1
@@ -96,5 +96,5 @@ for _ in range(100000000):
     epoch = 0
     stage += 1
     gen.model.load_state_dict(model.state_dict())
-    gen.horizon = min(10, gen.horizon + 0.1)
+    gen.horizon = min(5, gen.horizon + 0.1)
     save_checkpoint()

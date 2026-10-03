@@ -3,6 +3,7 @@
 *.pdf
 *.bin
 *.pt
+*.pt.bak
 *.onnx
 *.log
 .vscode/*
