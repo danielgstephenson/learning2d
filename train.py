@@ -25,7 +25,7 @@ gen = DataGenerator(epoch_size)
 gen.horizon = 0
 gen.model.noise = 0
 gen.step_count = 10
-opt = torch.optim.AdamW(model.parameters(),lr=1e-4)
+opt = torch.optim.AdamW(model.parameters(),lr=1e-3)
 cuda_generator = torch.Generator(device='cuda')
 
 def save_checkpoint():
@@ -56,6 +56,9 @@ if os.path.exists(checkpoint_path):
     stage = checkpoint['stage']
 else:
     save_checkpoint()
+
+for g in opt.param_groups: 
+    g['lr'] = 1e-3
 
 last_log_time = time.perf_counter()
 print('Training...')
