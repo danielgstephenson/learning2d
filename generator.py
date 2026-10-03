@@ -70,7 +70,7 @@ class DataGenerator:
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
         dist = norm(self.agent0.position-self.agent1.position)
-        self.reward = life0 - life1 - dist/1000
+        self.reward = life0 - life1 - dist/10000
 
     def get_end_prob(self)->float:
         if self.horizon == 0: return 1
