@@ -14,7 +14,6 @@ sys.stdout = open('train.log', 'w', buffering=1)
 
 checkpoint_path = './checkpoints/checkpoint.pt'
 model = ValueModel()
-stage = 0
 epoch = 0
 
 stage_size = 100
@@ -37,7 +36,6 @@ def save_checkpoint():
         'horizon': gen.horizon,
         'noise': gen.model.noise,
         'opt': opt.state_dict(),
-        'stage': stage,
         'epoch': epoch,
     }
     try:
@@ -56,18 +54,18 @@ if os.path.exists(checkpoint_path):
     gen.horizon = checkpoint['horizon']
     gen.model.noise = checkpoint['noise']
     opt.load_state_dict(checkpoint['opt'])
-    stage = checkpoint['stage']
     epoch = checkpoint['epoch']
 else:
     save_checkpoint()
 
-# for g in opt.param_groups: 
-#     g['lr'] = 1e-3
+for g in opt.param_groups: 
+    g['lr'] = 1e-3
+gen.horizon = 1
 
 last_log_time = time.perf_counter()
 print('Training...')
 for _ in range(100000000):
-    state_data, value_data = gen.generate(stage)
+    state_data, value_data = gen.generate(gen.horizon)
     dataset = TensorDataset(state_data, value_data)
     dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
     with torch.no_grad():
@@ -85,16 +83,14 @@ for _ in range(100000000):
         mse.backward()
         opt.step()
     message = ''
-    message += f'stage: {stage+1}, '
-    message += f'epoch: {epoch+1}, '
     message += f'horizon: {gen.horizon:.01f}, '
+    message += f'epoch: {epoch+1}, '
     message += f'R2: {r2:.03f}, '
     print(message)
     epoch += 1
     save_checkpoint()
     if epoch < stage_size: continue
     epoch = 0
-    stage += 1
     gen.model.load_state_dict(model.state_dict())
     gen.horizon = min(5, gen.horizon + 0.1)
     save_checkpoint()

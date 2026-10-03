@@ -24,8 +24,8 @@ class DataGenerator:
     def reset(self):
         self.world.time = torch.zeros(self.world.count,1,dtype=physics_dtype)
         n = self.batch_size
-        a0p = get_random_vectors(n, 150)
-        a1p = get_random_vectors(n, 150)
+        a0p = 100*torch.randn(n, 2)
+        a1p = 100*torch.randn(n, 2)
         b0p = a0p + get_random_vectors(n, 160)
         b1p = a1p + get_random_vectors(n, 160)
         a0v = get_random_vectors(n, 120)
@@ -67,13 +67,16 @@ class DataGenerator:
         self.agent1.alive = self.agent1.alive & (self.gap1 > 0)
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
-        self.reward = life0 - life1
+        dist = norm(self.agent0.position-self.agent1.position)
+        farDist = 100
+        far = torch.where(dist<farDist,0,dist-farDist)
+        self.reward = 0.1*life0 - life1 - far/100
 
     def get_end_prob(self)->float:
         if self.horizon == 0: return 1
         return max(0, min(1, time_step/self.horizon))
         
-    def generate(self,stage: int)->tuple[Tensor,Tensor]:
+    def generate(self,horizon: float)->tuple[Tensor,Tensor]:
         p = self.get_end_prob()
         self.reset()
         state = self.state.clone()
@@ -81,7 +84,7 @@ class DataGenerator:
         with torch.no_grad():
             for step in range(self.step_count):
                 value += p*(1-p)**step*self.reward 
-                if stage == 0:
+                if horizon == 0:
                     self.agent0.action[:] = 0
                 else:
                     self.agent0.action = self.model.action(self.state)

@@ -63,7 +63,6 @@ class Game(arcade.Window):
         self.velocity_gradient = [0, 0]
         self.bot_action = 0
         self.frame_counter = 0
-        self.state: Tensor
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
@@ -125,9 +124,10 @@ class Game(arcade.Window):
         if self.paused: return
         ongoing = self.gen.agent0.alive & self.gen.agent1.alive
         dt = torch.where(ongoing, time_step, 0)
+        self.gen.agent0.action = self.gen.model.action(self.gen.state)
+        self.gen.agent1.action[self.index] = self.get_user_action()
         self.world.step(dt)
         self.gen.update()
-        self.gen.agent1.action[self.index] = self.get_user_action()
         self.frame_counter += 1
 
     def get_user_action(self):
