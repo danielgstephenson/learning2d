@@ -6,5 +6,4 @@
 *.pt.bak
 *.onnx
 *.log
-.vscode/*
 __pycache__

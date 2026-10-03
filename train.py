@@ -16,7 +16,7 @@ checkpoint_path = './checkpoints/checkpoint.pt'
 model = ValueModel()
 epoch = 0
 
-stage_size = 100
+stage_size = 10
 epoch_size = 100_000
 batch_size = 1000
 target_discount = 1/4000
@@ -58,9 +58,9 @@ if os.path.exists(checkpoint_path):
 else:
     save_checkpoint()
 
-for g in opt.param_groups: 
-    g['lr'] = 1e-3
-gen.horizon = 1
+# for g in opt.param_groups: 
+#     g['lr'] = 1e-3
+# gen.horizon = 0.1
 
 last_log_time = time.perf_counter()
 print('Training...')
@@ -92,5 +92,5 @@ for _ in range(100000000):
     if epoch < stage_size: continue
     epoch = 0
     gen.model.load_state_dict(model.state_dict())
-    gen.horizon = min(5, gen.horizon + 0.1)
+    gen.horizon = min(10, gen.horizon + 0.1)
     save_checkpoint()

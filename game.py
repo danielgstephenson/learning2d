@@ -4,6 +4,8 @@ import arcade
 from arcade import csscolor
 from arcade.types import Color
 from collections import defaultdict
+import sys
+import os
 
 from generator import DataGenerator
 from physics import Agent, Blade, action_tensor, device, time_step
@@ -37,6 +39,7 @@ class Game(arcade.Window):
     def __init__(self, gen: DataGenerator):
         window_size = 900
         super().__init__(window_size, window_size, 'learning2d')
+        self.log = open('game.log', 'w', buffering=1)
         arcade.set_background_color((0,0,0,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
@@ -67,6 +70,8 @@ class Game(arcade.Window):
     def on_key_press(self, symbol: int, modifiers: int):
         self.pressed[symbol] = True
         if symbol == arcade.key.ENTER:
+            self.log.seek(0)
+            self.log.truncate()
             self.gen.reset()
             self.frame_counter = 0
             self.paused = True
@@ -129,6 +134,9 @@ class Game(arcade.Window):
         self.world.step(dt)
         self.gen.update()
         self.frame_counter += 1
+        if ongoing:       
+            stateList = self.gen.state[0,:].detach().tolist()
+            print(", ".join(f"{x:.2f}" for x in stateList),file=self.log)
 
     def get_user_action(self):
         dx = 0.0
@@ -147,8 +155,12 @@ class Game(arcade.Window):
             dots = torch.einsum('ij,j->i',action_tensor, vector)
             action = torch.argmax(dots).item()
         return action
-        
+
+checkpoint_path = './checkpoints/checkpoint.pt'
+checkpoint = torch.load(checkpoint_path, weights_only=False)
+
 gen = DataGenerator(batch_size=1)
+gen.model.load_state_dict(checkpoint['model'])
 gen.model.noise = 0.0
 stage = 0
 

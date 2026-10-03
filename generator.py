@@ -19,6 +19,7 @@ class DataGenerator:
         self.blade1 = self.agent1.blade
         self.state: Tensor
         self.reward: Tensor
+        self.ongoing: Tensor
         self.reset()
 
     def reset(self):
@@ -58,6 +59,7 @@ class DataGenerator:
     
     def update(self):
         self.state = self.get_state(self.agent0,self.agent1)
+        self.ongoing = self.agent0.alive & self.agent1.alive
         hit_dist = agent_radius + blade_radius
         gap_vector0 = self.agent0.position-self.blade1.position
         gap_vector1 = self.agent1.position-self.blade0.position
@@ -68,9 +70,7 @@ class DataGenerator:
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
         dist = norm(self.agent0.position-self.agent1.position)
-        farDist = 100
-        far = torch.where(dist<farDist,0,dist-farDist)
-        self.reward = 0.1*life0 - life1 - far/100
+        self.reward = life0 - life1 - dist/1000
 
     def get_end_prob(self)->float:
         if self.horizon == 0: return 1
@@ -88,13 +88,11 @@ class DataGenerator:
                     self.agent0.action[:] = 0
                 else:
                     self.agent0.action = self.model.action(self.state)
-                ongoing = self.agent0.alive & self.agent1.alive
-                dt = torch.where(ongoing, time_step, 0)
+                dt = torch.where(self.ongoing, time_step, 0)
                 self.world.step(dt)
                 self.update()
-            ongoing = self.agent0.alive & self.agent1.alive
             estimate = self.model(self.state)
-            continuation_value = torch.where(ongoing,estimate,self.reward)
+            continuation_value = torch.where(self.ongoing,estimate,self.reward)
             value += (1-p)**self.step_count*continuation_value
             return state, value
 

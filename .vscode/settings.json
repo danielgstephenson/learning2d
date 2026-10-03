@@ -1,0 +1,12 @@
+{
+  "logViewer.watch": [
+    {
+      "title": "Train",
+      "pattern": "train.log"
+    },
+    {
+      "title": "Game",
+      "pattern": "game.log"
+    }
+  ]
+}
