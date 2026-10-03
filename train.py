@@ -15,7 +15,9 @@ sys.stdout = open('train.log', 'w', buffering=1)
 checkpoint_path = './checkpoints/checkpoint.pt'
 model = ValueModel()
 stage = 0
+epoch = 0
 
+stage_size = 100
 epoch_size = 100_000
 batch_size = 1000
 target_discount = 1/4000
@@ -23,7 +25,7 @@ quality_threshold = 0.95
 
 gen = DataGenerator(epoch_size)
 gen.horizon = 0
-gen.model.noise = 0
+gen.model.noise = 0.1
 gen.step_count = 10
 opt = torch.optim.AdamW(model.parameters(),lr=1e-3)
 cuda_generator = torch.Generator(device='cuda')
@@ -36,6 +38,7 @@ def save_checkpoint():
         'noise': gen.model.noise,
         'opt': opt.state_dict(),
         'stage': stage,
+        'epoch': epoch,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -54,40 +57,44 @@ if os.path.exists(checkpoint_path):
     gen.model.noise = checkpoint['noise']
     opt.load_state_dict(checkpoint['opt'])
     stage = checkpoint['stage']
+    epoch = checkpoint['epoch']
 else:
     save_checkpoint()
 
-for g in opt.param_groups: 
-    g['lr'] = 1e-3
+# for g in opt.param_groups: 
+#     g['lr'] = 1e-3
 
 last_log_time = time.perf_counter()
 print('Training...')
 for _ in range(100000000):
-    for epoch in range(100000000): # Eventually have a smaller number of epochs per stage
-        state_data, value_data = gen.generate(stage)
-        dataset = TensorDataset(state_data, value_data)
-        dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
-        with torch.no_grad():
-            estimate = model(state_data)
-            mse = torch.mean((estimate-value_data)**2)
-            null_estimate = value_data.mean()
-            null_mse = torch.mean((null_estimate-value_data)**2)
-            r2 = (1 - mse/null_mse).item()
-        for batch in dataloader:
-            data: tuple[Tensor,Tensor] = batch
-            state, value = data
-            opt.zero_grad()
-            estimate = model(state)
-            mse = torch.mean((estimate-value)**2)
-            mse.backward()
-            opt.step()
-        message = ''
-        message += f'stage: {stage+1}, '
-        message += f'epoch: {epoch+1}, '
-        message += f'R2: {r2:.03f}, '
-        print(message)
-        save_checkpoint()
+    state_data, value_data = gen.generate(stage)
+    dataset = TensorDataset(state_data, value_data)
+    dataloader = DataLoader(dataset, batch_size, shuffle=True, generator=cuda_generator)
+    with torch.no_grad():
+        estimate = model(state_data)
+        mse = torch.mean((estimate-value_data)**2)
+        null_estimate = value_data.mean()
+        null_mse = torch.mean((null_estimate-value_data)**2)
+        r2 = (1 - mse/null_mse).item()
+    for batch in dataloader:
+        data: tuple[Tensor,Tensor] = batch
+        state, value = data
+        opt.zero_grad()
+        estimate = model(state)
+        mse = torch.mean((estimate-value)**2)
+        mse.backward()
+        opt.step()
+    message = ''
+    message += f'stage: {stage+1}, '
+    message += f'epoch: {epoch+1}, '
+    message += f'horizon: {gen.horizon}, '
+    message += f'R2: {r2:.03f}, '
+    print(message)
+    epoch += 1
+    save_checkpoint()
+    if epoch < stage_size: continue
+    epoch = 0
     stage += 1
     gen.model.load_state_dict(model.state_dict())
-    gen.horizon += 0.1
+    gen.horizon = min(10, gen.horizon + 0.1)
     save_checkpoint()
