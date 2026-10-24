@@ -59,7 +59,7 @@ else:
     save_checkpoint()
 
 # for g in opt.param_groups: 
-#     g['lr'] = 1e-3
+#     g['lr'] = 1e-4
 # gen.horizon = 0
 # epoch = 0
 

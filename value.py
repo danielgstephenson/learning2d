@@ -19,6 +19,7 @@ class ValueModel(nn.Module):
         self.output_layer = nn.Linear(width, 1)
         self.final_norm = nn.LayerNorm(width)
         self.input_scale = nn.Buffer(torch.tensor([max_speed]*8+[position_scale]*6),persistent=False)
+        self.action_tensor = nn.Buffer(action_tensor.clone(), persistent=False)
         self._gradient = vmap(grad(lambda x: self.forward(x).sum()))
         self.noise = 0.0
     def forward(self, x: Tensor) -> Tensor:
@@ -35,7 +36,7 @@ class ValueModel(nn.Module):
         return grad[:,[0,1]]
     def action_values(self,state:Tensor)->Tensor:
         vgrad = self.vgrad(state)
-        action0_values = torch.einsum('ij,kj->ik',vgrad,action_tensor)
+        action0_values = torch.einsum('ij,kj->ik',vgrad,self.action_tensor)
         return action0_values
     def action(self,state:Tensor)->Tensor:
         action_values = self.action_values(state)
