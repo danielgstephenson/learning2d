@@ -20,7 +20,7 @@ class ValueModel(nn.Module):
         self.final_norm = nn.LayerNorm(width)
         self.input_scale = nn.Buffer(torch.tensor([max_speed]*8+[position_scale]*6),persistent=False)
         self.action_tensor = nn.Buffer(action_tensor.clone(), persistent=False)
-        self._gradient = vmap(grad(lambda x: self.forward(x).sum()))
+        self._gradient = grad(lambda x: self.forward(x).sum())
         self.noise = 0.0
     def forward(self, x: Tensor) -> Tensor:
         x = self.projection(x / self.input_scale)
