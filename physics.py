@@ -1,7 +1,7 @@
 from __future__ import annotations
 import torch
 import torch.nn.functional as F
-from torch import Tensor
+from torch import Tensor, tensor
 from math import cos, pi, sin
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -16,6 +16,7 @@ move_power = 50
 spring_power = 2
 agent_radius = 15
 blade_radius = 25
+vision_range = 200
 
 class Entity:
     def __init__(self, world: World):
@@ -54,6 +55,18 @@ class Blade(Circle):
         self.agent = agent
         self.drag = 0.1
 
+class Boundary:
+    def __init__(self, world: World):
+        self.world = world
+        self.wall_starts: Tensor  # (world.count, num_walls, 2)
+        self.wall_ends: Tensor    # (world.count, num_walls, 2)
+        self.num_walls: int = 0
+        world.boundaries.append(self)
+    def setup(self, corners: Tensor):
+        self.num_walls = corners.shape[-2]
+        self.wall_starts = corners                        # (world.count, 4, 2)
+        self.wall_ends = torch.roll(corners, -1, dims=1)  # (world.count, 4, 2)
+
 action_vector_list = [[0.0,0.0]]
 for i in range(8):
     angle = 2 * pi * i / 8
@@ -68,7 +81,7 @@ for i in range(8):
     angle = 2 * pi * i / 8
     vision_dir = [cos(angle), sin(angle)]
     vision_dir_list.append(vision_dir)
-vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list])
+vision_dirs = torch.stack([torch.tensor(vd) for vd in vision_dir_list]).to(physics_dtype)
 
 class World:
     def __init__(self, count: int):
@@ -79,6 +92,7 @@ class World:
         self.circles: list[Circle] = []
         self.agents: list[Agent] = []
         self.blades: list[Blade] = []
+        self.boundaries: list[Boundary] = []
 
     def step(self,dt: Tensor):
         for agent in self.agents:
@@ -102,6 +116,10 @@ class World:
             for otherAgent in self.agents:
                 if agent.index < otherAgent.index:
                     collide_circle_circle(agent, otherAgent)
+        for circle in self.circles:
+            for boundary in self.boundaries:
+                if boundary.num_walls > 0:
+                    collide_circle_boundary(circle, boundary)
         self.time += dt
         ongoing = torch.where(dt>0,1,0)
         for circle in self.circles:
@@ -130,39 +148,27 @@ def collide_circle_circle(circle1: Circle, circle2: Circle):
     circle1.shift = circle1.shift - shift
     circle2.shift = circle2.shift + shift
 
-def collide_circle_point(circle: Circle, point: Tensor):
-    vector = torch.sub(circle.position, point)
-    distance = torch.sqrt(torch.sum(vector ** 2, dim=1)).unsqueeze(1)
-    overlap = (circle.radius - distance)
-    normal = F.normalize(vector)
-    impact_speed = -torch.einsum('ij,ij->i',circle.velocity, normal).unsqueeze(1)
+def collide_circle_boundary(circle: Circle, boundary: Boundary):
+    position = circle.position.unsqueeze(1)
+    segment_vector = boundary.wall_ends - boundary.wall_starts
+    relative_position = position - boundary.wall_starts
+    squared_segment_length = torch.sum(segment_vector**2, dim=-1, keepdim=True)
+    segment_factor = torch.sum(relative_position * segment_vector, dim=-1, keepdim=True) / (squared_segment_length + 1e-9)
+    segment_factor = torch.clamp(segment_factor, 0.0, 1.0)
+    closest_point = boundary.wall_starts + segment_factor * segment_vector
+    vector_to_circle = position - closest_point
+    squared_distance = torch.sum(vector_to_circle**2, dim=-1, keepdim=True)
+    distance = torch.sqrt(squared_distance + 1e-9)
+    overlap = circle.radius - distance
+    hit_mask = overlap > 0
+    normal = vector_to_circle / distance
+    velocity = circle.velocity.unsqueeze(1)
+    impact_speed = -torch.sum(velocity * normal, dim=-1, keepdim=True)
     impact_speed = torch.where(impact_speed > 0, impact_speed, 0)
-    circle.impulse += torch.where(overlap > 0, 1.2 * impact_speed * circle.mass * normal, 0)
-    circle.shift += torch.where(overlap > 0, overlap * normal, 0)
-
-def collide_circle_segment(circle: Circle, segment: list[Tensor]):
-    a = segment[0]
-    b = segment[1]
-    c = circle.position
-    ab = b-a
-    ac = c-a
-    bc = c-b
-    side_dot0 = torch.einsum('ij,ij->i',ac,+ab).unsqueeze(1)
-    side_dot1 = torch.einsum('ij,ij->i',bc,-ab).unsqueeze(1)
-    segment_dir = F.normalize(ab,dim=1)
-    normal0 = torch.stack((-segment_dir[:,1],+segment_dir[:,0]),dim=1)
-    normal1 = -normal0
-    normal_dot0 = torch.einsum('ij,ij->i',ac,normal0).unsqueeze(1)
-    normal = torch.where(normal_dot0 > 0, normal0, normal1)
-    normal_dot = torch.abs(normal_dot0)
-    hit = (side_dot0 > 0) & (side_dot1 > 0) & (circle.radius > normal_dot)
-    overlap = torch.where(hit, circle.radius - normal_dot, 0)
-    impact_speed = torch.einsum('ij,ij->i',circle.velocity,-normal).unsqueeze(1)
-    impact_speed = torch.where(impact_speed > 0, impact_speed, 0)
-    impulse = 1.2 * impact_speed * circle.mass * normal
-    circle.impulse += torch.where(overlap > 0, impulse, 0)
-    shift = overlap * normal
-    circle.shift += shift
+    impulse = torch.where(hit_mask, impact_speed * circle.mass * normal, 0.0)
+    shift = torch.where(hit_mask, overlap * normal, 0.0)
+    circle.impulse += torch.sum(impulse, dim=1)
+    circle.shift += torch.sum(shift, dim=1)
 
 def cross2d(v0: Tensor, v1: Tensor)->Tensor:
     return v0[..., 0] * v1[..., 1] - v0[..., 1] * v1[..., 0]
@@ -176,3 +182,18 @@ def raycast_segment(ray_start: Tensor, ray_vector: Tensor, segment_start: Tensor
     hit = (denominator != 0) & (ray_factor >= 0) & (segment_factor >= 0) & (segment_factor <= 1)
     inf_tensor = torch.full_like(ray_factor, float('inf'))
     return torch.where(hit, ray_factor, inf_tensor)
+
+def vision_cast(circle: Circle)->Tensor:
+    min_walls = min([b.num_walls for b in circle.world.boundaries],default=0)
+    if min_walls == 0: return torch.ones(circle.world.count,8)
+    wall_starts = torch.cat([b.wall_starts for b in circle.world.boundaries],dim=1)
+    wall_ends = torch.cat([b.wall_ends for b in circle.world.boundaries],dim=1)
+    ray_factors = raycast_segment(
+        circle.position[:, None, None, :],   # (N, 1, 1, 2)
+        (vision_range * vision_dirs)[None, :, None, :],   # (1, 8, 1, 2)
+        wall_starts[:, None, :, :],          # (N, 1, W, 2)
+        wall_ends[:, None, :, :],
+    )               
+    min_ray_factors = torch.amin(ray_factors, dim=-1)
+    clamp_ray_factors = torch.clamp(min_ray_factors, min=0.0, max=1.0)
+    return clamp_ray_factors
