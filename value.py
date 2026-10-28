@@ -4,7 +4,7 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 from physics import action_tensor, action_count, max_speed
 
-state_size = 14
+state_size = 24
 position_scale = 100.0
 
 class ValueModel(nn.Module):

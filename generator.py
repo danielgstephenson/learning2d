@@ -1,9 +1,9 @@
 import torch
-from torch import Tensor
+from torch import Tensor, tensor
 import torch.nn.functional as F
 
 from value import ValueModel
-from physics import Agent,World,physics_dtype,time_step,agent_radius,blade_radius
+from physics import Agent, Boundary,World,physics_dtype,time_step,agent_radius,blade_radius
 
 class DataGenerator:
     def __init__(self,batch_size = 1):
@@ -17,18 +17,39 @@ class DataGenerator:
         self.blade0 = self.agent0.blade
         self.agent1 = Agent(self.world, 1)
         self.blade1 = self.agent1.blade
+        self.boundary = Boundary(self.world)
+        self.radius: Tensor
+        self.rotation: Tensor
         self.state: Tensor
         self.reward: Tensor
         self.ongoing: Tensor
         self.reset()
 
+    def reset_boundary(self):
+        n = self.batch_size
+        unit_corners = torch.tensor([[-1,1],[1,1],[1,-1],[-1,-1]])
+        self.radius = torch.abs(500*torch.randn(n,1)) + 3 * blade_radius
+        angle = torch.pi * torch.rand(n)
+        C, S = torch.cos(angle), torch.sin(angle)
+        self.rotation = torch.stack([torch.stack([C,-S],dim=-1), torch.stack([S, C], dim=-1)], dim=-2)
+        corners = (unit_corners * self.radius[:,None]).to(physics_dtype)
+        corners = torch.einsum('nij,nkj->nki', self.rotation, corners)
+        self.boundary.setup(corners)
+
     def reset(self):
         self.world.time = torch.zeros(self.world.count,1,dtype=physics_dtype)
+        self.reset_boundary()
         n = self.batch_size
-        a0p = 100*torch.randn(n, 2)
-        a1p = 100*torch.randn(n, 2)
-        b0p = a0p + get_random_vectors(n, 160)
-        b1p = a1p + get_random_vectors(n, 160)
+        A = self.radius - agent_radius
+        B = self.radius - blade_radius
+        a0p = 2*A*torch.rand(n, 2) - A
+        a1p = 2*A*torch.rand(n, 2) - A
+        b0p = (a0p + get_random_vectors(n, 160)).clamp(-B,B)
+        b1p = (a1p + get_random_vectors(n, 160)).clamp(-B,B)
+        a0p = torch.einsum('nij,nj->ni', self.rotation, a0p)
+        a1p = torch.einsum('nij,nj->ni', self.rotation, a1p)
+        b0p = torch.einsum('nij,nj->ni', self.rotation, b0p)
+        b1p = torch.einsum('nij,nj->ni', self.rotation, b1p)
         a0v = get_random_vectors(n, 120)
         a1v = get_random_vectors(n, 120)
         b0v = get_random_vectors(n, 200)
