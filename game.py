@@ -8,7 +8,7 @@ import sys
 import os
 
 from generator import DataGenerator
-from physics import Agent, Blade, action_tensor, device, time_step
+from physics import Agent, Blade, action_tensor, device, time_step, agent_radius
 
 SCALE = 10
 
@@ -40,7 +40,7 @@ class Game(arcade.Window):
         window_size = 900
         super().__init__(window_size, window_size, 'learning2d')
         self.log = open('game.log', 'w', buffering=1)
-        arcade.set_background_color((0,0,0,255))
+        arcade.set_background_color((30,30,30,255))
         self.camera = arcade.Camera2D()
         self.camera.zoom = 0.1
         self.hud_camera = arcade.Camera2D()
@@ -112,7 +112,11 @@ class Game(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        arcade.draw_circle_outline(0, 0, SCALE*50, arcade.color.GRAY,SCALE*1)
+        for boundary in self.world.boundaries:
+            corners = boundary.wall_starts[self.index].tolist()
+            points = [(SCALE * x, SCALE * y) for x, y in corners]
+            arcade.draw_polygon_filled(points, (0, 0, 0))
+        arcade.draw_circle_outline(0,0,SCALE*50,arcade.color.GRAY,SCALE*1)
         for circle in self.bladeCircles:
             circle.center_x = SCALE * circle.blade.position[self.index,0].item()
             circle.center_y = SCALE * circle.blade.position[self.index,1].item()
@@ -127,15 +131,17 @@ class Game(arcade.Window):
     def on_update(self, delta_time: float) -> bool | None:
         self.camera.position = self.agentCircles[1].position
         if self.paused: return
-        ongoing = self.gen.agent0.alive & self.gen.agent1.alive
-        dt = torch.where(ongoing, time_step, 0)
-        self.gen.agent0.action = self.gen.model.action(self.gen.state)
+        ongoing = self.gen.ongoing[self.index]
+        dt = torch.where(self.gen.ongoing, time_step, 0)
+        state = self.gen.state.clone()
+        state[:,8:10] = -self.gen.agent0.position
+        self.gen.agent0.action = self.gen.model.action(state)
         self.gen.agent1.action[self.index] = self.get_user_action()
         self.world.step(dt)
         self.gen.update()
         self.frame_counter += 1
         if ongoing:       
-            stateList = self.gen.state[0,:].detach().tolist()
+            stateList = self.gen.state[self.index,:].detach().tolist()
             print(", ".join(f"{x:.2f}" for x in stateList),file=self.log)
 
     def get_user_action(self):
@@ -156,10 +162,10 @@ class Game(arcade.Window):
             action = torch.argmax(dots).item()
         return action
 
-checkpoint_path = './checkpoints/checkpoint.pt'
-checkpoint = torch.load(checkpoint_path, weights_only=False)
 
 gen = DataGenerator(batch_size=1)
+checkpoint_path = './checkpoints/checkpoint.pt'
+checkpoint = torch.load(checkpoint_path, weights_only=False)
 gen.model.load_state_dict(checkpoint['model'])
 gen.model.noise = 0.0
 stage = 0

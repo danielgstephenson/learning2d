@@ -1,9 +1,9 @@
 import torch
-from torch import Tensor, tensor
+from torch import Tensor
 import torch.nn.functional as F
 
 from value import ValueModel
-from physics import Agent, Boundary,World,physics_dtype,time_step,agent_radius,blade_radius
+from physics import Agent, Boundary,World,physics_dtype,time_step,agent_radius,blade_radius, vision_cast
 
 class DataGenerator:
     def __init__(self,batch_size = 1):
@@ -11,6 +11,10 @@ class DataGenerator:
         self.batch_size = batch_size
         self.step_count = 10
         self.horizon = 0.0
+        self.survive_weight = 1
+        self.attack_weight = 0
+        self.dist_weight = 0
+        self.velocity_weight = 1e-4
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size)
         self.agent0 = Agent(self.world, 0)
@@ -23,12 +27,13 @@ class DataGenerator:
         self.state: Tensor
         self.reward: Tensor
         self.ongoing: Tensor
+        self.target_velocity: Tensor
         self.reset()
 
     def reset_boundary(self):
         n = self.batch_size
         unit_corners = torch.tensor([[-1,1],[1,1],[1,-1],[-1,-1]])
-        self.radius = torch.abs(500*torch.randn(n,1)) + 3 * blade_radius
+        self.radius = torch.abs(200*torch.randn(n,1)) + 100
         angle = torch.pi * torch.rand(n)
         C, S = torch.cos(angle), torch.sin(angle)
         self.rotation = torch.stack([torch.stack([C,-S],dim=-1), torch.stack([S, C], dim=-1)], dim=-2)
@@ -50,6 +55,7 @@ class DataGenerator:
         a1p = torch.einsum('nij,nj->ni', self.rotation, a1p)
         b0p = torch.einsum('nij,nj->ni', self.rotation, b0p)
         b1p = torch.einsum('nij,nj->ni', self.rotation, b1p)
+        self.target_velocity = get_random_vectors(n, 120)
         a0v = get_random_vectors(n, 120)
         a1v = get_random_vectors(n, 120)
         b0v = get_random_vectors(n, 200)
@@ -72,15 +78,17 @@ class DataGenerator:
             agent1.velocity,
             agent0.blade.velocity,
             agent1.blade.velocity,
+            self.target_velocity,
             agent0.blade.position-agent0.position,
             agent1.blade.position-agent0.position,
-            agent1.position-agent0.position
+            agent1.position-agent0.position,
+            vision_cast(agent0)
         ]
         return torch.cat(tensors,dim=1)
     
     def update(self):
         self.state = self.get_state(self.agent0,self.agent1)
-        self.ongoing = self.agent0.alive & self.agent1.alive
+        self.ongoing = self.agent0.alive # & self.agent1.alive
         hit_dist = agent_radius + blade_radius
         gap_vector0 = self.agent0.position-self.blade1.position
         gap_vector1 = self.agent1.position-self.blade0.position
@@ -91,7 +99,13 @@ class DataGenerator:
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
         dist = norm(self.agent0.position-self.agent1.position)
-        self.reward = life0 - life1 - dist/10000
+        velocity_error = norm(self.agent0.velocity-self.target_velocity)
+        self.reward = \
+            self.survive_weight*life0 \
+            - self.attack_weight*life1 \
+            - self.dist_weight*dist \
+            - self.velocity_weight*velocity_error
+
 
     def get_end_prob(self)->float:
         if self.horizon == 0: return 1
