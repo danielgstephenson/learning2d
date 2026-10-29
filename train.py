@@ -21,9 +21,7 @@ batch_size = 1000
 
 gen = DataGenerator(epoch_size)
 gen.horizon = 0
-gen.model.noise = 0.1
-gen.step_count = 10
-opt = torch.optim.AdamW(model.parameters(),lr=1e-3)
+opt = torch.optim.AdamW(model.parameters(),lr=1e-4)
 cuda_generator = torch.Generator(device='cuda')
 
 def save_checkpoint():
@@ -34,10 +32,10 @@ def save_checkpoint():
         'noise': gen.model.noise,
         'opt': opt.state_dict(),
         'epoch': epoch,
+        'safe_dist': gen.safe_dist,
         'survive_weight': gen.survive_weight,
         'attack_weight': gen.attack_weight,
-        'dist_weight': gen.dist_weight,
-        'velocity_weight': gen.velocity_weight,
+        'near_weight': gen.near_weight,
     }
     try:
         torch.save(checkpoint, checkpoint_path)

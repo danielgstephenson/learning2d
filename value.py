@@ -4,7 +4,7 @@ from torch.func import vmap, grad
 import torch.nn.functional as F
 from physics import action_tensor, action_count, max_speed
 
-state_size = 24
+state_size = 22
 position_scale = 100.0
 
 class ValueModel(nn.Module):
@@ -18,7 +18,7 @@ class ValueModel(nn.Module):
         self.hidden_layers = nn.ModuleList([nn.Linear(width, width) for _ in range(layer_count)])
         self.output_layer = nn.Linear(width, 1)
         self.final_norm = nn.LayerNorm(width)
-        self.input_scale = nn.Buffer(torch.tensor([max_speed]*10+[position_scale]*6+[1.0]*8),persistent=False)
+        self.input_scale = nn.Buffer(torch.tensor([max_speed]*8+[position_scale]*6+[1.0]*8),persistent=False)
         self.action_tensor = nn.Buffer(action_tensor.clone(), persistent=False)
         self._gradient = grad(lambda x: self.forward(x).sum())
         self.noise = 0.0
