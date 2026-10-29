@@ -5,7 +5,6 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 import os
-import time
 
 from generator import DataGenerator
 from value import ValueModel
@@ -19,8 +18,6 @@ epoch = 0
 epoch_count = 10
 epoch_size = 100_000
 batch_size = 1000
-target_discount = 1/4000
-quality_threshold = 0.95
 
 gen = DataGenerator(epoch_size)
 gen.horizon = 0
@@ -37,6 +34,10 @@ def save_checkpoint():
         'noise': gen.model.noise,
         'opt': opt.state_dict(),
         'epoch': epoch,
+        'survive_weight': gen.survive_weight,
+        'attack_weight': gen.attack_weight,
+        'dist_weight': gen.dist_weight,
+        'velocity_weight': gen.velocity_weight,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -63,7 +64,6 @@ else:
 # gen.horizon = 0
 # epoch = 0
 
-last_log_time = time.perf_counter()
 print('Training...')
 for _ in range(100000000):
     state_data, value_data = gen.generate(gen.horizon)

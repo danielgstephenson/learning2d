@@ -80,6 +80,7 @@ class Game(arcade.Window):
         self.pressed[symbol] = False
         if symbol == arcade.key.SPACE:
             self.paused = not self.paused
+            print(f'paused = {self.paused}')
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: float, scroll_y: float):
        self.camera.zoom *= 1 + 0.1*scroll_y
@@ -133,11 +134,12 @@ class Game(arcade.Window):
         if self.paused: return
         ongoing = self.gen.ongoing[self.index]
         dt = torch.where(self.gen.ongoing, time_step, 0)
-        state = self.gen.state.clone()
-        state[:,8:10] = -self.gen.agent0.position
-        self.gen.agent0.action = self.gen.model.action(state)
+        self.gen.agent0.action = self.gen.model.action(self.gen.state)
         self.gen.agent1.action[self.index] = self.get_user_action()
         self.world.step(dt)
+        position = self.gen.agent0.position    
+        dist = position.norm(dim=1, keepdim=True).clamp(min=1e-6)
+        self.gen.target_velocity = -position * (100 / dist).clamp(max=1.0)  
         self.gen.update()
         self.frame_counter += 1
         if ongoing:       
