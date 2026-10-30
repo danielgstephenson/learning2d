@@ -134,7 +134,8 @@ class Game(arcade.Window):
         ongoing = self.gen.ongoing[self.index]
         dt = torch.where(self.gen.ongoing, time_step, 0)
         self.gen.agent0.action = self.gen.model.action(self.gen.state)
-        self.gen.agent1.action[self.index] = self.get_user_action()
+        self.gen.agent1.action = self.gen.opponent_model.action(self.gen.opponent_state)
+        # self.gen.agent1.action[self.index] = self.get_user_action()
         self.world.step(dt)
         self.gen.update()
         self.frame_counter += 1
@@ -163,11 +164,16 @@ class Game(arcade.Window):
 
 
 gen = DataGenerator(batch_size=1)
+
 checkpoint_path = './checkpoints/checkpoint.pt'
 checkpoint = torch.load(checkpoint_path, weights_only=False)
 gen.model.load_state_dict(checkpoint['model'])
 gen.model.noise = 0.0
-stage = 0
+
+opponent_path = './checkpoints/attack.pt'
+opponent_checkpoint = torch.load(opponent_path, weights_only=False)
+gen.opponent_model.load_state_dict(checkpoint['model'])
+gen.opponent_model.noise = 0.0
 
 game = Game(gen)
 arcade.enable_timings()
