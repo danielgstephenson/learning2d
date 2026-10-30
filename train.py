@@ -12,6 +12,8 @@ from value import ValueModel
 sys.stdout = open('train.log', 'w', buffering=1)
 
 checkpoint_path = './checkpoints/checkpoint.pt'
+opponent_path = './checkpoints/attack.pt'
+
 model = ValueModel()
 epoch = 0
 
@@ -46,16 +48,23 @@ def save_checkpoint():
         raise
 
 if os.path.exists(checkpoint_path):
-    print(f'Loading Checkpoint from {checkpoint_path}...')
+    print(f'Loading checkpoint from {checkpoint_path}...')
     checkpoint = torch.load(checkpoint_path, weights_only=False)
     model.load_state_dict(checkpoint['model'])
     gen.model.load_state_dict(checkpoint['gen_model'])
     gen.horizon = checkpoint['horizon']
-    gen.model.noise = checkpoint['noise']
     opt.load_state_dict(checkpoint['opt'])
     epoch = checkpoint['epoch']
 else:
     save_checkpoint()
+
+if os.path.exists(opponent_path):
+    print(f'Loading opponent checkpoint from {opponent_path}...')
+    checkpoint = torch.load(opponent_path, weights_only=False)
+    gen.opponent_model.load_state_dict(checkpoint['gen_model'])
+else:
+    raise ValueError(f'No checkpoint exists at {opponent_path}')
+
 
 # for g in opt.param_groups: 
 #     g['lr'] = 1e-4

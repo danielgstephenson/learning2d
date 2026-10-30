@@ -9,7 +9,9 @@ class DataGenerator:
     def __init__(self,batch_size = 1):
         self.batch_size = batch_size
         self.model = ValueModel()
+        self.opponent_model = ValueModel()
         self.model.noise = 0.1
+        self.opponent_model.noise = 0.1
         self.step_count = 20
         self.horizon = 0.0
         self.survive_weight = 1
@@ -26,6 +28,7 @@ class DataGenerator:
         self.radius: Tensor
         self.rotation: Tensor
         self.state: Tensor
+        self.opponent_state: Tensor
         self.reward: Tensor
         self.ongoing: Tensor
         self.reset()
@@ -86,6 +89,7 @@ class DataGenerator:
     
     def update(self):
         self.state = self.get_state(self.agent0,self.agent1)
+        self.opponent_state = self.get_state(self.agent1,self.agent0)
         self.ongoing = self.agent0.alive & self.agent1.alive
         hit_dist = agent_radius + blade_radius
         gap_vector0 = self.agent0.position-self.blade1.position
@@ -97,8 +101,7 @@ class DataGenerator:
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
         dist = norm(self.agent0.position - self.agent1.position)
-        near = 1 - dist/self.safe_dist
-        self.agent1.action = torch.randint_like(self.agent1.action, 0, action_count)
+        near = 1 - life1*dist/self.safe_dist
         self.reward = \
             self.survive_weight*life0 \
             - self.attack_weight*life1 \
@@ -118,8 +121,10 @@ class DataGenerator:
                 value += p*(1-p)**step*self.reward 
                 if horizon == 0:
                     self.agent0.action[:] = 0
+                    self.agent1.action[:] = 0
                 else:
                     self.agent0.action = self.model.action(self.state)
+                    self.agent1.action = self.opponent_model.action(self.opponent_state)
                 dt = torch.where(self.ongoing, time_step, 0)
                 self.world.step(dt)
                 self.update()
