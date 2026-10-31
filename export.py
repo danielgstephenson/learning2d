@@ -8,7 +8,10 @@ from value import ValueModel, state_size
 torch.set_default_device('cpu')
 model = ValueModel().cpu().eval()
 
-checkpoint_path = './checkpoints/attack.pt'
+goal = 'evade'
+checkpoint_path = f'./checkpoints/{goal}.pt'
+onnx_path = f'./onnx/{goal}.onnx'
+
 if os.path.exists(checkpoint_path):
     print(f'Loading Checkpoint from {checkpoint_path}...')
     checkpoint = torch.load(checkpoint_path, weights_only=False)
@@ -30,7 +33,6 @@ onnx_program = torch.onnx.export(
 if onnx_program is None:
     raise RuntimeError('torch.onnx.export returned None (dynamo export did not run)')
 
-onnx_path = './onnx/attack.onnx'
 onnx_program.save(onnx_path)
 print(f'Saved: {os.path.getsize(onnx_path)/1e6:.3f} MB')
 

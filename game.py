@@ -134,8 +134,8 @@ class Game(arcade.Window):
         ongoing = self.gen.ongoing[self.index]
         dt = torch.where(self.gen.ongoing, time_step, 0)
         self.gen.agent0.action = self.gen.model.action(self.gen.state)
-        self.gen.agent1.action = self.gen.opponent_model.action(self.gen.opponent_state)
-        # self.gen.agent1.action[self.index] = self.get_user_action()
+        # self.gen.agent1.action = self.gen.opponent_model.action(self.gen.opponent_state)
+        self.gen.agent1.action[self.index] = self.get_user_action()
         self.world.step(dt)
         self.gen.update()
         self.frame_counter += 1

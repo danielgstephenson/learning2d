@@ -17,7 +17,7 @@ class DataGenerator:
         self.survive_weight = 1
         self.attack_weight = -0.5
         self.near_weight = 0
-        self.margin_weight = 0.25
+        self.margin_weight = 0.1
         self.safe_dist = 200
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size)

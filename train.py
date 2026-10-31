@@ -68,8 +68,8 @@ else:
 
 # for g in opt.param_groups: 
 #     g['lr'] = 1e-4
-gen.horizon = 0
-epoch = 0
+# gen.horizon = 0
+# epoch = 0
 
 print('Training...')
 for _ in range(100000000):
