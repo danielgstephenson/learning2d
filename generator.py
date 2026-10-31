@@ -3,7 +3,7 @@ from torch import Tensor
 import torch.nn.functional as F
 
 from value import ValueModel
-from physics import Agent, Boundary,World,physics_dtype,time_step,agent_radius,blade_radius,action_count,vision_cast
+from physics import Agent, Boundary,World,physics_dtype,time_step,agent_radius,blade_radius,vision_cast
 
 class DataGenerator:
     def __init__(self,batch_size = 1):
@@ -15,8 +15,9 @@ class DataGenerator:
         self.step_count = 20
         self.horizon = 0.0
         self.survive_weight = 1
-        self.attack_weight = 0
+        self.attack_weight = -0.5
         self.near_weight = 0
+        self.margin_weight = 0.25
         self.safe_dist = 200
         self.sample_idxs = torch.arange(self.batch_size)
         self.world = World(self.batch_size)
@@ -101,11 +102,13 @@ class DataGenerator:
         life0 = self.agent0.alive.float()
         life1 = self.agent1.alive.float()
         dist = norm(self.agent0.position - self.agent1.position)
-        near = 1 - life1*dist/self.safe_dist
+        near = life0 - life1*dist/self.safe_dist
+        margin = torch.amin(self.state[:,14:],dim=1,keepdim=True)
         self.reward = \
             self.survive_weight*life0 \
             - self.attack_weight*life1 \
-            + self.near_weight*near
+            + self.near_weight*near \
+            + self.margin_weight*margin
 
     def get_end_prob(self)->float:
         if self.horizon == 0: return 1

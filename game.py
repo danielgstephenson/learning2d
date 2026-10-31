@@ -172,7 +172,7 @@ gen.model.noise = 0.0
 
 opponent_path = './checkpoints/attack.pt'
 opponent_checkpoint = torch.load(opponent_path, weights_only=False)
-gen.opponent_model.load_state_dict(checkpoint['model'])
+gen.opponent_model.load_state_dict(opponent_checkpoint['model'])
 gen.opponent_model.noise = 0.0
 
 game = Game(gen)

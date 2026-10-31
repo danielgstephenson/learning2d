@@ -31,13 +31,13 @@ def save_checkpoint():
         'model': model.state_dict(),
         'gen_model': gen.model.state_dict(),
         'horizon': gen.horizon,
-        'noise': gen.model.noise,
         'opt': opt.state_dict(),
         'epoch': epoch,
         'safe_dist': gen.safe_dist,
         'survive_weight': gen.survive_weight,
         'attack_weight': gen.attack_weight,
         'near_weight': gen.near_weight,
+        'margin_weight': gen.margin_weight,
     }
     try:
         torch.save(checkpoint, checkpoint_path)
@@ -68,8 +68,8 @@ else:
 
 # for g in opt.param_groups: 
 #     g['lr'] = 1e-4
-# gen.horizon = 0
-# epoch = 0
+gen.horizon = 0
+epoch = 0
 
 print('Training...')
 for _ in range(100000000):
