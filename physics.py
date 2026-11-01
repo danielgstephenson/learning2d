@@ -11,11 +11,13 @@ torch.set_default_device(device)
 torch.set_printoptions(sci_mode=False, precision=4)
 
 time_step = 0.02
-max_speed = 200
-move_power = 50
-spring_power = 2
 agent_radius = 15
 blade_radius = 25
+agent_drag = 2.0
+blade_drag = 0.4
+spring_power = 4
+move_power = 150
+max_speed = 200
 vision_range = 200
 
 class Entity:
@@ -43,7 +45,7 @@ class Agent(Circle):
         self.alive = torch.ones(world.count, 1).bool()
         self.world.agents.append(self)
         self.align = align
-        self.drag = 0.4
+        self.drag = agent_drag
         self.action = torch.zeros(world.count,1).int()
         self.blade = Blade(self.world, self)
 
@@ -53,7 +55,7 @@ class Blade(Circle):
         self.world.blades.append(self)
         self.position = agent.position.detach().clone()
         self.agent = agent
-        self.drag = 0.1
+        self.drag = blade_drag
 
 class Boundary:
     def __init__(self, world: World):
